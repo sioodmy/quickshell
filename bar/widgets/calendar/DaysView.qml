@@ -25,7 +25,7 @@ Item {
             columns: 7
             spacing: 8
             Repeater {
-                model: ["S", "M", "T", "W", "T", "F", "S"]
+                model: ["M", "T", "W", "T", "F", "S", "S"]
                 Item {
                     width: 46
                     height: 24

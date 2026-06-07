@@ -19,7 +19,7 @@ Item {
 
     property int activeCellIndex: {
         if (displayMonth === selectedMonth && displayYear === selectedYear) {
-            let firstDay = new Date(displayYear, displayMonth, 1).getDay();
+            let firstDay = (new Date(displayYear, displayMonth, 1).getDay() + 6) % 7;
             return firstDay + selectedDay - 1;
         }
         return -1;
@@ -112,7 +112,7 @@ Item {
     // Core Logic Functions
     function generateCalendar() {
         calendarModel.clear();
-        let firstDay = new Date(displayYear, displayMonth, 1).getDay();
+        let firstDay = (new Date(displayYear, displayMonth, 1).getDay() + 6) % 7;
         let daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
         let daysInPrevMonth = new Date(displayYear, displayMonth, 0).getDate();
 
