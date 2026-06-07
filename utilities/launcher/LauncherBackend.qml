@@ -12,15 +12,13 @@ Item {
     property string searchText: ""
 
     // CHANGE THIS TO YOUR ACTUAL TERMINAL
-    property string myTerminal: "kitty"
+    property string myTerminal: "foot"
 
     function launchApp(desktopEntry) {
         var finalCommand = [];
 
         // Wrap the launch in UWSM so systemd tracks the app properly
-        finalCommand.push("uwsm");
-        finalCommand.push("app");
-        finalCommand.push("--");
+        finalCommand.push("run-as-service");
 
         if (desktopEntry.runInTerminal) {
             finalCommand.push(myTerminal);
