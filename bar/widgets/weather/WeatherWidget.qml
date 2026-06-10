@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import QtQuick.Layouts
 
 import qs.theme
 
@@ -11,14 +10,14 @@ PanelWindow {
     property var weatherData: null
 
     implicitWidth: 320
-    implicitHeight: 220
+    implicitHeight: 260
     color: "transparent"
 
     anchors {
         top: true
         right: true
     }
-    
+
     margins {
         top: 70
         right: 16
@@ -37,113 +36,105 @@ PanelWindow {
         border.color: Theme.outline_variant
         border.width: 1
 
-        ColumnLayout {
+        Column {
             anchors.fill: parent
             anchors.margins: 24
-            spacing: 12
+            spacing: 16
 
+            // --- Location ---
             Text {
                 text: root.weatherData ? root.weatherData.location : "Loading..."
                 color: Theme.on_surface
                 font.family: "Google Sans"
-                font.pixelSize: 18
+                font.pixelSize: 16
                 font.weight: Font.Bold
-                Layout.alignment: Qt.AlignHCenter
+                anchors.horizontalCenter: parent.horizontalCenter
             }
 
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
+            // --- Main weather display ---
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 16
 
                 Text {
                     text: root.weatherData ? root.weatherData.emoji : ""
-                    font.pixelSize: 48
+                    font.pixelSize: 44
+                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                ColumnLayout {
-                    spacing: 4
+                Column {
+                    spacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+
                     Text {
                         text: root.weatherData ? root.weatherData.temp : ""
                         color: Theme.on_surface
                         font.family: "Google Sans"
-                        font.pixelSize: 32
+                        font.pixelSize: 28
                         font.weight: Font.Bold
                     }
                     Text {
                         text: root.weatherData ? root.weatherData.condition : ""
                         color: Theme.on_surface_variant
                         font.family: "Google Sans"
-                        font.pixelSize: 14
-                        Layout.maximumWidth: 150
+                        font.pixelSize: 13
+                        width: 150
                         elide: Text.ElideRight
                     }
                 }
             }
 
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 8
+            // --- Separator ---
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: Theme.outline_variant
+            }
+
+            // --- Detail rows ---
+            Grid {
+                width: parent.width
                 columns: 2
-                rowSpacing: 12
-                columnSpacing: 24
+                rowSpacing: 10
+                columnSpacing: 16
 
-                // Feels like
-                RowLayout {
-                    spacing: 8
+                Row {
+                    spacing: 6
+                    Text { text: "🌡️"; font.pixelSize: 13 }
                     Text {
-                        text: "🌡️"
-                        font.pixelSize: 14
-                    }
-                    Text {
-                        text: "Feels like: " + (root.weatherData ? root.weatherData.feelsLike : "")
+                        text: "Feels " + (root.weatherData ? root.weatherData.feelsLike : "")
                         color: Theme.on_surface_variant
-                        font.family: "Google Sans"
-                        font.pixelSize: 14
+                        font { family: "Google Sans"; pixelSize: 13 }
                     }
                 }
 
-                // Humidity
-                RowLayout {
-                    spacing: 8
+                Row {
+                    spacing: 6
+                    Text { text: "💧"; font.pixelSize: 13 }
                     Text {
-                        text: "💧"
-                        font.pixelSize: 14
-                    }
-                    Text {
-                        text: "Humidity: " + (root.weatherData ? root.weatherData.humidity : "")
+                        text: "Humidity " + (root.weatherData ? root.weatherData.humidity : "")
                         color: Theme.on_surface_variant
-                        font.family: "Google Sans"
-                        font.pixelSize: 14
+                        font { family: "Google Sans"; pixelSize: 13 }
                     }
                 }
 
-                // Wind
-                RowLayout {
-                    spacing: 8
+                Row {
+                    spacing: 6
+                    Text { text: "💨"; font.pixelSize: 13 }
                     Text {
-                        text: "💨"
-                        font.pixelSize: 14
-                    }
-                    Text {
-                        text: "Wind: " + (root.weatherData ? root.weatherData.wind : "")
+                        text: "Wind " + (root.weatherData ? root.weatherData.wind : "")
                         color: Theme.on_surface_variant
-                        font.family: "Google Sans"
-                        font.pixelSize: 14
+                        font { family: "Google Sans"; pixelSize: 13 }
                     }
                 }
 
-                // UV
-                RowLayout {
-                    spacing: 8
+                Row {
+                    spacing: 6
+                    Text { text: "☀️"; font.pixelSize: 13 }
                     Text {
-                        text: "☀️"
-                        font.pixelSize: 14
-                    }
-                    Text {
-                        text: "UV Index: " + (root.weatherData ? root.weatherData.uv : "")
+                        text: "UV " + (root.weatherData ? root.weatherData.uv : "")
                         color: Theme.on_surface_variant
-                        font.family: "Google Sans"
-                        font.pixelSize: 14
+                        font { family: "Google Sans"; pixelSize: 13 }
                     }
                 }
             }
