@@ -79,6 +79,14 @@ Variants {
             id: calendarModule
             anchors.centerIn: parent
         }
+        Weather {
+            id: weatherModule
+            anchors {
+                right: statusModule.left
+                rightMargin: 12
+                verticalCenter: parent.verticalCenter
+            }
+        }
         SystemStats {
             id: statusModule
             anchors {

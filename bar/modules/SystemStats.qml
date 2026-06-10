@@ -40,7 +40,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 font {
                     family: "JetBrainsMono Nerd Font"
-                    pixelSize: 16
+                    pixelSize: 14
                 }
                 color: root.isMuted ? Theme.critical : Theme.primary
 
@@ -63,7 +63,7 @@ Rectangle {
                 color: Theme.on_surface
                 font {
                     family: "Google Sans Medium"
-                    pixelSize: 16
+                    pixelSize: 14
                 }
                 text: root.activeSink?.audio ? Math.round(root.volumeLevel * 100) + "%" : "--%"
             }
@@ -101,7 +101,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 font {
                     family: "JetBrainsMono Nerd Font"
-                    pixelSize: 16
+                    pixelSize: 14
                 }
 
                 // Color logic: Alert user if charging (active state) or critically low
@@ -134,7 +134,7 @@ Rectangle {
                 color: Theme.on_surface
                 font {
                     family: "Google Sans Medium"
-                    pixelSize: 16
+                    pixelSize: 14
                 }
                 text: Math.round(batteryModule.capacity) + "%"
             }
