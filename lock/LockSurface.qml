@@ -42,9 +42,9 @@ WlSessionLockSurface {
         Text {
             id: hoursText
             text: Qt.formatDateTime(clock.date, "HH")
-            color: "white"
+            color: Qt.rgba(1, 1, 1, 0.9)
             font {
-                family: "Google Sans"
+                family: "Work Sans"
                 pixelSize: Math.round(surface.height * 0.28)
                 weight: Font.DemiBold
             }
@@ -52,9 +52,9 @@ WlSessionLockSurface {
 
         Text {
             text: Qt.formatDateTime(clock.date, "mm")
-            color: "white"
+            color: Qt.rgba(1, 1, 1, 0.9)
             font {
-                family: "Google Sans"
+                family: "Work Sans"
                 pixelSize: Math.round(surface.height * 0.28)
                 weight: Font.DemiBold
             }
@@ -63,7 +63,7 @@ WlSessionLockSurface {
         TextMetrics {
             id: dateMetrics
             text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
-            font.family: "Google Sans"
+            font.family: "Work Sans"
             font.pixelSize: Math.round(surface.height * 0.028)
             font.weight: Font.Medium
         }
@@ -72,10 +72,10 @@ WlSessionLockSurface {
             topPadding: surface.height * 0.04
             width: hoursText.contentWidth
             text: dateMetrics.text
-            color: "white"
+            color: Qt.rgba(1, 1, 1, 0.9)
             horizontalAlignment: Text.AlignJustify
             font {
-                family: "Google Sans"
+                family: "Work Sans"
                 pixelSize: Math.round(surface.height * 0.028)
                 weight: Font.Medium
                 // Stretch the date so its edges line up with the clock digits.
