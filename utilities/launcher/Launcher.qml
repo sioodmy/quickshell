@@ -405,10 +405,10 @@ PanelWindow {
                             listView.decrementCurrentIndex();
                             event.accepted = true;
                         } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                            if (ctrl.calcResult !== "") {
-                                ctrl.copyResult();
-                            } else if (listView.currentItem) {
+                            if (listView.currentItem) {
                                 listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
+                            } else if (ctrl.calcResult !== "") {
+                                ctrl.copyResult();
                             }
                             event.accepted = true;
                         }
@@ -497,10 +497,10 @@ PanelWindow {
                                     }
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                                    if (ctrl.calcResult !== "") {
-                                        ctrl.copyResult();
-                                    } else if (listView.currentItem) {
+                                    if (listView.currentItem) {
                                         listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
+                                    } else if (ctrl.calcResult !== "") {
+                                        ctrl.copyResult();
                                     }
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier))) {
