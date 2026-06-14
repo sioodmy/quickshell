@@ -7,14 +7,13 @@ import qs.theme
 PanelWindow {
     id: root
 
-    implicitWidth: 700
-    implicitHeight: 480
     color: "transparent"
 
-    anchors.top: true
-    margins {
-        top: 70
-        right: 16
+    anchors {
+        top: true
+        left: true
+        right: true
+        bottom: true
     }
 
     WlrLayershell.namespace: "calendar_widget"
@@ -22,15 +21,26 @@ PanelWindow {
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-
+    // Click-away to dismiss
+    MouseArea {
+        anchors.fill: parent
+        onClicked: root.visible = false
+    }
 
     Rectangle {
-        anchors.fill: parent
+        width: 700
+        height: 480
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.topMargin: 70
         color: Theme.surface_container_low
         radius: 32
 
         border.color: Theme.outline_variant
         border.width: 1
+
+        // Swallow clicks on the card so it doesn't dismiss
+        MouseArea { anchors.fill: parent }
 
         CalendarGrid {
             anchors.fill: parent

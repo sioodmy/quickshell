@@ -7,15 +7,13 @@ import qs.theme
 PanelWindow {
     id: root
 
-    implicitWidth: 240
-    implicitHeight: contentColumn.implicitHeight + 24
     color: "transparent"
 
-    anchors.top: true
-    anchors.right: true
-    margins {
-        top: 60
-        right: 15
+    anchors {
+        top: true
+        left: true
+        right: true
+        bottom: true
     }
 
     WlrLayershell.namespace: "powermenu_widget"
@@ -23,13 +21,27 @@ PanelWindow {
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-    Rectangle {
+    // Click-away to dismiss
+    MouseArea {
         anchors.fill: parent
+        onClicked: root.visible = false
+    }
+
+    Rectangle {
+        width: 240
+        height: contentColumn.implicitHeight + 24
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 60
+        anchors.rightMargin: 15
         color: Theme.surface_container_low
         radius: 16
 
         border.color: Theme.outline_variant
         border.width: 1
+
+        // Swallow clicks on the card so it doesn't dismiss
+        MouseArea { anchors.fill: parent }
 
         Column {
             id: contentColumn

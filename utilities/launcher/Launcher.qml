@@ -13,8 +13,6 @@ PanelWindow {
     // Add any apps you want to hide to this list
     property var hiddenKeywords: ["avahi", "uuctl", "bssh", "bvnc"]
 
-    implicitWidth: 800
-    implicitHeight: 739
     color: "transparent"
     visible: false
 
@@ -24,11 +22,16 @@ PanelWindow {
     exclusiveZone: -1
 
     anchors {
+        top: true
         bottom: true
+        left: true
+        right: true
     }
 
-    margins {
-        bottom: 170
+    // Click-away to dismiss
+    MouseArea {
+        anchors.fill: parent
+        onClicked: launcherWindow.closeMenu()
     }
 
     function scoreMatch(text, query) {
@@ -237,10 +240,11 @@ PanelWindow {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                anchors.fill: parent
-
-                anchors.margins: 80
-                anchors.bottomMargin: 50
+                width: 640
+                height: 609
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 220
 
                 Component.onCompleted: {
                     searchField.forceActiveFocus();
@@ -280,6 +284,9 @@ PanelWindow {
                     color: Theme.surface_container
                     radius: 28
                     focus: true
+
+                    // Swallow clicks on the card so it doesn't dismiss
+                    MouseArea { anchors.fill: parent }
 
                     layer.enabled: true
                     layer.smooth: true

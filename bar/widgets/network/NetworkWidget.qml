@@ -10,17 +10,13 @@ PanelWindow {
 
     property var wifiDevice: null
 
-    implicitWidth: 340
-    implicitHeight: 440
     color: "transparent"
 
     anchors {
         top: true
+        left: true
         right: true
-    }
-    margins {
-        top: 60
-        right: 15
+        bottom: true
     }
 
     WlrLayershell.namespace: "network_widget"
@@ -46,12 +42,26 @@ PanelWindow {
         })
     }
 
-    Rectangle {
+    // Click-away to dismiss
+    MouseArea {
         anchors.fill: parent
+        onClicked: root.visible = false
+    }
+
+    Rectangle {
+        width: 340
+        height: 440
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 60
+        anchors.rightMargin: 15
         color: Theme.surface_container_low
         radius: 24
         border.color: Theme.outline_variant
         border.width: 1
+
+        // Swallow clicks on the card so it doesn't dismiss
+        MouseArea { anchors.fill: parent }
 
         Column {
             anchors.fill: parent

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Services.UPower
 
 import qs.theme
 
@@ -156,6 +157,47 @@ WlSessionLockSurface {
         anchors.rightMargin: parent.width * 0.07
         anchors.bottomMargin: parent.height * 0.08
         spacing: 28
+
+        // Battery indicator
+        Row {
+            id: battRow
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+            visible: UPower.displayDevice?.isPresent ?? false
+
+            readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
+            readonly property bool charging: !UPower.onBattery
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 }
+                color: "white"
+                opacity: 0.9
+                text: {
+                    if (battRow.charging && battRow.capacity < 100)
+                        return "";
+                    if (battRow.capacity >= 90)
+                        return "󰂂";
+                    if (battRow.capacity >= 70)
+                        return "󰂀";
+                    if (battRow.capacity >= 50)
+                        return "󰁾";
+                    if (battRow.capacity >= 30)
+                        return "󰁼";
+                    if (battRow.capacity >= 10)
+                        return "󰁺";
+                    return "󰂃";
+                }
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: Math.round(battRow.capacity) + "%"
+                color: "white"
+                opacity: 0.9
+                font { family: "Google Sans"; pixelSize: 16; weight: Font.Medium }
+            }
+        }
 
         component SessionButton: Item {
             id: sb

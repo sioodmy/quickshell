@@ -9,18 +9,13 @@ PanelWindow {
 
     property var weatherData: null
 
-    implicitWidth: 320
-    implicitHeight: 260
     color: "transparent"
 
     anchors {
         top: true
         left: true
-    }
-
-    margins {
-        top: 70
-        left: 16
+        right: true
+        bottom: true
     }
 
     WlrLayershell.namespace: "weather_widget"
@@ -28,13 +23,27 @@ PanelWindow {
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-    Rectangle {
+    // Click-away to dismiss
+    MouseArea {
         anchors.fill: parent
+        onClicked: root.visible = false
+    }
+
+    Rectangle {
+        width: 320
+        height: 260
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.topMargin: 70
+        anchors.leftMargin: 16
         color: Theme.surface_container_low
         radius: 32
 
         border.color: Theme.outline_variant
         border.width: 1
+
+        // Swallow clicks on the card so it doesn't dismiss
+        MouseArea { anchors.fill: parent }
 
         Column {
             anchors.fill: parent
