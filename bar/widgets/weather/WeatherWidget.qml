@@ -15,12 +15,12 @@ PanelWindow {
 
     anchors {
         top: true
-        right: true
+        left: true
     }
 
     margins {
         top: 70
-        right: 16
+        left: 16
     }
 
     WlrLayershell.namespace: "weather_widget"

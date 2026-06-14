@@ -1,0 +1,3 @@
+module qs.bar.widgets.network
+
+NetworkWidget 1.0 NetworkWidget.qml

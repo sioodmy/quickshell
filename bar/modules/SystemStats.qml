@@ -139,5 +139,31 @@ Rectangle {
                 text: Math.round(batteryModule.capacity) + "%"
             }
         }
+
+        // --- Separator ---
+        Rectangle {
+            width: 1
+            height: 16
+            color: Theme.outline_variant
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // --- Network Module ---
+        Network {
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // --- Separator ---
+        Rectangle {
+            width: 1
+            height: 16
+            color: Theme.outline_variant
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // --- Bluetooth Module ---
+        Bluetooth {
+            anchors.verticalCenter: parent.verticalCenter
+        }
     }
 }
