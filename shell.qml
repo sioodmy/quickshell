@@ -7,7 +7,6 @@ import "lock"
 import qs.utilities.clipboard
 
 import qs.utilities.launcher
-import qs.utilities.wallpaper
 import qs.popups
 import qs.services
 
@@ -54,11 +53,6 @@ ShellRoot {
     // Application Launcher
     Launcher {
         id: launcherWindow
-    }
-
-    // Wallpaper Selector
-    WallpaperSelector {
-        id: wallpaperSelectorWindow
     }
 
     VolumePopup {
