@@ -90,6 +90,14 @@ Variants {
         SystemStats {
             id: statusModule
             anchors {
+                right: powerMenuModule.left
+                rightMargin: 12
+                verticalCenter: parent.verticalCenter
+            }
+        }
+        PowerMenu {
+            id: powerMenuModule
+            anchors {
                 right: parent.right
                 rightMargin: 15
                 verticalCenter: parent.verticalCenter
