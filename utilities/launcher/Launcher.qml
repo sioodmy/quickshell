@@ -1,5 +1,6 @@
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Widgets
 
 import QtQuick
 import QtQuick.Controls
@@ -62,15 +63,22 @@ PanelWindow {
         var allApps = DesktopEntries.applications.values;
         var query = ctrl.searchText.trim();
         var queryLower = query.toLowerCase();
+        var results = [];
 
+        // --- App results ---
         if (query === "") {
             // No query: show all apps, but completely hide any app matching hiddenKeywords
-            return allApps.filter(app => {
+            var sortedApps = allApps.filter(app => {
                 if (!app.name)
                     return false;
                 var n = app.name.toLowerCase();
                 return !hiddenKeywords.some(keyword => n.includes(keyword));
             }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+            for (var i = 0; i < sortedApps.length; i++) {
+                results.push({ type: "app", entry: sortedApps[i] });
+            }
+            return results;
         }
 
         // Check if the user's search explicitly contains any of the hidden keywords
@@ -132,7 +140,68 @@ PanelWindow {
             return (a.entry.name || "").localeCompare(b.entry.name || "");
         });
 
-        return scored.map(s => s.entry);
+        // Get running windows to check for focus targets
+        var runningWindows = ctrl.getRunningWindows();
+
+        for (var i = 0; i < scored.length; i++) {
+            var appEntry = scored[i].entry;
+
+            // Check if this app has a running window
+            // Match desktop entry id to niri appId
+            var entryId = appEntry.id || "";
+            for (var w = 0; w < runningWindows.length; w++) {
+                var win = runningWindows[w];
+                if (win.appId && entryId && win.appId === entryId) {
+                    results.push({
+                        type: "focus",
+                        entry: appEntry,
+                        windowId: win.id,
+                        windowTitle: win.title || ""
+                    });
+                }
+            }
+
+            results.push({ type: "app", entry: appEntry });
+        }
+
+        // --- Emoji results (only when actively searching) ---
+        if (query !== "") {
+            var emojiResults = ctrl.filterEmojis(query);
+            var maxEmojis = Math.min(emojiResults.length, 20);
+            for (var i = 0; i < maxEmojis; i++) {
+                results.push({
+                    type: "emoji",
+                    emoji: emojiResults[i].emoji,
+                    display: emojiResults[i].display
+                });
+            }
+        }
+
+        // --- Fallback action: Open in WolframAlpha ---
+        if (query !== "" && ctrl.looksLikeMath(query)) {
+            results.push({
+                type: "action",
+                actionId: "wolfram",
+                name: "Open in WolframAlpha",
+                description: query,
+                icon: "󰃬",
+                iconFamily: "JetBrainsMono Nerd Font"
+            });
+        }
+
+        // --- Fallback action: Search the web ---
+        if (query !== "") {
+            results.push({
+                type: "action",
+                actionId: "websearch",
+                name: "Search the web",
+                description: "\"" + query + "\" — DuckDuckGo",
+                icon: "helium",
+                iconFamily: "__icon_theme__"
+            });
+        }
+
+        return results;
     }
 
     LauncherBackend {
@@ -145,6 +214,7 @@ PanelWindow {
                 ctrl.searchText = "";
                 ctrl.calcResult = "";
                 ctrl.calcExpression = "";
+                ctrl.selectionBuffer = "";
                 launcherWindow.visible = true;
             }
         }
@@ -153,7 +223,8 @@ PanelWindow {
     }
 
     function closeMenu() {
-        launcherWindow.visible = false; // Destroys the UI and frees memory
+        launcherWindow.visible = false;
+        ctrl.commitRecents();
     }
 
     LazyLoader {
@@ -225,34 +296,72 @@ PanelWindow {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         height: 180
+                        clip: true
 
-                        Image {
-                            anchors.fill: parent
-                            source: Theme.wallpaper
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                        }
-
+                        // Solid base background (Catppuccin Macchiato Pink)
                         Rectangle {
                             anchors.fill: parent
-                            color: Theme.primary
-                            opacity: 0.15
+                            color: "#f5bde6"
                         }
 
+                        // Floating Pastel Circles (High Contrast, Reduced count)
+                        // Circle 1: Large White Highlight
                         Rectangle {
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: 80
-                            gradient: Gradient {
-                                GradientStop {
-                                    position: 0.0
-                                    color: "transparent"
-                                }
-                                GradientStop {
-                                    position: 1.0
-                                    color: "#40000000"
-                                }
+                            width: 320
+                            height: 320
+                            radius: 160
+                            color: "#ffffff"
+                            opacity: 0.40
+                            x: -20
+                            y: -50
+                            transformOrigin: Item.Center
+
+                            SequentialAnimation on x {
+                                loops: Animation.Infinite
+                                paused: !launcherWindow.visible
+                                NumberAnimation { to: 180; duration: 16000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: -60; duration: 18000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: -20; duration: 15000; easing.type: Easing.InOutSine }
+                            }
+                            SequentialAnimation on y {
+                                loops: Animation.Infinite
+                                paused: !launcherWindow.visible
+                                NumberAnimation { to: -100; duration: 17000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 40; duration: 16000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: -50; duration: 16000; easing.type: Easing.InOutSine }
+                            }
+                            NumberAnimation on rotation {
+                                from: 0; to: 360; duration: 30000; loops: Animation.Infinite; paused: !launcherWindow.visible
+                            }
+                        }
+
+                        // Circle 2: Deep Mauve Contrast
+                        Rectangle {
+                            width: 300
+                            height: 300
+                            radius: 150
+                            color: "#c6a0f6"
+                            opacity: 0.60
+                            x: 350
+                            y: -40
+                            transformOrigin: Item.Center
+
+                            SequentialAnimation on x {
+                                loops: Animation.Infinite
+                                paused: !launcherWindow.visible
+                                NumberAnimation { to: 150; duration: 18000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 480; duration: 19000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 350; duration: 17000; easing.type: Easing.InOutSine }
+                            }
+                            SequentialAnimation on y {
+                                loops: Animation.Infinite
+                                paused: !launcherWindow.visible
+                                NumberAnimation { to: 60; duration: 16000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: -120; duration: 18000; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: -40; duration: 16000; easing.type: Easing.InOutSine }
+                            }
+                            NumberAnimation on rotation {
+                                from: 360; to: 0; duration: 35000; loops: Animation.Infinite; paused: !launcherWindow.visible
                             }
                         }
                     }
@@ -267,6 +376,21 @@ PanelWindow {
                         } else if (event.key === Qt.Key_Slash || event.key === Qt.Key_I) {
                             searchField.forceActiveFocus();
                             event.accepted = true;
+                        } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            if ((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
+                                if (listView.currentIndex <= 0) {
+                                    listView.currentIndex = listView.count - 1;
+                                } else {
+                                    listView.decrementCurrentIndex();
+                                }
+                            } else {
+                                if (listView.currentIndex >= listView.count - 1) {
+                                    listView.currentIndex = 0;
+                                } else {
+                                    listView.incrementCurrentIndex();
+                                }
+                            }
+                            event.accepted = true;
                         } else if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
                             listView.incrementCurrentIndex();
                             event.accepted = true;
@@ -277,7 +401,7 @@ PanelWindow {
                             if (ctrl.calcResult !== "") {
                                 ctrl.copyResult();
                             } else if (listView.currentItem) {
-                                listView.currentItem.launch();
+                                listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
                             }
                             event.accepted = true;
                         }
@@ -319,7 +443,7 @@ PanelWindow {
                             selectionColor: Theme.primary_container
                             selectedTextColor: Theme.on_primary_container
 
-                            placeholderText: "Search apps..."
+                            placeholderText: "Search"
                             placeholderTextColor: Theme.on_surface_variant
 
                             background: Item {
@@ -350,11 +474,26 @@ PanelWindow {
                                 if (event.key === Qt.Key_Escape) {
                                     mainUi.forceActiveFocus();
                                     event.accepted = true;
+                                } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                                    if ((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
+                                        if (listView.currentIndex <= 0) {
+                                            listView.currentIndex = listView.count - 1;
+                                        } else {
+                                            listView.decrementCurrentIndex();
+                                        }
+                                    } else {
+                                        if (listView.currentIndex >= listView.count - 1) {
+                                            listView.currentIndex = 0;
+                                        } else {
+                                            listView.incrementCurrentIndex();
+                                        }
+                                    }
+                                    event.accepted = true;
                                 } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                                     if (ctrl.calcResult !== "") {
                                         ctrl.copyResult();
                                     } else if (listView.currentItem) {
-                                        listView.currentItem.launch();
+                                        listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
                                     }
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier))) {
@@ -540,7 +679,7 @@ PanelWindow {
                     Text {
                         id: emptyMessage
                         anchors.centerIn: listContainer
-                        text: "No matching applications"
+                        text: "No results found"
                         visible: listView.count === 0
                         color: Theme.on_surface_variant
                         font {

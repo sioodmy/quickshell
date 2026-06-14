@@ -10,10 +10,54 @@ Item {
     property bool isSelected: ListView.isCurrentItem
     property bool isHovered: itemMouseArea.containsMouse
 
-    property string descriptionText: modelData.genericName ? modelData.genericName : (modelData.comment ? modelData.comment : "")
+    // Determine item type
+    property string itemType: modelData.type || "app"
 
+    // App properties
+    property string descriptionText: {
+        if (itemType === "app") {
+            var e = modelData.entry;
+            return e && e.genericName ? e.genericName : (e && e.comment ? e.comment : "");
+        } else if (itemType === "focus") {
+            return modelData.windowTitle || "";
+        } else if (itemType === "emoji") {
+            return modelData.display || "";
+        } else if (itemType === "action") {
+            return modelData.description || "";
+        }
+        return "";
+    }
+
+    property string nameText: {
+        if (itemType === "app" || itemType === "focus") {
+            return modelData.entry ? modelData.entry.name : "";
+        } else if (itemType === "emoji") {
+            return modelData.emoji + "  " + modelData.display;
+        } else if (itemType === "action") {
+            return modelData.name || "";
+        }
+        return "";
+    }
+
+    function activate(shiftHeld) {
+        if (itemType === "app") {
+            ctrl.launchApp(modelData.entry);
+        } else if (itemType === "focus") {
+            ctrl.focusWindow(modelData.windowId);
+        } else if (itemType === "emoji") {
+            ctrl.copyEmoji(modelData.emoji, shiftHeld || false);
+        } else if (itemType === "action") {
+            if (modelData.actionId === "wolfram") {
+                ctrl.openWolframAlpha();
+            } else if (modelData.actionId === "websearch") {
+                ctrl.openWebSearch();
+            }
+        }
+    }
+
+    // Legacy compat for old key handler
     function launch() {
-        ctrl.launchApp(modelData);
+        activate(false);
     }
 
     Rectangle {
@@ -47,7 +91,7 @@ Item {
             anchors.leftMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             radius: 2
-            color: Theme.primary
+            color: itemType === "emoji" ? Theme.tertiary : (itemType === "action" ? Theme.secondary : (itemType === "focus" ? Theme.tertiary : Theme.primary))
             Behavior on height {
                 NumberAnimation {
                     duration: 150
@@ -61,34 +105,87 @@ Item {
             }
         }
 
-        IconImage {
-            id: appIcon
+        // --- Icon area ---
+        Item {
+            id: iconContainer
             width: 42
             height: 42
             anchors.left: parent.left
             anchors.leftMargin: 20
             anchors.verticalCenter: parent.verticalCenter
 
-            source: {
-                if (!modelData.icon || modelData.icon === "") {
-                    return "image://icon/application-x-executable";
+            // App icon (desktop entry icon)
+            IconImage {
+                id: appIcon
+                anchors.fill: parent
+                visible: delegateRoot.itemType === "app" || delegateRoot.itemType === "focus"
+
+                source: {
+                    if (delegateRoot.itemType !== "app" && delegateRoot.itemType !== "focus") return "";
+                    var entry = modelData.entry;
+                    if (!entry || !entry.icon || entry.icon === "") {
+                        return "image://icon/application-x-executable";
+                    }
+                    if (entry.icon.startsWith("/")) {
+                        return "file://" + entry.icon;
+                    }
+                    return "image://icon/" + entry.icon;
                 }
-                if (modelData.icon.startsWith("/")) {
-                    return "file://" + modelData.icon;
+
+                onStatusChanged: {
+                    if (status === Image.Error) {
+                        source = "image://icon/application-x-executable";
+                    }
                 }
-                return "image://icon/" + modelData.icon;
             }
 
-            onStatusChanged: {
-                if (status === Image.Error) {
-                    source = "image://icon/application-x-executable";
+            // Emoji character as icon
+            Text {
+                anchors.centerIn: parent
+                visible: delegateRoot.itemType === "emoji"
+                text: delegateRoot.itemType === "emoji" ? modelData.emoji : ""
+                font {
+                    family: "Noto Color Emoji"
+                    pixelSize: 36
+                }
+                renderType: Text.NativeRendering
+            }
+
+            // Action icon — nerd font glyph or icon theme icon
+            Text {
+                anchors.centerIn: parent
+                visible: delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__"
+                text: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
+                font {
+                    family: "JetBrainsMono Nerd Font"
+                    pixelSize: 26
+                }
+                color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+            }
+
+            // Action icon — from icon theme (e.g. Helium browser)
+            IconImage {
+                id: actionThemeIcon
+                anchors.fill: parent
+                visible: delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__"
+                source: {
+                    if (delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__") {
+                        return "image://icon/" + modelData.icon;
+                    }
+                    return "";
+                }
+
+                onStatusChanged: {
+                    if (status === Image.Error) {
+                        source = "image://icon/web-browser";
+                    }
                 }
             }
         }
 
         Column {
-            anchors.left: appIcon.right
-            anchors.right: launchPill.left
+            anchors.left: iconContainer.right
+            anchors.right: actionPill.left
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 16
             anchors.rightMargin: 16
@@ -96,14 +193,16 @@ Item {
 
             Text {
                 width: parent.width
-                text: modelData.name
+                text: delegateRoot.nameText
                 color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface
                 elide: Text.ElideRight
                 font {
-                    family: "Google Sans"
+                    family: delegateRoot.itemType === "emoji" ? "Noto Color Emoji" : "Google Sans"
                     pixelSize: 16
                     weight: Font.DemiBold
                 }
+                // Emoji items: use native rendering for color emoji in the name
+                renderType: delegateRoot.itemType === "emoji" ? Text.NativeRendering : Text.QtRendering
             }
 
             Text {
@@ -121,14 +220,22 @@ Item {
         }
 
         Rectangle {
-            id: launchPill
+            id: actionPill
             anchors.right: parent.right
             anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 86
+            width: pillRow.width + 24
             height: 32
             radius: 16
-            color: Theme.primary
+            color: {
+                if (delegateRoot.itemType === "emoji")
+                    return Theme.tertiary;
+                if (delegateRoot.itemType === "action")
+                    return Theme.secondary;
+                if (delegateRoot.itemType === "focus")
+                    return Theme.tertiary;
+                return Theme.primary;
+            }
             opacity: delegateRoot.isSelected ? 1.0 : 0.0
             scale: delegateRoot.isSelected ? 1.0 : 0.8
 
@@ -145,6 +252,7 @@ Item {
             }
 
             Row {
+                id: pillRow
                 anchors.centerIn: parent
                 spacing: 6
 
@@ -152,8 +260,27 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     topPadding: 2
                     verticalAlignment: Text.AlignVCenter
-                    text: "Launch"
-                    color: Theme.on_primary
+                    text: {
+                        if (delegateRoot.itemType === "focus")
+                            return "Focus";
+                        if (delegateRoot.itemType === "emoji")
+                            return "Copy";
+                        if (delegateRoot.itemType === "action") {
+                            if (modelData.actionId === "wolfram")
+                                return "Open";
+                            return "Search";
+                        }
+                        return "Launch";
+                    }
+                    color: {
+                        if (delegateRoot.itemType === "emoji")
+                            return Theme.on_tertiary;
+                        if (delegateRoot.itemType === "action")
+                            return Theme.on_secondary;
+                        if (delegateRoot.itemType === "focus")
+                            return Theme.on_tertiary;
+                        return Theme.on_primary;
+                    }
                     font {
                         family: "Google Sans Medium"
                         pixelSize: 13
@@ -164,8 +291,24 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     topPadding: 2
                     verticalAlignment: Text.AlignVCenter
-                    text: "󰌑"
-                    color: Theme.on_primary
+                    text: {
+                        if (delegateRoot.itemType === "focus")
+                            return "󰇧";
+                        if (delegateRoot.itemType === "emoji")
+                            return "󰆏";
+                        if (delegateRoot.itemType === "action")
+                            return "󰇧";
+                        return "󰌑";
+                    }
+                    color: {
+                        if (delegateRoot.itemType === "emoji")
+                            return Theme.on_tertiary;
+                        if (delegateRoot.itemType === "action")
+                            return Theme.on_secondary;
+                        if (delegateRoot.itemType === "focus")
+                            return Theme.on_tertiary;
+                        return Theme.on_primary;
+                    }
                     font {
                         family: "JetBrainsMono Nerd Font"
                         pixelSize: 16
@@ -180,7 +323,7 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onEntered: delegateRoot.ListView.view.currentIndex = index
-            onClicked: delegateRoot.launch()
+            onClicked: mouse => delegateRoot.activate(mouse.modifiers & Qt.ShiftModifier)
         }
     }
 }

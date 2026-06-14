@@ -4,7 +4,7 @@ import Quickshell
 import QtQuick
 import "bar"
 import qs.utilities.clipboard
-import qs.utilities.emoji
+
 import qs.utilities.launcher
 import qs.utilities.wallpaper
 import qs.popups
@@ -43,11 +43,6 @@ ShellRoot {
     // Clipboard
     Clipboard {
         id: clipboardWindow
-    }
-
-    // Emoji Picker
-    EmojiPicker {
-        id: emojiPickerWindow
     }
 
     // Application Launcher
