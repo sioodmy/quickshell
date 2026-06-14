@@ -3,6 +3,7 @@
 import Quickshell
 import QtQuick
 import "bar"
+import "lock"
 import qs.utilities.clipboard
 
 import qs.utilities.launcher
@@ -33,6 +34,11 @@ ShellRoot {
     // System status bar
     TopBar {
         id: topBar
+    }
+
+    // Session lock screen
+    Lock {
+        id: lockScreen
     }
 
     // Floating notification overlay

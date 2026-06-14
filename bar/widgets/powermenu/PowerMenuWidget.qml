@@ -99,7 +99,7 @@ PanelWindow {
             PowerButton {
                 icon: ""
                 label: "Lock"
-                command: "lockscreen"
+                command: "quickshell ipc call lock lock"
                 iconColor: Theme.secondary
             }
             PowerButton {
