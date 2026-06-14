@@ -86,13 +86,13 @@ Variants {
             Rectangle {
                 id: pill
 
-                width: 250
-                height: 78
+                width: 320
+                height: 84
                 anchors.centerIn: parent
 
-                radius: height / 2
+                radius: 28
 
-                color: Theme.surface_container
+                color: Theme.surface_container_high
 
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -104,39 +104,57 @@ Variants {
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: 22
-                    anchors.rightMargin: 24
+                    anchors.margins: 18
                     spacing: 16
 
-                    Text {
-                        id: volumeIcon
-                        anchors.verticalCenter: parent.verticalCenter
+                    Rectangle {
+                        width: 48
+                        height: 48
+                        radius: 24
+                        color: volumeOsdPopup.isMuted ? Theme.surface_variant : Theme.primary_container
 
-                        color: volumeOsdPopup.isMuted ? Theme.critical : Theme.on_surface
+                        Behavior on color { ColorAnimation { duration: 200 } }
 
-                        font {
-                            family: "JetBrainsMono Nerd Font"
-                            pixelSize: 28
-                        }
+                        Text {
+                            id: volumeIcon
+                            anchors.centerIn: parent
 
-                        text: {
-                            if (!volumeOsdPopup.activeSink?.audio)
-                                return "";
-                            if (volumeOsdPopup.isMuted)
-                                return "";
-                            if (volumeOsdPopup.volumeLevel >= 0.6)
-                                return "";
-                            if (volumeOsdPopup.volumeLevel >= 0.3)
-                                return "";
+                            color: volumeOsdPopup.isMuted ? Theme.on_surface_variant : Theme.on_primary_container
+                            Behavior on color { ColorAnimation { duration: 200 } }
 
-                            return "";
+                            font {
+                                family: "JetBrainsMono Nerd Font"
+                                pixelSize: 22
+                            }
+
+                            // Dynamic bounce on icon change
+                            scale: 1.0
+                            onTextChanged: bounceAnim.restart()
+                            SequentialAnimation {
+                                id: bounceAnim
+                                NumberAnimation { target: volumeIcon; property: "scale"; to: 1.3; duration: 100; easing.type: Easing.OutQuad }
+                                NumberAnimation { target: volumeIcon; property: "scale"; to: 1.0; duration: 250; easing.type: Easing.OutBounce }
+                            }
+
+                            text: {
+                                if (!volumeOsdPopup.activeSink?.audio)
+                                    return "";
+                                if (volumeOsdPopup.isMuted)
+                                    return "";
+                                if (volumeOsdPopup.volumeLevel >= 0.6)
+                                    return "";
+                                if (volumeOsdPopup.volumeLevel >= 0.3)
+                                    return "";
+
+                                return "";
+                            }
                         }
                     }
 
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - volumeIcon.width - parent.spacing - 6
-                        spacing: 8
+                        width: parent.width - 48 - parent.spacing
+                        spacing: 10
 
                         Item {
                             width: parent.width
@@ -150,7 +168,8 @@ Variants {
 
                                 font {
                                     family: "Google Sans Medium"
-                                    pixelSize: 16
+                                    pixelSize: 15
+                                    bold: true
                                 }
                             }
 
@@ -158,70 +177,41 @@ Variants {
                                 id: volumeLabel
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
-                                color: Theme.on_surface
+                                color: Theme.on_surface_variant
 
                                 font {
                                     family: "Google Sans Medium"
-                                    pixelSize: 16
+                                    pixelSize: 15
                                 }
 
-                                text: volumeOsdPopup.activeSink?.audio ? Math.round(volumeOsdPopup.volumeLevel * 100) : "--"
+                                text: volumeOsdPopup.activeSink?.audio ? Math.round(volumeOsdPopup.volumeLevel * 100) + "%" : "--%"
                             }
                         }
 
                         Item {
                             width: parent.width
-                            height: 6
-
-                            readonly property real visualVolume: Math.min(volumeOsdPopup.volumeLevel, 1.0)
-                            readonly property int gap: 4
+                            height: 12
 
                             Rectangle {
-                                id: activeTrack
-                                x: 0
-                                y: 0
-                                height: parent.height
-
-                                width: (parent.width - 4) * parent.visualVolume
+                                anchors.fill: parent
                                 radius: height / 2
-
-                                color: volumeOsdPopup.isMuted ? Theme.outline : Theme.primary
-
-                                Behavior on width {
-                                    SpringAnimation {
-                                        spring: 11.0
-                                        damping: 0.3
-                                        mass: 1.0
-                                    }
-                                }
-                            }
-
-                            Item {
-                                id: inactiveTrackContainer
-                                x: activeTrack.width + parent.gap
-                                y: 0
-                                height: parent.height
-
-                                width: Math.max(0, parent.width - activeTrack.width - parent.gap)
-
-                                clip: true
+                                color: Theme.surface_variant
 
                                 Rectangle {
-                                    anchors.right: parent.right
+                                    id: activeTrack
                                     height: parent.height
-
-                                    width: Math.max(parent.width, height)
                                     radius: height / 2
-                                    color: Theme.surface_variant
+                                    color: volumeOsdPopup.isMuted ? Theme.outline : Theme.primary
+                                    Behavior on color { ColorAnimation { duration: 200 } }
 
-                                    Rectangle {
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.rightMargin: 1.5
-                                        width: 5
-                                        height: 5
-                                        radius: 2.5
-                                        color: volumeOsdPopup.isMuted ? Theme.outline : Theme.primary
+                                    readonly property real visualVolume: Math.min(volumeOsdPopup.volumeLevel, 1.0)
+                                    width: Math.max(height, parent.width * visualVolume)
+
+                                    Behavior on width {
+                                        NumberAnimation {
+                                            duration: 150
+                                            easing.type: Easing.OutCubic
+                                        }
                                     }
                                 }
                             }
