@@ -46,7 +46,7 @@ WlSessionLockSurface {
             font {
                 family: "Work Sans"
                 pixelSize: Math.round(surface.height * 0.28)
-                weight: Font.DemiBold
+                weight: Font.ExtraBold
             }
         }
 
@@ -55,8 +55,8 @@ WlSessionLockSurface {
             color: Qt.rgba(1, 1, 1, 0.9)
             font {
                 family: "Work Sans"
-                pixelSize: Math.round(surface.height * 0.28)
-                weight: Font.DemiBold
+                pixelSize: Math.round(surface.height * 0.26)
+                weight: Font.Bold
             }
         }
 
