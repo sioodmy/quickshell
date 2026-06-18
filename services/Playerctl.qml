@@ -77,4 +77,8 @@ Singleton {
     function previous() {
         Quickshell.execDetached({ command: ["playerctl", "previous"] });
     }
+
+    function setPosition(pos) {
+        Quickshell.execDetached({ command: ["playerctl", "position", pos.toString()] });
+    }
 }

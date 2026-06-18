@@ -336,6 +336,16 @@ Variants {
                         
                         property bool isCurrent: index === lyricsView.currentIndex
                         
+                        MouseArea {
+                            id: lyricMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Playerctl.setPosition(modelData.time);
+                            }
+                        }
+                        
                         Text {
                             id: textItem
                             anchors.centerIn: parent
@@ -351,11 +361,11 @@ Variants {
                                 weight: isCurrent ? Font.Bold : Font.Medium
                             }
                             
-                            // Show full lyrics window, highlight current
-                            opacity: isCurrent ? 1.0 : 0.35
+                            // Show full lyrics window, highlight current. Boost slightly on hover.
+                            opacity: Math.min(1.0, (isCurrent ? 1.0 : 0.35) + (lyricMouse.containsMouse ? 0.25 : 0.0))
                             
                             // Smooth transitions for opacity ONLY. No layout shifting!
-                            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         }
                     }
                 }
