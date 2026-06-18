@@ -5,6 +5,7 @@ import QtQuick
 import "bar"
 import "lock"
 import "sidebar"
+import "desktop"
 import qs.utilities.clipboard
 
 import qs.utilities.launcher
@@ -71,5 +72,10 @@ ShellRoot {
 
     ScreenshotPopup {
         id: screenshotPopupWindow
+    }
+
+    // Live synced lyrics on desktop
+    LyricsDesktop {
+        id: lyricsDesktop
     }
 }

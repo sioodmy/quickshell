@@ -12,6 +12,24 @@ Singleton {
     property string artUrl: ""
     property bool isPlaying: false
     property bool hasPlayer: false
+    property double position: 0
+
+    Process {
+        id: posTracker
+        command: ["bash", "-c", "while true; do playerctl position 2>/dev/null || echo '-1'; sleep 0.5; done"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                let trimmed = data.trim();
+                let p = parseFloat(trimmed);
+                if (p >= 0) {
+                    root.position = p;
+                } else {
+                    root.position = 0;
+                }
+            }
+        }
+    }
 
     Process {
         id: metadataTracker
