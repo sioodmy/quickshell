@@ -13,35 +13,41 @@ Variants {
         required property var modelData
         screen: modelData
         
-        WlrLayershell.layer: WlrLayer.Bottom // Sits on the wallpaper
-        WlrLayershell.namespace: "lyrics_desktop"
+        WlrLayershell.layer: WlrLayer.Overlay // On top of everything, including windows
+        WlrLayershell.namespace: "lyrics_overlay"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        WlrLayershell.exclusionMode: ExclusionMode.Ignore // Do not reserve space!
         
         anchors {
             bottom: true
-            left: true
             right: true
         }
         
         margins {
-            bottom: 80
+            bottom: 60 // Slightly more padding to look nice without a box
+            right: 60
         }
         
-        height: 200
+        width: 400
+        height: 80 // Reduced height
         color: "transparent"
-        visible: !Lyrics.showOverlay // Visible when overlay is OFF
+        visible: Lyrics.showOverlay
         
-        // Inner Content
+        MouseArea {
+            id: hoverArea
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+            propagateComposedEvents: true
+        }
+        
+        // Inner Content (No Background Rectangle anymore!)
         Item {
             anchors.fill: parent
-            clip: true
+            clip: true // Ensure text doesn't overflow
             
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: Lyrics.showFullscreen = true
-            }
+            // Disappear when hovered
+            opacity: hoverArea.containsMouse ? 0.0 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 200 } }
             
             ListView {
                 id: listView
@@ -50,9 +56,9 @@ Variants {
                 model: Lyrics.parsedLyrics
                 interactive: false
                 
-                // Center the current line
-                preferredHighlightBegin: height / 2 - 25
-                preferredHighlightEnd: height / 2 + 25
+                // Pin the current line to the top of the view
+                preferredHighlightBegin: 0
+                preferredHighlightEnd: 0
                 highlightRangeMode: ListView.StrictlyEnforceRange
                 highlightMoveDuration: 500
                 
@@ -60,28 +66,31 @@ Variants {
                 
                 delegate: Item {
                     width: ListView.view.width
-                    height: 50 // Fixed height
+                    height: 24 // Fixed, smaller height
                     
-                    property bool isPrevious: index === listView.currentIndex - 1
                     property bool isCurrent: index === listView.currentIndex
                     property bool isNext: index === listView.currentIndex + 1
                     
                     Text {
-                        anchors.centerIn: parent
-                        width: parent.width * 0.8
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
                         text: modelData.text
-                        color: "#ffffff"
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter // Centered
+                        color: "#ffffff" // Pure white for better contrast without background
+                        elide: Text.ElideLeft // Since it's right aligned, elide left if it overflows
+                        horizontalAlignment: Text.AlignRight // ALIGN RIGHT
+                        
+                        // Text outline to keep it readable against ANY window background
+                        style: Text.Outline
+                        styleColor: Qt.rgba(0, 0, 0, 0.4)
                         
                         font { 
                             family: "Google Sans"
-                            pixelSize: isCurrent ? 42 : 28 // Big fonts for desktop
+                            pixelSize: isCurrent ? 16 : 14 // EVEN SMALLER (Chrome search bar size)
                             weight: isCurrent ? Font.Bold : Font.Medium
                         }
                         
-                        // Show previous, current, next
-                        opacity: isCurrent ? 1.0 : ((isPrevious || isNext) ? 0.35 : 0.0)
+                        // Show ONLY current and next line, even more transparent
+                        opacity: isCurrent ? 0.7 : (isNext ? 0.2 : 0.0)
                         
                         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     }
@@ -93,8 +102,10 @@ Variants {
                 anchors.centerIn: parent
                 visible: Lyrics.parsedLyrics.length === 0
                 text: Playerctl.isPlaying ? "Fetching lyrics..." : "No Media"
-                font { family: "Google Sans"; pixelSize: 28; weight: Font.Medium }
+                font { family: "Google Sans"; pixelSize: 14; weight: Font.Medium }
                 color: "#ffffff"
+                style: Text.Outline
+                styleColor: Qt.rgba(0, 0, 0, 0.4)
                 opacity: 0.5
             }
         }

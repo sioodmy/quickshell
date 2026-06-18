@@ -41,6 +41,46 @@ Item {
             layer.enabled: true
         }
         
+        // Trigger fullscreen overlay
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Lyrics.showFullscreen = true
+        }
+        
+        // Toggle Overlay Button
+        Rectangle {
+            width: 32
+            height: 32
+            radius: 16
+            color: Lyrics.showOverlay ? (overlayMouse.containsMouse ? Qt.darker(Theme.primary, 1.1) : Theme.primary) : (overlayMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.2) : Qt.rgba(255, 255, 255, 0.1))
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 12
+            visible: Playerctl.hasPlayer
+            z: 10
+            
+            Behavior on color { ColorAnimation { duration: 150 } }
+            
+            Text {
+                anchors.centerIn: parent
+                text: "󰎇" // Single note
+                font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                color: Lyrics.showOverlay ? Theme.on_primary : "#cccccc"
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+            
+            MouseArea {
+                id: overlayMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    Lyrics.showOverlay = !Lyrics.showOverlay;
+                }
+            }
+        }
+        
         // Dark Overlay for readability
         Rectangle {
             anchors.fill: parent

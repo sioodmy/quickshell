@@ -74,8 +74,18 @@ ShellRoot {
         id: screenshotPopupWindow
     }
 
-    // Live synced lyrics on desktop
+    // Live synced lyrics on desktop (wallpaper)
     LyricsDesktop {
         id: lyricsDesktop
+    }
+
+    // Mini floating lyrics overlay
+    LyricsOverlay {
+        id: lyricsOverlay
+    }
+
+    // Fullscreen media overlay
+    FullscreenMedia {
+        id: fullscreenMedia
     }
 }

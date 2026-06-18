@@ -10,6 +10,8 @@ Singleton {
     // Array of objects: { time: float, text: string }
     property var parsedLyrics: []
     property int currentIndex: -1
+    property bool showFullscreen: false
+    property bool showOverlay: false
     
     property string currentLine: ""
     property string nextLine: ""
