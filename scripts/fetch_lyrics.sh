@@ -22,16 +22,30 @@ ARTIST_ENC=$(printf %s "$ARTIST" | jq -sRr @uri)
 TITLE_ENC=$(printf %s "$TITLE" | jq -sRr @uri)
 
 URL="https://lrclib.net/api/get?track_name=$TITLE_ENC&artist_name=$ARTIST_ENC"
-RES=$(curl -sL "$URL")
+RES=$(curl --max-time 10 -sL "$URL")
 
-# lrclib returns JSON with "syncedLyrics" key. If null or not found, it returns empty.
+# Check if response is valid JSON
+if ! echo "$RES" | jq . >/dev/null 2>&1; then
+    # Not valid JSON (e.g. 504 Gateway Timeout). Do not cache.
+    echo "ERROR_API_FAILED"
+    exit 1
+fi
+
+# Extract syncedLyrics and statusCode
 SYNCED=$(echo "$RES" | jq -r '.syncedLyrics // empty')
+STATUS=$(echo "$RES" | jq -r '.statusCode // 200')
 
 if [ -n "$SYNCED" ]; then
-    echo "$SYNCED" > "$CACHE_FILE"
-    echo "$SYNCED"
+    printf "%s\n" "$SYNCED" > "$CACHE_FILE"
+    printf "%s\n" "$SYNCED"
 else
-    # Save empty placeholder so it doesn't spam requests repeatedly
-    echo "" > "$CACHE_FILE"
-    echo ""
+    # Save empty placeholder only if track is not found or has no synced lyrics
+    if [ "$STATUS" = "404" ] || [ "$STATUS" = "200" ]; then
+        printf "\n" > "$CACHE_FILE"
+        printf "\n"
+    else
+        # Do not cache server errors (e.g., 429, 503)
+        echo "ERROR_API_FAILED"
+        exit 1
+    fi
 fi

@@ -30,7 +30,7 @@ Variants {
         width: 400
         height: 80 // Reduced height
         color: "transparent"
-        visible: Lyrics.showOverlay
+        visible: Lyrics.showOverlay && Lyrics.parsedLyrics.length > 0
         
         MouseArea {
             id: hoverArea
@@ -95,18 +95,6 @@ Variants {
                         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     }
                 }
-            }
-            
-            // Placeholder when no lyrics
-            Text {
-                anchors.centerIn: parent
-                visible: Lyrics.parsedLyrics.length === 0
-                text: Playerctl.isPlaying ? "Fetching lyrics..." : "No Media"
-                font { family: "Google Sans"; pixelSize: 14; weight: Font.Medium }
-                color: "#ffffff"
-                style: Text.Outline
-                styleColor: Qt.rgba(0, 0, 0, 0.4)
-                opacity: 0.5
             }
         }
     }

@@ -18,17 +18,39 @@ Singleton {
     
     property string currentTrack: Playerctl.artist + " - " + Playerctl.title
     
-    onCurrentTrackChanged: {
-        if (Playerctl.title !== "") {
-            fetchProcess.artistArg = Playerctl.artist;
-            fetchProcess.titleArg = Playerctl.title;
-            fetchProcess.running = true;
-        } else {
-            parsedLyrics = [];
-            currentLine = "";
-            nextLine = "";
-            currentIndex = -1;
+    Timer {
+        id: debounceTimer
+        interval: 1000 // Wait 1 second before fetching to avoid spam
+        repeat: false
+        onTriggered: {
+            if (Playerctl.title !== "") {
+                fetchProcess.artistArg = Playerctl.artist;
+                fetchProcess.titleArg = Playerctl.title;
+                fetchProcess.running = true;
+            }
         }
+    }
+    
+    Timer {
+        id: retryTimer
+        interval: 15000 // Retry after 15 seconds
+        repeat: false
+        onTriggered: {
+            if (Playerctl.title !== "" && Playerctl.title === fetchProcess.titleArg) {
+                fetchProcess.running = true;
+            }
+        }
+    }
+
+    onCurrentTrackChanged: {
+        parsedLyrics = [];
+        currentLine = "";
+        nextLine = "";
+        currentIndex = -1;
+        
+        fetchProcess.running = false;
+        retryTimer.stop();
+        debounceTimer.restart();
     }
     
     Process {
@@ -44,6 +66,12 @@ Singleton {
     }
     
     function parseLrc(lrc) {
+        if (lrc.trim() === "ERROR_API_FAILED") {
+            console.log("Lyrics API failed. Retrying in 15 seconds...");
+            retryTimer.start();
+            return;
+        }
+        
         let lines = lrc.split('\n');
         let arr = [];
         let regex = /\[(\d+):(\d+\.\d+)\](.*)/;

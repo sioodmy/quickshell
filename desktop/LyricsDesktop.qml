@@ -30,7 +30,7 @@ Variants {
         
         height: 200
         color: "transparent"
-        visible: !Lyrics.showOverlay // Visible when overlay is OFF
+        visible: !Lyrics.showOverlay && Lyrics.parsedLyrics.length > 0
         
         // Inner Content
         Item {
@@ -86,16 +86,6 @@ Variants {
                         Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     }
                 }
-            }
-            
-            // Placeholder when no lyrics
-            Text {
-                anchors.centerIn: parent
-                visible: Lyrics.parsedLyrics.length === 0
-                text: Playerctl.isPlaying ? "Fetching lyrics..." : "No Media"
-                font { family: "Google Sans"; pixelSize: 28; weight: Font.Medium }
-                color: "#ffffff"
-                opacity: 0.5
             }
         }
     }

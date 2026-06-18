@@ -25,27 +25,47 @@ Variants {
             right: true
         }
         
-        color: Theme.background // Same as bar background!
-        visible: Lyrics.showFullscreen
+        color: "transparent"
+        visible: Lyrics.showFullscreen || opacityAnim.running
         
-        // --- Escape Key to Close ---
+        // --- Animated Root Container ---
         Item {
             anchors.fill: parent
-            focus: true
-            Keys.onEscapePressed: Lyrics.showFullscreen = false
             
-            // Allow clicking empty areas to close
-            MouseArea {
-                anchors.fill: parent
-                onClicked: Lyrics.showFullscreen = false
+            opacity: Lyrics.showFullscreen ? 1.0 : 0.0
+            scale: Lyrics.showFullscreen ? 1.0 : 1.1
+            
+            Behavior on opacity {
+                NumberAnimation { id: opacityAnim; duration: 400; easing.type: Easing.OutCubic }
             }
-        }
-        
-        // --- Floating Pastel Circles (Background) ---
-        Item {
-            id: bgContainer
-            anchors.fill: parent
-            clip: true
+            Behavior on scale {
+                NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+            }
+            
+            // Background
+            Rectangle {
+                anchors.fill: parent
+                color: Theme.background
+            }
+            
+            // --- Escape Key to Close ---
+            Item {
+                anchors.fill: parent
+                focus: true
+                Keys.onEscapePressed: Lyrics.showFullscreen = false
+                
+                // Allow clicking empty areas to close
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: Lyrics.showFullscreen = false
+                }
+            }
+            
+            // --- Floating Pastel Circles (Background) ---
+            Item {
+                id: bgContainer
+                anchors.fill: parent
+                clip: true
             
             Rectangle {
                 width: 900
@@ -99,19 +119,29 @@ Variants {
         
         // --- Main 50/50 Layout ---
         Row {
+            id: mainRow
+            property bool hasLyrics: Lyrics.parsedLyrics.length > 0
+            
             anchors.fill: parent
             anchors.margins: 40 // some padding from screen edges
-            spacing: 40
+            spacing: hasLyrics ? 40 : 0
+            
+            Behavior on spacing { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
             
             // LEFT SIDE: Media Controls
             Item {
-                width: (parent.width - parent.spacing) / 2
+                width: mainRow.hasLyrics ? (parent.width - 40) / 2 : parent.width
                 height: parent.height
                 
-                // Prevent closing when clicking on controls
-                MouseArea { anchors.fill: parent }
+                Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
+                
+                MouseArea {
+                    anchors.fill: controlsCol
+                    // Prevent closing when clicking anywhere inside the album art / controls area
+                }
                 
                 Column {
+                    id: controlsCol
                     anchors.centerIn: parent
                     spacing: 32 // reduced spacing
                     
@@ -266,10 +296,18 @@ Variants {
             
             // RIGHT SIDE: Lyrics (Big Rounded Box)
             Rectangle {
-                width: (parent.width - parent.spacing) / 2
+                width: mainRow.hasLyrics ? (parent.width - 40) / 2 : 0
                 height: parent.height
                 radius: 32
                 color: Theme.surface_container
+                opacity: mainRow.hasLyrics ? 1.0 : 0.0
+                scale: mainRow.hasLyrics ? 1.0 : 0.95
+                visible: opacity > 0 || width > 0
+                clip: true
+                
+                Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
+                Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
+                Behavior on scale { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
                 
                 // Prevent closing when clicking on lyrics
                 MouseArea { anchors.fill: parent }
@@ -278,6 +316,7 @@ Variants {
                     id: lyricsView
                     anchors.fill: parent
                     anchors.margins: 80 // MORE PADDING
+                    clip: true
                     
                     model: Lyrics.parsedLyrics
                     interactive: true // Allow scrolling manually if they want
@@ -332,5 +371,6 @@ Variants {
                 }
             }
         }
+        } // Close animated container
     }
 }
