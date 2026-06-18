@@ -13,7 +13,7 @@ WlSessionLockSurface {
 
     color: Theme.background
 
-    readonly property string lockWall: Quickshell.env("LOCKSCREEN_WALL") || ""
+    readonly property string lockWall: Quickshell.env("LOCKSCREEN_WALL") || "/home/sioodmy/dev/wallpapers/misc/ghibli.jpg"
     readonly property string wallSource: lockWall !== ""
         ? "file://" + lockWall
         : Theme.wallpaper

@@ -190,9 +190,17 @@ Item {
             onStreamFinished: {
                 var raw = this.text.trim();
                 var lines = raw.split("\n");
-                // rink outputs: "> expression" then "result" on next line
+                // rink outputs: "> expression", "Input: parsed expression", then "result"
+                // Take the last non-empty line as the result
                 if (lines.length >= 2) {
-                    var result = lines[1].trim();
+                    var result = "";
+                    for (var i = lines.length - 1; i >= 0; i--) {
+                        var l = lines[i].trim();
+                        if (l !== "" && !l.startsWith(">")) {
+                            result = l;
+                            break;
+                        }
+                    }
                     // Filter out error messages
                     if (result.indexOf("No such") !== -1 ||
                         result.indexOf("Expected") !== -1 ||

@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell.Bluetooth
 import qs.theme
-import qs.bar.widgets.bluetooth
 
 Item {
     id: root
@@ -25,18 +24,5 @@ Item {
             pixelSize: 14
         }
         color: (root.adapter && root.adapter.enabled && root.connectedDevices.length > 0) ? Theme.primary : Theme.on_surface_variant
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: bluetoothWidget.visible = !bluetoothWidget.visible
-    }
-
-    BluetoothWidget {
-        id: bluetoothWidget
-        visible: false
-        adapter: root.adapter
     }
 }

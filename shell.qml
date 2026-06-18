@@ -4,6 +4,7 @@ import Quickshell
 import QtQuick
 import "bar"
 import "lock"
+import "sidebar"
 import qs.utilities.clipboard
 
 import qs.utilities.launcher
@@ -40,6 +41,11 @@ ShellRoot {
         id: lockScreen
     }
 
+    // Right-side control center sidebar
+    Sidebar {
+        id: controlCenterSidebar
+    }
+
     // Floating notification overlay
     NotifPopup {
         id: notificationOverlay
@@ -61,5 +67,9 @@ ShellRoot {
 
     BrightnessPopup {
         id: brightnessPopupWindow
+    }
+
+    ScreenshotPopup {
+        id: screenshotPopupWindow
     }
 }

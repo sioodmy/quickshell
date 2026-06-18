@@ -83,6 +83,10 @@ Variants {
         Connections {
             target: NotifServer
             function onNotification(notification) {
+                // Suppress popup when Do Not Disturb is active
+                // (notification is still saved to history by NotifServer)
+                if (DoNotDisturb.enabled)
+                    return;
                 notificationPopup.addOrUpdateNotification(notification);
             }
         }

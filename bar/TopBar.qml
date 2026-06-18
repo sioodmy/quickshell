@@ -75,6 +75,11 @@ Variants {
                 targetMonitor: modelData.name
             }
 
+            PomodoroIndicator {
+                id: pomodoroModule
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
             Weather {
                 id: weatherModule
                 anchors.verticalCenter: parent.verticalCenter
@@ -86,14 +91,6 @@ Variants {
         }
         SystemStats {
             id: statusModule
-            anchors {
-                right: powerMenuModule.left
-                rightMargin: 12
-                verticalCenter: parent.verticalCenter
-            }
-        }
-        PowerMenu {
-            id: powerMenuModule
             anchors {
                 right: parent.right
                 rightMargin: 15

@@ -2,9 +2,11 @@ import QtQuick
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import qs.theme
+import qs.services
 
 /**
  * A unified system status indicator for Audio (Pipewire) and Power (UPower).
+ * Clicking anywhere on the bubble opens the control center sidebar.
  */
 Rectangle {
     id: root
@@ -12,8 +14,24 @@ Rectangle {
     // --- Layout Configuration ---
     implicitWidth: contentLayout.width + 30
     implicitHeight: 28
-    color: Theme.surface_container
     radius: height / 2
+    color: ccTap.pressed
+        ? Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12))
+        : (ccHover.hovered
+            ? Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06))
+            : Theme.surface_container)
+
+    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+    HoverHandler {
+        id: ccHover
+    }
+
+    TapHandler {
+        id: ccTap
+        onTapped: ControlCenter.toggle()
+        cursorShape: Qt.PointingHandCursor
+    }
 
     // --- Audio State Management ---
     readonly property var activeSink: Pipewire.defaultAudioSink
@@ -66,12 +84,6 @@ Rectangle {
                     pixelSize: 14
                 }
                 text: root.activeSink?.audio ? Math.round(root.volumeLevel * 100) + "%" : "--%"
-            }
-
-            TapHandler {
-                onTapped: if (root.activeSink?.audio)
-                    root.activeSink.audio.muted = !root.isMuted
-                cursorShape: Qt.PointingHandCursor
             }
         }
 

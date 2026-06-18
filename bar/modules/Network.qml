@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell.Networking
 import qs.theme
-import qs.bar.widgets.network
 
 Item {
     id: root
@@ -42,18 +41,5 @@ Item {
             pixelSize: 14
         }
         color: Networking.wifiEnabled ? Theme.primary : Theme.on_surface_variant
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onClicked: networkWidget.visible = !networkWidget.visible
-    }
-
-    NetworkWidget {
-        id: networkWidget
-        visible: false
-        wifiDevice: root.wifiDevice
     }
 }
