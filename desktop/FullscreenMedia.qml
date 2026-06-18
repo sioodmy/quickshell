@@ -292,7 +292,7 @@ Variants {
                         }
                     }
                 }
-            }
+            } // Close LEFT SIDE Item
             
             // RIGHT SIDE: Lyrics (Big Rounded Box)
             Rectangle {
@@ -381,6 +381,67 @@ Variants {
                 }
             }
         }
+        
+        // --- Full-Width Progress Bar ---
+        Item {
+            id: progressContainer
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            
+            width: (!mainRow.hasLyrics && Playerctl.length > 0) ? parent.width : 0
+            height: 48 // Very generous hitbox height since it's at the edge
+            
+            opacity: (!mainRow.hasLyrics && Playerctl.length > 0) ? 1.0 : 0.0
+            visible: opacity > 0 || width > 0
+            
+            Behavior on width { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
+            Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
+            
+            // Prevent closing when clicking the progress bar
+            MouseArea {
+                anchors.fill: parent
+            }
+            
+            MouseArea {
+                id: progressMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                
+                onClicked: (mouse) => {
+                    if (width > 0) {
+                        let percent = Math.max(0, Math.min(1, mouse.x / width));
+                        Playerctl.setPosition(percent * Playerctl.length);
+                    }
+                }
+            }
+            
+            // Background track
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: progressMouse.containsMouse ? 12 : 4 // Even thicker when hovered
+                color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.15)
+                
+                // No radius since it touches the bottom and sides
+                
+                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                
+                // Fill track
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    height: parent.height
+                    color: Theme.primary
+                    width: parent.width * (Playerctl.length > 0 ? (Playerctl.position / Playerctl.length) : 0)
+                    
+                    Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.Linear } }
+                }
+            }
+        }
+        
         } // Close animated container
     }
 }

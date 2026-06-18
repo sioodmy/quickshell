@@ -13,6 +13,7 @@ Singleton {
     property bool isPlaying: false
     property bool hasPlayer: false
     property double position: 0
+    property double length: 0
 
     Process {
         id: posTracker
@@ -33,13 +34,14 @@ Singleton {
 
     Process {
         id: metadataTracker
-        command: ["bash", "-c", "while true; do playerctl metadata -f '{{status}}|||{{artist}}|||{{title}}|||{{mpris:artUrl}}' 2>/dev/null || echo 'NONE'; sleep 1; done"]
+        command: ["bash", "-c", "while true; do playerctl metadata -f '{{status}}|||{{artist}}|||{{title}}|||{{mpris:artUrl}}|||{{mpris:length}}' 2>/dev/null || echo 'NONE'; sleep 1; done"]
         running: true
         stdout: SplitParser {
             onRead: data => {
                 let trimmed = data.trim();
                 if (trimmed === "NONE" || trimmed === "") {
                     root.hasPlayer = false;
+                    root.length = 0;
                 } else {
                     let parts = trimmed.split("|||");
                     if (parts.length >= 4) {
@@ -60,6 +62,17 @@ Singleton {
                         }
 
                         root.isPlaying = (status === "Playing");
+                        
+                        if (parts.length >= 5 && parts[4].trim() !== "") {
+                            let lenMicro = parseFloat(parts[4].trim());
+                            if (!isNaN(lenMicro) && lenMicro > 0) {
+                                root.length = lenMicro / 1000000.0;
+                            } else {
+                                root.length = 0;
+                            }
+                        } else {
+                            root.length = 0;
+                        }
                     }
                 }
             }
