@@ -70,9 +70,6 @@ ShellRoot {
         id: brightnessPopupWindow
     }
 
-    ScreenshotPopup {
-        id: screenshotPopupWindow
-    }
 
     // Live synced lyrics on desktop (wallpaper)
     LyricsDesktop {

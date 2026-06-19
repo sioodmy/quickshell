@@ -19,26 +19,68 @@ Variants {
         required property var modelData
         screen: modelData
 
+        property var notificationEntries: ({})
+
         ListModel {
             id: notifModel
         }
 
         function addOrUpdateNotification(notification) {
+            let idStr = notification.id.toString();
+            let temp = {};
+            for (let k in notificationEntries) {
+                temp[k] = notificationEntries[k];
+            }
+            temp[idStr] = notification;
+            notificationEntries = temp;
+
             for (let i = 0; i < notifModel.count; i++) {
-                if (notifModel.get(i).notifId === notification.id) {
-                    notifModel.setProperty(i, "notificationEntry", notification);
+                if (notifModel.get(i).notifId === idStr) {
                     return;
                 }
             }
             notifModel.insert(0, {
-                notifId: notification.id,
-                notificationEntry: notification
+                notifId: idStr,
+                notifType: "notification"
             });
         }
 
+        Connections {
+            target: Screenshot
+            function onActiveChanged() {
+                if (Screenshot.active) {
+                    let found = false;
+                    for (let i = 0; i < notifModel.count; i++) {
+                        if (notifModel.get(i).notifType === "screenshot") {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        notifModel.insert(0, {
+                            notifId: "screenshot_id",
+                            notifType: "screenshot"
+                        });
+                    }
+                }
+            }
+        }
+
         function disposeNotification(notificationId) {
+            let idStr = notificationId.toString();
+            let temp = {};
+            for (let k in notificationEntries) {
+                if (k !== idStr) {
+                    temp[k] = notificationEntries[k];
+                }
+            }
+            notificationEntries = temp;
+
             for (let i = 0; i < notifModel.count; i++) {
-                if (notifModel.get(i).notifId === notificationId) {
+                if (notifModel.get(i).notifId === idStr) {
+                    if (notifModel.get(i).notifType === "screenshot") {
+                        Screenshot.active = false;
+                    }
                     notifModel.remove(i, 1);
                     return;
                 }
@@ -83,8 +125,6 @@ Variants {
         Connections {
             target: NotifServer
             function onNotification(notification) {
-                // Suppress popup when Do Not Disturb is active
-                // (notification is still saved to history by NotifServer)
                 if (DoNotDisturb.enabled)
                     return;
                 notificationPopup.addOrUpdateNotification(notification);
@@ -137,7 +177,7 @@ Variants {
                 for (let i = 0; i < cardHeights.length; i++) {
                     if (cardHeights[i].notifId === id) {
                         if (cardHeights[i].h === h)
-                            return;  // no-op
+                            return;
                         cardHeights[i].h = h;
                         cardHeightsChanged();
                         return;
@@ -175,8 +215,9 @@ Variants {
                     id: cardDelegate
 
                     required property int index
-                    required property int notifId
-                    required property var notificationEntry
+                    required property var notifId
+                    required property string notifType
+                    readonly property var notificationEntry: notificationPopup.notificationEntries[notifId.toString()]
 
                     width: 350
                     height: notificationCard.height + 20
@@ -206,6 +247,11 @@ Variants {
                         x = 390;
                         opacity = 0;
                         slideIn.start();
+                        // Universal timer initialization
+                        lifeSpanProgress = 1.0;
+                        expiryAnim.duration = 7000;
+                        expiryAnim.restart();
+                        updateExpiryPaused();
                     }
 
                     Component.onDestruction: {
@@ -257,8 +303,8 @@ Variants {
                         onFinished: notificationPopup.disposeNotification(notifId)
                     }
 
-                    readonly property string applicationName: notificationEntry.appName || "Notification"
-                    readonly property var applicationIcon: notificationEntry.image || notificationEntry.appIcon || ""
+                    readonly property string applicationName: (notifType !== "screenshot" && notificationEntry) ? (notificationEntry.appName || "Notification") : "Screenshot"
+                    readonly property var applicationIcon: (notifType !== "screenshot" && notificationEntry) ? (notificationEntry.image || notificationEntry.appIcon || "") : ""
 
                     property real lifeSpanProgress: 1.0
 
@@ -272,7 +318,7 @@ Variants {
                     }
 
                     Connections {
-                        target: notificationEntry
+                        target: notifType === "notification" ? notificationEntry : null
                         function onClosed(reason) {
                             cardDelegate.slideOut();
                         }
@@ -302,7 +348,14 @@ Variants {
                         }
                     }
 
-
+                    Connections {
+                        target: Screenshot
+                        function onActiveChanged() {
+                            if (notifType === "screenshot" && !Screenshot.active) {
+                                cardDelegate.slideOut();
+                            }
+                        }
+                    }
 
                     NumberAnimation {
                         id: expiryAnim
@@ -311,7 +364,7 @@ Variants {
                         from: 1.0
                         to: 0.0
                         duration: 7000
-                        running: true
+                        running: true // Both standard notifications and screenshots have auto-close
 
                         onRunningChanged: {
                             if (running) {
@@ -322,15 +375,17 @@ Variants {
                         onFinished: {
                             if (cardDelegate.lifeSpanProgress > 0.01)
                                 return;
-                            if (!notificationEntry)
-                                return;
                             if (cardDelegate.slidingOut)
                                 return;
                             if (cardDelegate.expireCalled)
                                 return;
                             cardDelegate.expireCalled = true;
-                            if (typeof notificationEntry.expire === "function")
+
+                            if (notifType === "screenshot") {
+                                Screenshot.dismiss();
+                            } else if (notificationEntry && typeof notificationEntry.expire === "function") {
                                 notificationEntry.expire();
+                            }
                         }
                     }
 
@@ -409,6 +464,9 @@ Variants {
                                 if (cardDelegate.slidingOut)
                                     return;
 
+                                if (notifType === "screenshot")
+                                    return;
+
                                 let invoked = false;
                                 if (notificationEntry && notificationEntry.actions) {
                                     for (let i = 0; i < notificationEntry.actions.length; i++) {
@@ -449,16 +507,16 @@ Variants {
                                         anchors.fill: parent
                                         radius: width / 2
                                         color: Theme.primary_container
-                                        visible: !cardDelegate.applicationIcon
+                                        visible: notifType === "screenshot" || !cardDelegate.applicationIcon
 
                                         Text {
                                             anchors.centerIn: parent
-                                            text: "!"
+                                            text: notifType === "screenshot" ? "󰹑" : "!"
                                             color: Theme.on_primary_container
                                             font {
-                                                family: "Google Sans Medium"
+                                                family: notifType === "screenshot" ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
                                                 pixelSize: 13
-                                                bold: true
+                                                bold: notifType !== "screenshot"
                                             }
                                         }
                                     }
@@ -477,7 +535,7 @@ Variants {
                                         anchors.fill: parent
                                         source: cardDelegate.applicationIcon
                                         fillMode: Image.PreserveAspectCrop
-                                        visible: !!cardDelegate.applicationIcon
+                                        visible: !!cardDelegate.applicationIcon && notifType !== "screenshot"
                                         layer.enabled: true
                                         layer.smooth: true
                                         layer.effect: MultiEffect {
@@ -605,6 +663,11 @@ Variants {
                                             if (cardDelegate.slidingOut)
                                                 return;
 
+                                            if (notifType === "screenshot") {
+                                                Screenshot.dismiss();
+                                                return;
+                                            }
+
                                             if (notificationEntry && typeof notificationEntry.dismiss === "function") {
                                                 notificationEntry.dismiss();
                                             }
@@ -613,33 +676,172 @@ Variants {
                                 }
                             }
 
-                            Column {
+                            Loader {
                                 width: parent.width
-                                spacing: 4
+                                sourceComponent: notifType === "screenshot" ? screenshotContent : notificationContent
+                            }
+                        }
+                    }
 
-                                Text {
-                                    text: notificationEntry.summary
-                                    color: Theme.on_surface
-                                    font {
-                                        family: "Google Sans Medium"
-                                        pixelSize: 16
-                                        bold: true
+                    Component {
+                        id: notificationContent
+                        Column {
+                            width: layoutContent.width
+                            spacing: 4
+
+                            Text {
+                                text: notificationEntry ? notificationEntry.summary : ""
+                                color: Theme.on_surface
+                                font {
+                                    family: "Google Sans Medium"
+                                    pixelSize: 16
+                                    bold: true
+                                }
+                                width: parent.width
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                text: notificationEntry ? notificationEntry.body : ""
+                                color: Theme.on_surface_variant
+                                font {
+                                    family: "Google Sans"
+                                    pixelSize: 14
+                                }
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 3
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: screenshotContent
+                        Column {
+                            width: layoutContent.width
+                            spacing: 10
+
+                            // --- Screenshot Preview ---
+                            Rectangle {
+                                id: previewContainer
+                                width: parent.width
+                                height: Math.min(width * 0.5625, 160)
+                                radius: 16
+                                color: Theme.surface_container_high
+                                clip: true
+
+                                Image {
+                                    id: previewImg
+                                    anchors.fill: parent
+                                    source: Screenshot.imagePath ? ("file://" + Screenshot.imagePath) : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: false
+
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true
+                                        maskSource: previewMask
+                                        maskThresholdMin: 0.5
+                                        maskSpreadAtMin: 1.0
                                     }
-                                    width: parent.width
-                                    elide: Text.ElideRight
                                 }
 
-                                Text {
-                                    text: notificationEntry.body
-                                    color: Theme.on_surface_variant
-                                    font {
-                                        family: "Google Sans"
-                                        pixelSize: 14
+                                Rectangle {
+                                    id: previewMask
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    visible: false
+                                    layer.enabled: true
+                                }
+                            }
+
+                            // --- Action Buttons ---
+                            Row {
+                                width: parent.width
+                                spacing: 8
+
+                                component ActionPill: Rectangle {
+                                    id: pill
+                                    property string icon
+                                    property string label
+                                    property bool done: false
+                                    property bool busy: false
+
+                                    width: (parent.width - 16) / 3
+                                    height: 36
+                                    radius: 18
+                                    color: {
+                                        if (done) return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18);
+                                        if (pillMouse.containsMouse) return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14);
+                                        return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
                                     }
-                                    width: parent.width
-                                    wrapMode: Text.WordWrap
-                                    maximumLineCount: 3
-                                    elide: Text.ElideRight
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    signal triggered()
+
+                                    scale: pillMouse.pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                                    Row {
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: pill.done ? "󰄬" : (pill.busy ? "󰦖" : pill.icon)
+                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                            color: pill.done ? Theme.primary : Theme.on_surface_variant
+
+                                            RotationAnimation on rotation {
+                                                running: pill.busy
+                                                from: 0; to: 360
+                                                duration: 1000
+                                                loops: Animation.Infinite
+                                            }
+
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: pill.label
+                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                                            color: pill.done ? Theme.primary : Theme.on_surface
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: pillMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: pill.triggered()
+                                    }
+                                }
+
+                                ActionPill {
+                                    icon: "󰆏"
+                                    label: "Copy"
+                                    done: Screenshot.wasCopied
+                                    onTriggered: Screenshot.copyToClipboard()
+                                }
+
+                                ActionPill {
+                                    icon: "󰈝"
+                                    label: "Save"
+                                    done: Screenshot.wasSaved
+                                    onTriggered: Screenshot.save()
+                                }
+
+                                ActionPill {
+                                    icon: "󰊄"
+                                    label: "OCR Text"
+                                    done: Screenshot.wasOcred
+                                    busy: Screenshot.ocring
+                                    onTriggered: Screenshot.ocr()
                                 }
                             }
                         }
