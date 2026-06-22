@@ -28,8 +28,8 @@ PanelWindow {
     }
 
     Rectangle {
-        width: 700
-        height: 480
+        width: 780
+        height: 520
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.topMargin: 70

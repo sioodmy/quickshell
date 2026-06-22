@@ -1,5 +1,6 @@
 import QtQuick
 import qs.theme
+import qs.services
 
 Item {
     id: root
@@ -90,6 +91,12 @@ Item {
                         radius: 23
                         readonly property bool isSelectedDay: (model.isCurrentMonth && parseInt(model.dayText) === root.selectedDay && root.displayMonth === root.selectedMonth && root.displayYear === root.selectedYear)
 
+                        // Check if this day has org events
+                        readonly property bool hasEvents: {
+                            if (!model.isCurrentMonth) return false;
+                            return OrgAgenda.hasEventsOnDate(root.displayYear, root.displayMonth, parseInt(model.dayText));
+                        }
+
                         color: (dayMouse.containsMouse && model.isCurrentMonth && !isSelectedDay) ? Theme.surface_variant : "transparent"
                         border.color: model.isToday && !isSelectedDay ? Theme.primary : "transparent"
                         border.width: model.isToday && !isSelectedDay ? 2 : 0
@@ -110,6 +117,7 @@ Item {
 
                         Text {
                             anchors.centerIn: parent
+                            anchors.verticalCenterOffset: dayCell.hasEvents ? -3 : 0
                             text: model.dayText
                             font.family: "Google Sans"
                             font.pointSize: 13
@@ -119,6 +127,32 @@ Item {
                                 ColorAnimation {
                                     duration: 150
                                 }
+                            }
+                            Behavior on anchors.verticalCenterOffset {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+                        }
+
+                        // Event dot indicator
+                        Rectangle {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 6
+                            width: 5
+                            height: 5
+                            radius: 3
+                            visible: dayCell.hasEvents
+                            color: dayCell.isSelectedDay ? Theme.on_primary : Theme.primary
+                            opacity: dayCell.hasEvents ? 1 : 0
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 200 }
+                            }
+                            Behavior on color {
+                                ColorAnimation { duration: 150 }
                             }
                         }
 
@@ -139,3 +173,4 @@ Item {
         }
     }
 }
+

@@ -116,6 +116,8 @@ PanelWindow {
             contentHeight: contentCol.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            flickDeceleration: 1500
+            maximumFlickVelocity: 5000
 
             Column {
                 id: contentCol

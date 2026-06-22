@@ -1,5 +1,6 @@
 import QtQuick
 import qs.theme
+import qs.services
 
 Item {
     id: root
@@ -326,18 +327,9 @@ Item {
     Row {
         anchors.fill: parent
         anchors.margins: 28
-        spacing: 32
+        spacing: 28
 
-        ClockPane {
-            liveTime: root.liveTime
-            selectedDay: root.selectedDay
-            selectedMonth: root.selectedMonth
-            selectedYear: root.selectedYear
-            height: parent.height
-
-            isWindowVisible: root.isWindowVisible
-        }
-
+        // Left side: Calendar days
         Item {
             width: 382
             height: parent.height
@@ -444,6 +436,18 @@ Item {
                     }
                 }
             }
+        }
+
+        // Right side: Agenda panel
+        AgendaPane {
+            width: parent.width - 382 - parent.spacing
+            liveTime: root.liveTime
+            selectedDay: root.selectedDay
+            selectedMonth: root.selectedMonth
+            selectedYear: root.selectedYear
+            height: parent.height
+
+            isWindowVisible: root.isWindowVisible
         }
     }
 }
