@@ -6,6 +6,7 @@ import QtQuick.Effects
 Item {
     id: bg
     property string weatherCode: ""
+    property bool miniMode: false
     clip: true
 
     readonly property bool isRain: ["176","263","266","293","296","299","302","305","308","353","356","359"].indexOf(weatherCode) >= 0
@@ -20,10 +21,10 @@ Item {
     // ===== SUN GLOW =====
     Item {
         visible: isSunny || isPartly
-        width: 240
-        height: 240
-        x: bg.width - 150
-        y: -60
+        width: miniMode ? 100 : 240
+        height: miniMode ? 100 : 240
+        x: bg.width - (miniMode ? 50 : 150)
+        y: miniMode ? -20 : -60
 
         // Soft, wide outer glow
         Rectangle {
@@ -34,53 +35,53 @@ Item {
             color: "transparent"
 
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(1, 0.8, 0.2, 0.15) }
-                GradientStop { position: 0.5; color: Qt.rgba(1, 0.6, 0.1, 0.05) }
+                GradientStop { position: 0.0; color: Qt.rgba(1, 0.8, 0.2, miniMode ? 0.08 : 0.15) }
+                GradientStop { position: 0.5; color: Qt.rgba(1, 0.6, 0.1, miniMode ? 0.02 : 0.05) }
                 GradientStop { position: 1.0; color: "transparent" }
             }
 
             SequentialAnimation on scale {
                 loops: Animation.Infinite
-                NumberAnimation { from: 0.95; to: 1.1; duration: 4000; easing.type: Easing.InOutSine }
-                NumberAnimation { from: 1.1; to: 0.95; duration: 4000; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 0.95; to: 1.1; duration: miniMode ? 12000 : 4000; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.1; to: 0.95; duration: miniMode ? 12000 : 4000; easing.type: Easing.InOutSine }
             }
         }
 
         // Warmer inner core
         Rectangle {
             anchors.centerIn: parent
-            width: 140
-            height: 140
-            radius: 70
+            width: miniMode ? 60 : 140
+            height: miniMode ? 60 : 140
+            radius: width / 2
             color: "transparent"
 
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(1, 0.85, 0.4, 0.2) }
+                GradientStop { position: 0.0; color: Qt.rgba(1, 0.85, 0.4, miniMode ? 0.12 : 0.2) }
                 GradientStop { position: 1.0; color: "transparent" }
             }
 
             SequentialAnimation on scale {
                 loops: Animation.Infinite
-                NumberAnimation { from: 0.9; to: 1.05; duration: 3000; easing.type: Easing.InOutSine }
-                NumberAnimation { from: 1.05; to: 0.9; duration: 3000; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 0.9; to: 1.05; duration: miniMode ? 10000 : 3000; easing.type: Easing.InOutSine }
+                NumberAnimation { from: 1.05; to: 0.9; duration: miniMode ? 10000 : 3000; easing.type: Easing.InOutSine }
             }
         }
     }
 
     // ===== RAIN DROPS =====
     Repeater {
-        model: (isRain || isThunder) ? (isHeavyRain || isThunder ? 60 : 30) : 0
+        model: (isRain || isThunder) ? (miniMode ? (isHeavyRain ? 6 : 3) : (isHeavyRain || isThunder ? 60 : 30)) : 0
         delegate: Rectangle {
             id: raindrop
-            width: 1.5
-            height: 18 + Math.random() * 15
+            width: miniMode ? 1 : 1.5
+            height: (miniMode ? 6 : 18) + Math.random() * (miniMode ? 6 : 15)
             radius: 1
-            color: Qt.rgba(1, 1, 1, 0.35)
+            color: Qt.rgba(1, 1, 1, miniMode ? 0.15 : 0.35)
             x: Math.random() * bg.width
             rotation: 12
 
             property real startY: -(Math.random() * bg.height)
-            property real speed: 800 + Math.random() * 500
+            property real speed: (800 + Math.random() * 500) * (miniMode ? 8 : 1)
             y: startY
 
             SequentialAnimation on y {
@@ -110,29 +111,29 @@ Item {
         SequentialAnimation on opacity {
             loops: Animation.Infinite
             running: isThunder
-            PauseAnimation { duration: 2500 + Math.random() * 5000 }
-            NumberAnimation { to: 0.4; duration: 40 }
-            NumberAnimation { to: 0; duration: 80 }
-            PauseAnimation { duration: 100 }
-            NumberAnimation { to: 0.2; duration: 30 }
-            NumberAnimation { to: 0; duration: 150 }
+            PauseAnimation { duration: (2500 + Math.random() * 5000) * (miniMode ? 3 : 1) }
+            NumberAnimation { to: miniMode ? 0.15 : 0.4; duration: miniMode ? 120 : 40 }
+            NumberAnimation { to: 0; duration: miniMode ? 240 : 80 }
+            PauseAnimation { duration: miniMode ? 300 : 100 }
+            NumberAnimation { to: miniMode ? 0.08 : 0.2; duration: miniMode ? 90 : 30 }
+            NumberAnimation { to: 0; duration: miniMode ? 450 : 150 }
         }
     }
 
     // ===== SNOW FLAKES =====
     Repeater {
-        model: isSnow ? 45 : 0
+        model: isSnow ? (miniMode ? 6 : 45) : 0
         delegate: Rectangle {
             id: snowflake
-            width: 4 + Math.random() * 5
+            width: (miniMode ? 2 : 4) + Math.random() * (miniMode ? 2 : 5)
             height: width
             radius: width / 2
-            color: Qt.rgba(1, 1, 1, 0.6)
+            color: Qt.rgba(1, 1, 1, miniMode ? 0.3 : 0.6)
 
             property real startX: Math.random() * bg.width
             property real startY: -(Math.random() * bg.height)
-            property real speed: 4000 + Math.random() * 4000
-            property real drift: 25 + Math.random() * 30
+            property real speed: (4000 + Math.random() * 4000) * (miniMode ? 6 : 1)
+            property real drift: (25 + Math.random() * 30) * (miniMode ? 0.3 : 1)
 
             x: startX
             y: startY
@@ -170,25 +171,25 @@ Item {
     Component {
         id: cloudComponent
         Item {
-            width: 120
-            height: 60
+            width: miniMode ? 60 : 120
+            height: miniMode ? 30 : 60
             property real baseOpacity: 0.15
 
             // Puffy shapes making up the cloud
-            Rectangle { x: 10; y: 30; width: 90; height: 30; radius: 15; color: "white"; opacity: parent.baseOpacity }
-            Rectangle { x: 25; y: 15; width: 40; height: 40; radius: 20; color: "white"; opacity: parent.baseOpacity }
-            Rectangle { x: 50; y: 5; width: 50; height: 50; radius: 25; color: "white"; opacity: parent.baseOpacity }
+            Rectangle { x: parent.width*0.08; y: parent.height*0.5; width: parent.width*0.75; height: parent.height*0.5; radius: height/2; color: "white"; opacity: parent.baseOpacity }
+            Rectangle { x: parent.width*0.2; y: parent.height*0.25; width: parent.width*0.33; height: parent.width*0.33; radius: height/2; color: "white"; opacity: parent.baseOpacity }
+            Rectangle { x: parent.width*0.41; y: parent.height*0.08; width: parent.width*0.41; height: parent.width*0.41; radius: height/2; color: "white"; opacity: parent.baseOpacity }
         }
     }
 
     Repeater {
-        model: (isCloudy || isPartly || isFog) ? (isFog ? 6 : 4) : 0
+        model: (isCloudy || isPartly || isFog) ? (miniMode ? (isFog ? 2 : 1) : (isFog ? 6 : 4)) : 0
         delegate: Loader {
             sourceComponent: cloudComponent
-            y: 10 + index * 45 + Math.random() * 20
+            y: (miniMode ? 2 : 10) + index * (miniMode ? 10 : 45) + Math.random() * (miniMode ? 5 : 20)
             
             onLoaded: {
-                item.baseOpacity = isFog ? 0.08 : (isCloudy ? 0.15 : 0.1)
+                item.baseOpacity = (isFog ? 0.08 : (isCloudy ? 0.15 : 0.1)) * (miniMode ? 0.5 : 1.0)
                 // Random scale
                 item.scale = 0.8 + Math.random() * 0.5
             }
@@ -201,7 +202,7 @@ Item {
                 NumberAnimation {
                     from: startX
                     to: bg.width + 50
-                    duration: 25000 + Math.random() * 15000
+                    duration: (25000 + Math.random() * 15000) * (miniMode ? 4 : 1)
                     easing.type: Easing.Linear
                 }
             }
@@ -210,14 +211,14 @@ Item {
 
     // ===== FOG LAYERS =====
     Repeater {
-        model: isFog ? 3 : 0
+        model: isFog ? (miniMode ? 1 : 3) : 0
         delegate: Rectangle {
             id: fogLayer
             width: bg.width * 1.5
-            height: 60 + Math.random() * 40
+            height: (60 + Math.random() * 40) * (miniMode ? 0.5 : 1)
             radius: height / 2
-            color: Qt.rgba(1, 1, 1, 0.04)
-            y: bg.height * 0.4 + index * 40
+            color: Qt.rgba(1, 1, 1, miniMode ? 0.02 : 0.04)
+            y: bg.height * (miniMode ? 0.1 : 0.4) + index * 40
 
             property real baseX: -80
             x: baseX
@@ -227,13 +228,13 @@ Item {
                 NumberAnimation {
                     from: fogLayer.baseX - 40
                     to: fogLayer.baseX + 40
-                    duration: 8000 + Math.random() * 5000
+                    duration: (8000 + Math.random() * 5000) * (miniMode ? 4 : 1)
                     easing.type: Easing.InOutSine
                 }
                 NumberAnimation {
                     from: fogLayer.baseX + 40
                     to: fogLayer.baseX - 40
-                    duration: 8000 + Math.random() * 5000
+                    duration: (8000 + Math.random() * 5000) * (miniMode ? 4 : 1)
                     easing.type: Easing.InOutSine
                 }
             }

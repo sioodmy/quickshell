@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.services
@@ -276,6 +277,24 @@ Item {
             };
             return c[code] || "❓";
         }
+
+        function getWeatherTint() {
+            var c = weatherCode;
+            var isRain = ["176","263","266","293","296","299","302","305","308","353","356","359"].indexOf(c) >= 0;
+            var isThunder = ["200","386","389","392"].indexOf(c) >= 0;
+            var isSnow = ["179","227","230","329","332","335","338","371","395","182","185","311","314","317","320","323","326","350","362","365","368","374","377"].indexOf(c) >= 0;
+            var isFog = ["143","248","260"].indexOf(c) >= 0;
+            var isCloudy = ["119","122"].indexOf(c) >= 0;
+            var isSunny = c === "113";
+            
+            if (isThunder) return Qt.rgba(0.15, 0.10, 0.35, 0.18); // deep purple-blue
+            if (isRain)    return Qt.rgba(0.10, 0.20, 0.50, 0.18); // dark indigo-blue
+            if (isSnow)    return Qt.rgba(0.15, 0.35, 0.60, 0.18); // dark azure blue
+            if (isFog)     return Qt.rgba(0.15, 0.20, 0.30, 0.18); // dark slate blue
+            if (isCloudy)  return Qt.rgba(0.12, 0.15, 0.35, 0.18); // deep navy blue
+            if (isSunny)   return Qt.rgba(0.25, 0.30, 0.50, 0.15); // rich dark blue with hint of warmth
+            return Qt.rgba(0.15, 0.20, 0.40, 0.15); // partly cloudy (dark blue)
+        }
     }
 
     // Periodic refresh (every 10 minutes), and an immediate fetch on startup.
@@ -332,11 +351,12 @@ Item {
         radius: height / 2
 
         color: {
+            var baseColor = Qt.tint(Theme.surface_container, weatherData.getWeatherTint());
             if (weatherWidget.visible)
-                return Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12));
+                return Qt.tint(baseColor, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12));
             if (pillMouse.containsMouse)
-                return Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08));
-            return Theme.surface_container;
+                return Qt.tint(baseColor, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08));
+            return baseColor;
         }
 
         scale: pillMouse.pressed ? 0.95 : 1.0
@@ -346,6 +366,27 @@ Item {
         }
         Behavior on scale {
             NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+
+        WeatherBackground {
+            anchors.fill: parent
+            weatherCode: weatherData.weatherCode
+            miniMode: true
+            opacity: 0.9
+
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: ShaderEffectSource {
+                    hideSource: true
+                    sourceItem: Rectangle {
+                        width: visualPill.width
+                        height: visualPill.height
+                        radius: visualPill.radius
+                        visible: false
+                    }
+                }
+            }
         }
 
         MouseArea {
