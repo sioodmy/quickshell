@@ -142,13 +142,14 @@ Item {
                             minTemp = today.mintempC + "°";
 
                             // Parse hourly forecast (today's remaining + tomorrow's)
-                            var hourly = [];
+                            var allHourly = [];
+                            var currentHour = new Date().getHours();
                             for (var d = 0; d < response.weather.length && d < 2; d++) {
                                 var dayData = response.weather[d];
                                 for (var h = 0; h < dayData.hourly.length; h++) {
                                     var hr = dayData.hourly[h];
                                     var hourNum = parseInt(hr.time) / 100;
-                                    hourly.push({
+                                    allHourly.push({
                                         hour: hourNum,
                                         temp: hr.tempC,
                                         emoji: getWeatherEmoji(hr.weatherCode),
@@ -156,11 +157,21 @@ Item {
                                         chanceOfRain: hr.chanceofrain,
                                         day: d,
                                         humidity: hr.humidity,
-                                        wind: hr.windspeedKmph
+                                        wind: hr.windspeedKmph,
+                                        _absHour: d * 24 + hourNum
                                     });
                                 }
                             }
-                            hourlyForecast = hourly;
+                            var closestIdx = 0;
+                            var minDiff = 9999;
+                            for (var hIdx = 0; hIdx < allHourly.length; hIdx++) {
+                                var diff = Math.abs(allHourly[hIdx]._absHour - currentHour);
+                                if (diff < minDiff) {
+                                    minDiff = diff;
+                                    closestIdx = hIdx;
+                                }
+                            }
+                            hourlyForecast = allHourly.slice(closestIdx);
 
                             // Parse daily forecast (3 days)
                             var daily = [];
