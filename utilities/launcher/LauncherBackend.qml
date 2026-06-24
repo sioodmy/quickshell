@@ -125,7 +125,7 @@ Item {
     }
 
     function looksLikeMath(query) {
-        return /[0-9]/.test(query) || /^[\(\-\+]/.test(query);
+        return /[0-9]/.test(query) || /^[\(\-\+]/.test(query) || query.indexOf("int") !== -1 || query.indexOf("sum") !== -1 || query.indexOf("det") !== -1 || query.indexOf("sqrt") !== -1;
     }
 
     // --- Focus window via niri ---
@@ -205,15 +205,25 @@ Item {
             if (query === "") {
                 backend.calcResult = "";
                 backend.calcExpression = "";
+                backend.walatexStatus = "";
                 return;
             }
             // Only evaluate if it looks like a math/conversion expression
-            if (/[0-9]/.test(query) || /^[\(\-\+]/.test(query)) {
+            if (backend.looksLikeMath(query)) {
                 rinkProcess.expressionArg = query;
                 rinkProcess.running = true;
+                
+                // Trigger walatex
+                backend.walatexStatus = "loading";
+                var colStr = String(Theme.on_surface);
+                if (colStr.length === 9 && colStr.startsWith("#ff")) {
+                    colStr = "#" + colStr.substring(3);
+                }
+                walatexDaemon.write(JSON.stringify({ query: query, out: "/tmp/quickshell_math.svg", color: colStr }) + "\n");
             } else {
                 backend.calcResult = "";
                 backend.calcExpression = "";
+                backend.walatexStatus = "";
             }
         }
     }
@@ -262,6 +272,41 @@ Item {
         id: copyCalcResult
         property string resultText: ""
         command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", resultText]
+    }
+
+    property string walatexSvg: ""
+    property string walatexError: ""
+    property string walatexStatus: "" // "loading", "ok", "error", ""
+
+    Process {
+        id: walatexDaemon
+        command: ["walatex", "daemon"]
+        running: true
+        stdinEnabled: true
+        stdout: SplitParser {
+            onRead: data => {
+                var trimmed = data.trim();
+                if (trimmed === "") return;
+                try {
+                    var parsed = JSON.parse(trimmed);
+                    if (parsed.status === "ok") {
+                        if (parsed.svg_content) {
+                            backend.walatexSvg = "data:image/svg+xml;utf8," + encodeURIComponent(parsed.svg_content);
+                        } else {
+                            backend.walatexSvg = "file:///tmp/quickshell_math.svg?t=" + Date.now();
+                        }
+                        backend.walatexStatus = "ok";
+                        backend.walatexError = "";
+                    } else if (parsed.status === "error") {
+                        // don't clear SVG on error so it can remain faintly visible
+                        backend.walatexError = parsed.error || "Unknown error";
+                        backend.walatexStatus = "error";
+                    }
+                } catch(e) {
+                    console.log("Walatex JSON error:", e);
+                }
+            }
+        }
     }
 
     function copyResult() {

@@ -5,7 +5,18 @@ import "../../theme"
 Item {
     id: delegateRoot
     width: ListView.view.width
-    height: 72
+    
+    property bool isWolfram: itemType === "action" && modelData.actionId === "wolfram"
+    property bool hasExpanded: isWolfram && ctrl.walatexSvg !== ""
+    
+    height: hasExpanded ? 180 : 72
+    
+    Behavior on height {
+        NumberAnimation {
+            duration: 250
+            easing.type: Easing.OutCubic
+        }
+    }
 
     property bool isSelected: ListView.isCurrentItem
     property bool isHovered: itemMouseArea.containsMouse
@@ -105,213 +116,313 @@ Item {
             }
         }
 
-        // --- Icon area ---
         Item {
-            id: iconContainer
-            width: 42
-            height: 42
-            anchors.left: parent.left
-            anchors.leftMargin: 20
-            anchors.verticalCenter: parent.verticalCenter
+            id: topRow
+            width: parent.width
+            height: 72
+            anchors.top: parent.top
 
-            // App icon (desktop entry icon)
-            IconImage {
-                id: appIcon
-                anchors.fill: parent
-                visible: delegateRoot.itemType === "app" || delegateRoot.itemType === "focus"
+            // --- Icon area ---
+            Item {
+                id: iconContainer
+                width: 42
+                height: 42
+                anchors.left: parent.left
+                anchors.leftMargin: 20
+                anchors.verticalCenter: parent.verticalCenter
 
-                source: {
-                    if (delegateRoot.itemType !== "app" && delegateRoot.itemType !== "focus") return "";
-                    var entry = modelData.entry;
-                    if (!entry || !entry.icon || entry.icon === "") {
-                        return "image://icon/application-x-executable";
+                // App icon (desktop entry icon)
+                IconImage {
+                    id: appIcon
+                    anchors.fill: parent
+                    visible: delegateRoot.itemType === "app" || delegateRoot.itemType === "focus"
+
+                    source: {
+                        if (delegateRoot.itemType !== "app" && delegateRoot.itemType !== "focus") return "";
+                        var entry = modelData.entry;
+                        if (!entry || !entry.icon || entry.icon === "") {
+                            return "image://icon/application-x-executable";
+                        }
+                        if (entry.icon.startsWith("/")) {
+                            return "file://" + entry.icon;
+                        }
+                        return "image://icon/" + entry.icon;
                     }
-                    if (entry.icon.startsWith("/")) {
-                        return "file://" + entry.icon;
-                    }
-                    return "image://icon/" + entry.icon;
-                }
 
-                onStatusChanged: {
-                    if (status === Image.Error) {
-                        source = "image://icon/application-x-executable";
-                    }
-                }
-            }
-
-            // Emoji character as icon
-            Text {
-                anchors.centerIn: parent
-                visible: delegateRoot.itemType === "emoji"
-                text: delegateRoot.itemType === "emoji" ? modelData.emoji : ""
-                font {
-                    family: "Noto Color Emoji"
-                    pixelSize: 36
-                }
-                renderType: Text.NativeRendering
-            }
-
-            // Action icon — nerd font glyph or icon theme icon
-            Text {
-                anchors.centerIn: parent
-                visible: delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__"
-                text: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
-                font {
-                    family: "JetBrainsMono Nerd Font"
-                    pixelSize: 26
-                }
-                color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
-            }
-
-            // Action icon — from icon theme (e.g. Helium browser)
-            IconImage {
-                id: actionThemeIcon
-                anchors.fill: parent
-                visible: delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__"
-                source: {
-                    if (delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__") {
-                        return "image://icon/" + modelData.icon;
-                    }
-                    return "";
-                }
-
-                onStatusChanged: {
-                    if (status === Image.Error) {
-                        source = "image://icon/web-browser";
+                    onStatusChanged: {
+                        if (status === Image.Error) {
+                            source = "image://icon/application-x-executable";
+                        }
                     }
                 }
-            }
-        }
 
-        Column {
-            anchors.left: iconContainer.right
-            anchors.right: actionPill.left
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 2
-
-            Text {
-                width: parent.width
-                text: delegateRoot.nameText
-                color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface
-                elide: Text.ElideRight
-                font {
-                    family: delegateRoot.itemType === "emoji" ? "Noto Color Emoji" : "Google Sans"
-                    pixelSize: 16
-                    weight: Font.DemiBold
+                // Emoji character as icon
+                Text {
+                    anchors.centerIn: parent
+                    visible: delegateRoot.itemType === "emoji"
+                    text: delegateRoot.itemType === "emoji" ? modelData.emoji : ""
+                    font {
+                        family: "Noto Color Emoji"
+                        pixelSize: 36
+                    }
+                    renderType: Text.NativeRendering
                 }
-                // Emoji items: use native rendering for color emoji in the name
-                renderType: delegateRoot.itemType === "emoji" ? Text.NativeRendering : Text.QtRendering
-            }
 
-            Text {
-                width: parent.width
-                text: delegateRoot.descriptionText
-                visible: delegateRoot.descriptionText !== ""
-                color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
-                opacity: delegateRoot.isSelected ? 0.8 : 1.0
-                elide: Text.ElideRight
-                font {
-                    family: "Google Sans"
-                    pixelSize: 13
+                // Action icon — nerd font glyph or icon theme icon
+                Text {
+                    anchors.centerIn: parent
+                    visible: delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__"
+                    text: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
+                    font {
+                        family: "JetBrainsMono Nerd Font"
+                        pixelSize: 26
+                    }
+                    color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                 }
-            }
-        }
 
-        Rectangle {
-            id: actionPill
-            anchors.right: parent.right
-            anchors.rightMargin: 16
-            anchors.verticalCenter: parent.verticalCenter
-            width: pillRow.width + 24
-            height: 32
-            radius: 16
-            color: {
-                if (delegateRoot.itemType === "emoji")
-                    return Theme.tertiary;
-                if (delegateRoot.itemType === "action")
-                    return Theme.secondary;
-                if (delegateRoot.itemType === "focus")
-                    return Theme.tertiary;
-                return Theme.primary;
-            }
-            opacity: delegateRoot.isSelected ? 1.0 : 0.0
-            scale: delegateRoot.isSelected ? 1.0 : 0.8
+                // Action icon — from icon theme (e.g. Helium browser)
+                IconImage {
+                    id: actionThemeIcon
+                    anchors.fill: parent
+                    visible: delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__"
+                    source: {
+                        if (delegateRoot.itemType === "action" && modelData.iconFamily === "__icon_theme__") {
+                            return "image://icon/" + modelData.icon;
+                        }
+                        return "";
+                    }
 
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 100
-                }
-            }
-            Behavior on scale {
-                NumberAnimation {
-                    duration: 100
-                    easing.type: Easing.OutBack
+                    onStatusChanged: {
+                        if (status === Image.Error) {
+                            source = "image://icon/web-browser";
+                        }
+                    }
                 }
             }
 
-            Row {
-                id: pillRow
-                anchors.centerIn: parent
-                spacing: 6
+            Column {
+                anchors.left: iconContainer.right
+                anchors.right: actionPill.left
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                spacing: 2
 
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    topPadding: 2
-                    verticalAlignment: Text.AlignVCenter
-                    text: {
-                        if (delegateRoot.itemType === "focus")
-                            return "Focus";
-                        if (delegateRoot.itemType === "emoji")
-                            return "Copy";
-                        if (delegateRoot.itemType === "action") {
-                            if (modelData.actionId === "wolfram")
-                                return "Open";
-                            return "Search";
-                        }
-                        return "Launch";
-                    }
-                    color: {
-                        if (delegateRoot.itemType === "emoji")
-                            return Theme.on_tertiary;
-                        if (delegateRoot.itemType === "action")
-                            return Theme.on_secondary;
-                        if (delegateRoot.itemType === "focus")
-                            return Theme.on_tertiary;
-                        return Theme.on_primary;
-                    }
+                    width: parent.width
+                    text: delegateRoot.nameText
+                    color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface
+                    elide: Text.ElideRight
                     font {
-                        family: "Google Sans Medium"
+                        family: delegateRoot.itemType === "emoji" ? "Noto Color Emoji" : "Google Sans"
+                        pixelSize: 16
+                        weight: Font.DemiBold
+                    }
+                    // Emoji items: use native rendering for color emoji in the name
+                    renderType: delegateRoot.itemType === "emoji" ? Text.NativeRendering : Text.QtRendering
+                }
+
+                Text {
+                    width: parent.width
+                    text: delegateRoot.descriptionText
+                    visible: delegateRoot.descriptionText !== ""
+                    color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+                    opacity: delegateRoot.isSelected ? 0.8 : 1.0
+                    elide: Text.ElideRight
+                    font {
+                        family: "Google Sans"
                         pixelSize: 13
                     }
                 }
+            }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    topPadding: 2
-                    verticalAlignment: Text.AlignVCenter
-                    text: {
-                        if (delegateRoot.itemType === "focus")
-                            return "󰇧";
-                        if (delegateRoot.itemType === "emoji")
-                            return "󰆏";
-                        if (delegateRoot.itemType === "action")
-                            return "󰇧";
-                        return "󰌑";
+            Rectangle {
+                id: actionPill
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: pillRow.width + 24
+                height: 32
+                radius: 16
+                color: {
+                    if (delegateRoot.itemType === "emoji")
+                        return Theme.tertiary;
+                    if (delegateRoot.itemType === "action")
+                        return Theme.secondary;
+                    if (delegateRoot.itemType === "focus")
+                        return Theme.tertiary;
+                    return Theme.primary;
+                }
+                opacity: delegateRoot.isSelected ? 1.0 : 0.0
+                scale: delegateRoot.isSelected ? 1.0 : 0.8
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 100
                     }
-                    color: {
-                        if (delegateRoot.itemType === "emoji")
-                            return Theme.on_tertiary;
-                        if (delegateRoot.itemType === "action")
-                            return Theme.on_secondary;
-                        if (delegateRoot.itemType === "focus")
-                            return Theme.on_tertiary;
-                        return Theme.on_primary;
+                }
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 100
+                        easing.type: Easing.OutBack
                     }
-                    font {
-                        family: "JetBrainsMono Nerd Font"
-                        pixelSize: 16
+                }
+
+                Row {
+                    id: pillRow
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        topPadding: 2
+                        verticalAlignment: Text.AlignVCenter
+                        text: {
+                            if (delegateRoot.itemType === "focus")
+                                return "Focus";
+                            if (delegateRoot.itemType === "emoji")
+                                return "Copy";
+                            if (delegateRoot.itemType === "action") {
+                                if (modelData.actionId === "wolfram")
+                                    return "Open";
+                                return "Search";
+                            }
+                            return "Launch";
+                        }
+                        color: {
+                            if (delegateRoot.itemType === "emoji")
+                                return Theme.on_tertiary;
+                            if (delegateRoot.itemType === "action")
+                                return Theme.on_secondary;
+                            if (delegateRoot.itemType === "focus")
+                                return Theme.on_tertiary;
+                            return Theme.on_primary;
+                        }
+                        font {
+                            family: "Google Sans Medium"
+                            pixelSize: 13
+                        }
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        topPadding: 2
+                        verticalAlignment: Text.AlignVCenter
+                        text: {
+                            if (delegateRoot.itemType === "focus")
+                                return "󰇧";
+                            if (delegateRoot.itemType === "emoji")
+                                return "󰆏";
+                            if (delegateRoot.itemType === "action")
+                                return "󰇧";
+                            return "󰌑";
+                        }
+                        color: {
+                            if (delegateRoot.itemType === "emoji")
+                                return Theme.on_tertiary;
+                            if (delegateRoot.itemType === "action")
+                                return Theme.on_secondary;
+                            if (delegateRoot.itemType === "focus")
+                                return Theme.on_tertiary;
+                            return Theme.on_primary;
+                        }
+                        font {
+                            family: "JetBrainsMono Nerd Font"
+                            pixelSize: 16
+                        }
+                    }
+                }
+            }
+        }
+        
+        Item {
+            id: previewArea
+            anchors.top: topRow.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            visible: delegateRoot.itemType === "action" && modelData.actionId === "wolfram"
+            clip: true
+            
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 16
+                anchors.topMargin: 0
+                radius: 12
+                color: Qt.rgba(0,0,0,0.1)
+                
+                Image {
+                    anchors.centerIn: parent
+                    source: ctrl.walatexSvg
+                    fillMode: Image.PreserveAspectFit
+                    width: parent.width - 32
+                    height: parent.height - 32
+                    sourceSize.width: width * 2
+                    sourceSize.height: height * 2
+                    smooth: true
+                    antialiasing: true
+                    opacity: ctrl.walatexStatus === "ok" ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                }
+
+                Item {
+                    anchors.fill: parent
+                    visible: ctrl.walatexStatus === "loading" || ctrl.walatexStatus === "error"
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 16
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "Thinking"
+                            color: "#ffffff"
+                            font.family: "Google Sans"
+                            font.pixelSize: 24
+                            font.weight: Font.DemiBold
+                            opacity: 0.95
+                        }
+
+                        Item {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 3 * 20
+                            height: 30
+                            
+                            Repeater {
+                                model: 3
+                                delegate: Rectangle {
+                                    required property int index
+                                    width: 10
+                                    height: 10
+                                    radius: 5
+                                    color: "#ffffff"
+                                    x: index * 20
+                                    y: 10
+                                    
+                                    SequentialAnimation on y {
+                                        loops: Animation.Infinite
+                                        running: true
+                                        
+                                        PauseAnimation { duration: index * 100 }
+                                        NumberAnimation { from: 10; to: 0; duration: 250; easing.type: Easing.OutSine }
+                                        NumberAnimation { from: 0; to: 10; duration: 250; easing.type: Easing.InSine }
+                                        PauseAnimation { duration: (2 - index) * 100 + 300 }
+                                    }
+                                    
+                                    SequentialAnimation on opacity {
+                                        loops: Animation.Infinite
+                                        running: true
+                                        
+                                        PauseAnimation { duration: index * 100 }
+                                        NumberAnimation { from: 0.3; to: 1.0; duration: 250; easing.type: Easing.OutSine }
+                                        NumberAnimation { from: 1.0; to: 0.3; duration: 250; easing.type: Easing.InSine }
+                                        PauseAnimation { duration: (2 - index) * 100 + 300 }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
