@@ -19,16 +19,25 @@ Item {
     // Emoji data
     property string emojiListPath: "~/.cache/quickshell/emojis.json"
     property string recentsCachePath: "~/.local/state/quickshell/recent_emojis.json"
+    property string frequenciesCachePath: "~/.cache/quickshell/app_frequencies.json"
     property var allEmojis: []
     property var filteredEmojis: []
     property var recentEmojis: []
     property var pendingRecents: []
+    property var appFrequencies: ({})
     property string selectionBuffer: ""
 
     // CHANGE THIS TO YOUR ACTUAL TERMINAL
     property string myTerminal: "foot"
 
     function launchApp(desktopEntry) {
+        if (desktopEntry.id) {
+            var freqs = backend.appFrequencies;
+            freqs[desktopEntry.id] = (freqs[desktopEntry.id] || 0) + 1;
+            backend.appFrequencies = freqs;
+            saveFrequencies();
+        }
+
         var finalCommand = [];
 
         // Wrap the launch in UWSM so systemd tracks the app properly
@@ -49,6 +58,33 @@ Item {
         backend.calcResult = "";
         backend.calcExpression = "";
         backend.closeMenuRequested();
+    }
+
+    Process {
+        id: loadFrequenciesProcess
+        command: ["bash", "-c", 'cat ' + backend.frequenciesCachePath + ' 2>/dev/null || echo "{}"']
+        Component.onCompleted: running = true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var textBody = this.text.trim();
+                    backend.appFrequencies = JSON.parse(textBody || "{}");
+                } catch (e) {
+                    console.error("Failed to parse app frequencies:", e);
+                }
+            }
+        }
+    }
+
+    Process {
+        id: saveFrequenciesProcess
+        property string jsonString: "{}"
+        command: ["bash", "-c", 'mkdir -p "$(dirname ' + backend.frequenciesCachePath + ')" && printf "%s" "$1" > ' + backend.frequenciesCachePath, "_", jsonString]
+    }
+
+    function saveFrequencies() {
+        saveFrequenciesProcess.jsonString = JSON.stringify(backend.appFrequencies);
+        saveFrequenciesProcess.running = true;
     }
 
     // --- URL encoding helper ---

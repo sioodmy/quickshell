@@ -76,7 +76,13 @@ PanelWindow {
                     return false;
                 var n = app.name.toLowerCase();
                 return !hiddenKeywords.some(keyword => n.includes(keyword));
-            }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            }).sort((a, b) => {
+                var freqA = ctrl.appFrequencies[a.id] || 0;
+                var freqB = ctrl.appFrequencies[b.id] || 0;
+                if (freqB !== freqA)
+                    return freqB - freqA;
+                return (a.name || "").localeCompare(b.name || "");
+            });
 
             for (var i = 0; i < sortedApps.length; i++) {
                 results.push({ type: "app", entry: sortedApps[i] });
@@ -140,6 +146,10 @@ PanelWindow {
         scored.sort((a, b) => {
             if (b.score !== a.score)
                 return b.score - a.score;
+            var freqA = ctrl.appFrequencies[a.entry.id] || 0;
+            var freqB = ctrl.appFrequencies[b.entry.id] || 0;
+            if (freqB !== freqA)
+                return freqB - freqA;
             return (a.entry.name || "").localeCompare(b.entry.name || "");
         });
 
