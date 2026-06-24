@@ -48,7 +48,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: Math.round(ctrl.value * 100) + "%"
             font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
-            color: Theme.on_surface
+            color: (fill.width > parent.width - 42) ? Theme.on_primary : Theme.on_surface
         }
 
         MouseArea {

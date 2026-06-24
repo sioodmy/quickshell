@@ -208,6 +208,9 @@ PanelWindow {
                         radius: 24
                         color: Theme.surface_container
                         height: slidersCol.implicitHeight + 32
+                        clip: true
+
+                        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                         Column {
                             id: slidersCol
@@ -218,24 +221,128 @@ PanelWindow {
                             anchors.rightMargin: 16
                             spacing: 14
 
-                            Slider {
+                            Row {
                                 width: parent.width
-                                icon: {
-                                    if (!win.sink?.audio)
-                                        return "";
-                                    if (win.sink?.audio?.muted ?? true)
-                                        return "";
-                                    if (value >= 0.6)
-                                        return "";
-                                    if (value >= 0.3)
-                                        return "";
-                                    return "";
+                                spacing: 14
+
+                                Rectangle {
+                                    id: mixerButton
+                                    width: 48
+                                    height: 48
+                                    radius: 24
+                                    color: mixerMouse.containsMouse ? Theme.surface_variant : Theme.surface_container_high
+                                    border.color: Theme.outline_variant
+                                    border.width: 1
+
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: ""
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 18
+                                        color: Theme.on_surface
+                                    }
+
+                                    MouseArea {
+                                        id: mixerMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: mixerCard.visible = !mixerCard.visible
+                                    }
                                 }
-                                value: Math.min(1, win.sink?.audio?.volume ?? 0)
-                                onMoved: v => {
-                                    if (win.sink?.audio) {
-                                        win.sink.audio.muted = false;
-                                        win.sink.audio.volume = v;
+
+                                Slider {
+                                    width: parent.width - mixerButton.width - 14
+                                    icon: {
+                                        if (!win.sink?.audio)
+                                            return "";
+                                        if (win.sink?.audio?.muted ?? true)
+                                            return "";
+                                        if (value >= 0.6)
+                                            return "";
+                                        if (value >= 0.3)
+                                            return "";
+                                        return "";
+                                    }
+                                    value: Math.min(1, win.sink?.audio?.volume ?? 0)
+                                    onMoved: v => {
+                                        if (win.sink?.audio) {
+                                            win.sink.audio.muted = false;
+                                            win.sink.audio.volume = v;
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                id: mixerCard
+                                width: parent.width
+                                height: mixerColumn.implicitHeight + 24
+                                visible: false
+                                radius: 20
+                                color: Theme.surface_variant
+                                border.color: Theme.outline_variant
+                                border.width: 1
+                                clip: true
+
+                                Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                                Column {
+                                    id: mixerColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 12
+
+                                    Text {
+                                        text: "Volume Mixer"
+                                        color: Theme.on_surface_variant
+                                        font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                                        leftPadding: 4
+                                    }
+
+                                    Repeater {
+                                        model: Pipewire.nodes
+
+                                        delegate: Column {
+                                            width: mixerColumn.width
+                                            visible: showNode
+                                            height: showNode ? implicitHeight : 0
+                                            spacing: 8
+                                            clip: true
+
+                                            PwObjectTracker {
+                                                objects: [modelData]
+                                            }
+
+                                            // Don't show the default sink again since it's above, only output streams and other sinks
+                                            readonly property bool isDefaultSink: modelData.id === win.sink?.id
+                                            readonly property bool isOutputStream: modelData.isStream && modelData.properties["media.class"] === "Stream/Output/Audio"
+                                            readonly property bool showNode: modelData.audio !== undefined && (isOutputStream || (modelData.isSink && !isDefaultSink))
+
+                                            Text {
+                                                text: modelData.properties["application.name"] || modelData.description || modelData.name || "Unknown"
+                                                color: Theme.on_surface
+                                                font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                                                elide: Text.ElideRight
+                                                width: parent.width
+                                                leftPadding: 4
+                                            }
+
+                                            Slider {
+                                                width: parent.width
+                                                icon: modelData.isStream ? "󰎆" : "󰓃"
+                                                accent: Theme.secondary
+                                                value: modelData.audio ? modelData.audio.volume : 0
+                                                onMoved: v => {
+                                                    if (modelData.audio) {
+                                                        modelData.audio.muted = false;
+                                                        modelData.audio.volume = v;
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
