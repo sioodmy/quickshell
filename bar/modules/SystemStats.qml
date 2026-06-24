@@ -108,35 +108,83 @@ Rectangle {
 
             visible: isVisible
 
-            Text {
-                id: batteryIcon
+            Item {
+                id: batteryIconItem
+                width: 26
+                height: 12
                 anchors.verticalCenter: parent.verticalCenter
-                font {
-                    family: "JetBrainsMono Nerd Font"
-                    pixelSize: 14
+
+                // Battery body
+                Rectangle {
+                    id: batteryBody
+                    anchors {
+                        left: parent.left
+                        top: parent.top
+                        bottom: parent.bottom
+                        right: parent.right
+                        rightMargin: 2
+                    }
+                    radius: 3
+                    color: "transparent"
+                    border.width: 1
+                    border.color: {
+                        if (batteryModule.capacity <= 20 && !batteryModule.isCharging)
+                            return Theme.critical;
+                        if (batteryModule.isCharging)
+                            return "#259b50";
+                        return Theme.primary;
+                    }
+                    
+                    Behavior on border.color { ColorAnimation { duration: 250 } }
                 }
 
-                // Color logic: Alert user if charging (active state) or critically low
-                color: (batteryModule.isCharging && batteryModule.capacity < 100) || batteryModule.capacity <= 20 ? Theme.critical : Theme.primary
+                // Battery nub (terminal)
+                Rectangle {
+                    width: 2
+                    height: 4
+                    anchors {
+                        left: batteryBody.right
+                        verticalCenter: parent.verticalCenter
+                    }
+                    radius: 1
+                    color: batteryBody.border.color
+                }
 
-                text: {
-                    if (!batteryModule.isVisible)
-                        return "";
-                    if (batteryModule.isCharging && batteryModule.capacity < 100)
-                        return "";
+                // Battery level fill
+                Rectangle {
+                    id: batteryFill
+                    anchors {
+                        left: batteryBody.left
+                        top: batteryBody.top
+                        bottom: batteryBody.bottom
+                        margins: 2
+                    }
+                    radius: 1
+                    width: Math.max(0, (batteryBody.width - 4) * (batteryModule.capacity / 100))
+                    color: {
+                        if (batteryModule.capacity <= 20 && !batteryModule.isCharging)
+                            return Theme.critical;
+                        if (batteryModule.isCharging)
+                            return "#259b50";
+                        return Theme.primary;
+                    }
+                    opacity: 1.0
 
-                    // Capacity breakpoints
-                    if (batteryModule.capacity >= 90)
-                        return "󰂂";
-                    if (batteryModule.capacity >= 70)
-                        return "󰂀";
-                    if (batteryModule.capacity >= 50)
-                        return "󰁾";
-                    if (batteryModule.capacity >= 30)
-                        return "󰁼";
-                    if (batteryModule.capacity >= 10)
-                        return "󰁺";
-                    return "󰂃";
+                    Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: 250 } }
+                }
+
+                // Charging bolt icon
+                Text {
+                    visible: batteryModule.isCharging
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: -1
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: ""
+                    font.family: "JetBrainsMono Nerd Font"
+                    font.pixelSize: 9
+                    color: Theme.on_surface
                 }
             }
 

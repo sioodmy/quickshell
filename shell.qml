@@ -70,6 +70,9 @@ ShellRoot {
         id: brightnessPopupWindow
     }
 
+    ChargePopup {
+        id: chargePopupWindow
+    }
 
     // Live synced lyrics on desktop (wallpaper)
     LyricsDesktop {

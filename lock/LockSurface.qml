@@ -168,25 +168,81 @@ WlSessionLockSurface {
             readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
             readonly property bool charging: !UPower.onBattery
 
-            Text {
+            Item {
+                id: battIconItem
+                width: 36
+                height: 16
                 anchors.verticalCenter: parent.verticalCenter
-                font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 }
-                color: "white"
-                opacity: 0.9
-                text: {
-                    if (battRow.charging && battRow.capacity < 100)
-                        return "";
-                    if (battRow.capacity >= 90)
-                        return "󰂂";
-                    if (battRow.capacity >= 70)
-                        return "󰂀";
-                    if (battRow.capacity >= 50)
-                        return "󰁾";
-                    if (battRow.capacity >= 30)
-                        return "󰁼";
-                    if (battRow.capacity >= 10)
-                        return "󰁺";
-                    return "󰂃";
+
+                // Battery body
+                Rectangle {
+                    id: battBody
+                    anchors {
+                        left: parent.left
+                        top: parent.top
+                        bottom: parent.bottom
+                        right: parent.right
+                        rightMargin: 3
+                    }
+                    radius: 4
+                    color: "transparent"
+                    border.width: 1.5
+                    border.color: {
+                        if (battRow.capacity <= 20 && !battRow.charging)
+                            return Theme.critical;
+                        if (battRow.charging)
+                            return "#259b50";
+                        return Theme.primary;
+                    }
+                }
+
+                // Battery nub
+                Rectangle {
+                    width: 3
+                    height: 6
+                    anchors {
+                        left: battBody.right
+                        verticalCenter: parent.verticalCenter
+                    }
+                    radius: 1.5
+                    color: battBody.border.color
+                }
+
+                // Battery fill
+                Rectangle {
+                    id: battFill
+                    anchors {
+                        left: battBody.left
+                        top: battBody.top
+                        bottom: battBody.bottom
+                        margins: 3
+                    }
+                    radius: 1.5
+                    width: Math.max(0, (battBody.width - 6) * (battRow.capacity / 100))
+                    color: {
+                        if (battRow.capacity <= 20 && !battRow.charging)
+                            return Theme.critical;
+                        if (battRow.charging)
+                            return "#259b50";
+                        return Theme.primary;
+                    }
+                    opacity: 0.9
+
+                    Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: 250 } }
+                }
+
+                // Charging bolt icon
+                Text {
+                    visible: battRow.charging
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: -1.5
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: ""
+                    font.family: "JetBrainsMono Nerd Font"
+                    font.pixelSize: 12
+                    color: "white"
                 }
             }
 
