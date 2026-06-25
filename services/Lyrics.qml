@@ -16,7 +16,40 @@ Singleton {
     property string currentLine: ""
     property string nextLine: ""
     
+    property string currentLineTranslit: ""
+    
     property string currentTrack: Playerctl.artist + " - " + Playerctl.title
+    
+    property var translitMap: {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
+        'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o',
+        'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts',
+        'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu',
+        'я': 'ya',
+        'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh',
+        'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N', 'О': 'O',
+        'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts',
+        'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu',
+        'Я': 'Ya',
+        'і': 'i', 'І': 'I', 'ї': 'yi', 'Ї': 'Yi', 'є': 'ye', 'Є': 'Ye', 'ґ': 'g', 'Ґ': 'G',
+        'ў': 'w', 'Ў': 'W'
+    }
+    
+    function transliterate(text) {
+        let hasCyrillic = /[А-Яа-яЁёІіЇїЄєҐґЎў]/.test(text);
+        if (!hasCyrillic) return "";
+        
+        let result = "";
+        for (let i = 0; i < text.length; i++) {
+            let char = text[i];
+            if (root.translitMap[char] !== undefined) {
+                result += root.translitMap[char];
+            } else {
+                result += char;
+            }
+        }
+        return result;
+    }
     
     Timer {
         id: debounceTimer
@@ -46,6 +79,7 @@ Singleton {
         parsedLyrics = [];
         currentLine = "";
         nextLine = "";
+        currentLineTranslit = "";
         currentIndex = -1;
         
         fetchProcess.running = false;
@@ -82,7 +116,7 @@ Singleton {
                 let seconds = parseFloat(match[2]);
                 let text = match[3].trim();
                 if (text !== "") {
-                    arr.push({ time: minutes * 60 + seconds, text: text });
+                    arr.push({ time: minutes * 60 + seconds, text: text, textTranslit: root.transliterate(text) });
                 }
             }
         }
@@ -101,6 +135,7 @@ Singleton {
         if (parsedLyrics.length === 0) {
             currentLine = "";
             nextLine = "";
+            currentLineTranslit = "";
             currentIndex = -1;
             return;
         }
@@ -118,6 +153,7 @@ Singleton {
             currentIndex = idx;
             if (idx >= 0 && idx < parsedLyrics.length) {
                 currentLine = parsedLyrics[idx].text;
+                currentLineTranslit = parsedLyrics[idx].textTranslit || "";
                 if (idx + 1 < parsedLyrics.length) {
                     nextLine = parsedLyrics[idx + 1].text;
                 } else {
@@ -125,6 +161,7 @@ Singleton {
                 }
             } else {
                 currentLine = "";
+                currentLineTranslit = "";
                 if (parsedLyrics.length > 0) {
                     nextLine = parsedLyrics[0].text;
                 } else {

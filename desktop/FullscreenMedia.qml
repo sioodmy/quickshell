@@ -332,7 +332,7 @@ Variants {
                     
                     delegate: Item {
                         width: ListView.view.width
-                        height: textItem.implicitHeight + 40
+                        height: contentCol.implicitHeight + 40
                         
                         property bool isCurrent: index === lyricsView.currentIndex
                         
@@ -346,26 +346,46 @@ Variants {
                             }
                         }
                         
-                        Text {
-                            id: textItem
+                        Column {
+                            id: contentCol
                             anchors.centerIn: parent
                             width: parent.width
-                            text: modelData.text
-                            color: Theme.on_surface
-                            wrapMode: Text.WordWrap
+                            spacing: 4
                             
-                            // Fixed font size to completely eliminate listview layout glitching!
-                            font { 
-                                family: "Google Sans"
-                                pixelSize: 32 
-                                weight: isCurrent ? Font.Bold : Font.Medium
+                            Text {
+                                id: textItem
+                                width: parent.width
+                                text: modelData.text
+                                color: Theme.on_surface
+                                wrapMode: Text.WordWrap
+                                
+                                font { 
+                                    family: "Google Sans"
+                                    pixelSize: 32 
+                                    weight: isCurrent ? Font.Bold : Font.Medium
+                                }
+                                
+                                opacity: Math.min(1.0, (isCurrent ? 1.0 : 0.35) + (lyricMouse.containsMouse ? 0.25 : 0.0))
+                                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                             }
                             
-                            // Show full lyrics window, highlight current. Boost slightly on hover.
-                            opacity: Math.min(1.0, (isCurrent ? 1.0 : 0.35) + (lyricMouse.containsMouse ? 0.25 : 0.0))
-                            
-                            // Smooth transitions for opacity ONLY. No layout shifting!
-                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                            Text {
+                                id: translitItem
+                                width: parent.width
+                                text: modelData.textTranslit !== undefined ? modelData.textTranslit : ""
+                                visible: text !== ""
+                                color: Theme.on_surface_variant
+                                wrapMode: Text.WordWrap
+                                
+                                font { 
+                                    family: "Google Sans"
+                                    pixelSize: 22 
+                                    weight: Font.Medium
+                                }
+                                
+                                opacity: Math.min(1.0, (isCurrent ? 0.8 : 0.25) + (lyricMouse.containsMouse ? 0.25 : 0.0))
+                                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                            }
                         }
                     }
                 }
