@@ -35,52 +35,7 @@ Item {
 
     signal requestClose
 
-    // Wheel/Scroll Logic
-    WheelHandler {
-        id: swipeHandler
-        target: null
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        orientation: Qt.Horizontal | Qt.Vertical
-
-        property real accumulateX: 0
-        property real accumulateY: 0
-
-        onActiveChanged: {
-            if (!active) {
-                accumulateX = 0;
-                accumulateY = 0;
-            }
-        }
-
-        onWheel: event => {
-            if (swipeAnim.running)
-                return;
-
-            let isTrackpad = (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0);
-            accumulateX += isTrackpad ? event.pixelDelta.x : event.angleDelta.x;
-            accumulateY += isTrackpad ? event.pixelDelta.y : event.angleDelta.y;
-
-            let threshold = isTrackpad ? 40 : 120;
-
-            if (Math.abs(accumulateX) > Math.abs(accumulateY)) {
-                if (accumulateX > threshold) {
-                    triggerSwipe(-1);
-                    accumulateX = 0;
-                } else if (accumulateX < -threshold) {
-                    triggerSwipe(1);
-                    accumulateX = 0;
-                }
-            } else {
-                if (accumulateY > threshold) {
-                    triggerSwipe(-1);
-                    accumulateY = 0;
-                } else if (accumulateY < -threshold) {
-                    triggerSwipe(1);
-                    accumulateY = 0;
-                }
-            }
-        }
-    }
+    // Wheel/Scroll Logic removed per user request
 
     focus: true
 

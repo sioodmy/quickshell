@@ -163,7 +163,34 @@ Item {
                     }
                 }
             }
-
+                
+            // Subtle Add Event Button
+            Rectangle {
+                width: 32
+                height: 32
+                radius: 16
+                anchors.right: parent.right
+                anchors.verticalCenter: headerCol.verticalCenter
+                color: addMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                
+                Behavior on color { ColorAnimation { duration: 150 } }
+                
+                Text {
+                    anchors.centerIn: parent
+                    text: "󰐕"
+                    color: Theme.on_surface_variant
+                    font { family: "JetBrainsMono Nerd Font"; pointSize: 16 }
+                }
+                
+                MouseArea {
+                    id: addMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: newEventForm.isOpen = true
+                }
+            }
+            
             // ── Agenda Section Header ──
             Item {
                 id: agendaHeader
@@ -367,6 +394,17 @@ Item {
                     }
                 }
             }
+        }
+        
+        // ── New Event Form Overlay ──
+        NewEventForm {
+            id: newEventForm
+            anchors.fill: parent
+            selectedDay: root.selectedDay
+            selectedMonth: root.selectedMonth
+            selectedYear: root.selectedYear
+            
+            onRequestClose: isOpen = false
         }
     }
 }
