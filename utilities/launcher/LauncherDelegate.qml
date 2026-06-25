@@ -7,9 +7,15 @@ Item {
     width: ListView.view.width
     
     property bool isWolfram: itemType === "action" && modelData.actionId === "wolfram"
-    property bool hasExpanded: isWolfram && ctrl.walatexSvg !== ""
+    property bool isDictionary: itemType === "action" && modelData.actionId === "dictionary"
+    property bool hasExpanded: (isWolfram && ctrl.walatexSvg !== "") || (isDictionary && ctrl.dictStatus === "ok")
     
-    height: hasExpanded ? 180 : 72
+    height: {
+        if (!hasExpanded) return 72;
+        if (isWolfram) return 180;
+        if (isDictionary) return 72 + dictContent.height + 16;
+        return 72;
+    }
     
     Behavior on height {
         NumberAnimation {
@@ -32,7 +38,7 @@ Item {
         } else if (itemType === "focus") {
             return modelData.windowTitle || "";
         } else if (itemType === "emoji") {
-            return modelData.display || "";
+            return "";
         } else if (itemType === "action") {
             return modelData.description || "";
         }
@@ -43,7 +49,7 @@ Item {
         if (itemType === "app" || itemType === "focus") {
             return modelData.entry ? modelData.entry.name : "";
         } else if (itemType === "emoji") {
-            return modelData.emoji + "  " + modelData.display;
+            return modelData.display || "";
         } else if (itemType === "action") {
             return modelData.name || "";
         }
@@ -60,6 +66,8 @@ Item {
         } else if (itemType === "action") {
             if (modelData.actionId === "wolfram") {
                 ctrl.openWolframAlpha();
+            } else if (modelData.actionId === "dictionary") {
+                ctrl.copyDictResult();
             } else if (modelData.actionId === "websearch") {
                 ctrl.openWebSearch();
             }
@@ -214,12 +222,11 @@ Item {
                     color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface
                     elide: Text.ElideRight
                     font {
-                        family: delegateRoot.itemType === "emoji" ? "Noto Color Emoji" : "Google Sans"
+                        family: "Google Sans"
                         pixelSize: 16
                         weight: Font.DemiBold
                     }
-                    // Emoji items: use native rendering for color emoji in the name
-                    renderType: delegateRoot.itemType === "emoji" ? Text.NativeRendering : Text.QtRendering
+                    renderType: Text.QtRendering
                 }
 
                 Text {
@@ -285,6 +292,8 @@ Item {
                             if (delegateRoot.itemType === "action") {
                                 if (modelData.actionId === "wolfram")
                                     return "Open";
+                                if (modelData.actionId === "dictionary")
+                                    return "Copy";
                                 return "Search";
                             }
                             return "Launch";
@@ -313,8 +322,11 @@ Item {
                                 return "󰇧";
                             if (delegateRoot.itemType === "emoji")
                                 return "󰆏";
-                            if (delegateRoot.itemType === "action")
+                            if (delegateRoot.itemType === "action") {
+                                if (modelData.actionId === "dictionary")
+                                    return "󰆏";
                                 return "󰇧";
+                            }
                             return "󰌑";
                         }
                         color: {
@@ -341,7 +353,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            visible: delegateRoot.itemType === "action" && modelData.actionId === "wolfram"
+            visible: delegateRoot.itemType === "action" && (modelData.actionId === "wolfram" || modelData.actionId === "dictionary")
             clip: true
             
             Rectangle {
@@ -350,6 +362,7 @@ Item {
                 anchors.topMargin: 0
                 radius: 12
                 color: Qt.rgba(0,0,0,0.1)
+                visible: delegateRoot.itemType === "action" && modelData.actionId === "wolfram"
                 
                 Image {
                     anchors.centerIn: parent
@@ -423,6 +436,58 @@ Item {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: dictContent
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                height: dictColumn.implicitHeight + 24
+                radius: 12
+                color: Qt.rgba(0,0,0,0.1)
+                visible: delegateRoot.itemType === "action" && modelData.actionId === "dictionary"
+                opacity: ctrl.dictStatus === "ok" ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                
+                Column {
+                    id: dictColumn
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: 12
+                    spacing: 4
+                    
+                    Row {
+                        spacing: 8
+                        Text {
+                            id: dictWordText
+                            text: ctrl.dictWord
+                            font.family: "Google Sans"
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                            color: Theme.on_surface
+                        }
+                        Text {
+                            text: ctrl.dictPhonetic
+                            font.family: "Google Sans"
+                            font.pixelSize: 16
+                            color: Theme.on_surface_variant
+                            anchors.baseline: dictWordText.baseline
+                        }
+                    }
+                    
+                    Text {
+                        width: parent.width
+                        text: ctrl.dictDefinition
+                        wrapMode: Text.WordWrap
+                        font.family: "Google Sans"
+                        font.pixelSize: 14
+                        color: Theme.on_surface
                     }
                 }
             }

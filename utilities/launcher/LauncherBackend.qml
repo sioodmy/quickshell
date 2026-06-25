@@ -195,6 +195,91 @@ Item {
 
     onSearchTextChanged: {
         calcDebounce.restart();
+        dictDebounce.restart();
+    }
+
+    property string dictWord: ""
+    property string dictPhonetic: ""
+    property string dictDefinition: ""
+    property string dictStatus: "" // "loading", "ok", "error", ""
+
+    Timer {
+        id: dictDebounce
+        interval: 300
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query === "" || query.indexOf(" ") !== -1) {
+                backend.dictWord = "";
+                backend.dictPhonetic = "";
+                backend.dictDefinition = "";
+                backend.dictStatus = "";
+                return;
+            }
+            backend.dictStatus = "loading";
+            dictProcess.wordArg = query;
+            dictProcess.running = true;
+        }
+    }
+
+    Process {
+        id: dictProcess
+        property string wordArg: ""
+        command: ["curl", "-s", "https://api.dictionaryapi.dev/api/v2/entries/en/" + wordArg]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var raw = this.text.trim();
+                    if (!raw || raw.startsWith("<html>") || raw.startsWith("<")) {
+                        backend.dictStatus = "error";
+                        return;
+                    }
+                    var json = JSON.parse(raw);
+                    if (Array.isArray(json) && json.length > 0) {
+                        var entry = json[0];
+                        backend.dictWord = entry.word || dictProcess.wordArg;
+                        backend.dictPhonetic = entry.phonetic || "";
+                        if (!backend.dictPhonetic && entry.phonetics) {
+                            for (var i = 0; i < entry.phonetics.length; i++) {
+                                if (entry.phonetics[i].text) {
+                                    backend.dictPhonetic = entry.phonetics[i].text;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        var def = "";
+                        if (entry.meanings && entry.meanings.length > 0) {
+                            var meanings = entry.meanings;
+                            for (var j = 0; j < meanings.length; j++) {
+                                if (meanings[j].definitions && meanings[j].definitions.length > 0) {
+                                    def = meanings[j].definitions[0].definition;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (def) {
+                            backend.dictDefinition = def;
+                            backend.dictStatus = "ok";
+                        } else {
+                            backend.dictStatus = "error";
+                        }
+                    } else {
+                        backend.dictStatus = "error";
+                    }
+                } catch(e) {
+                    backend.dictStatus = "error";
+                }
+            }
+        }
+    }
+
+    function copyDictResult() {
+        if (backend.dictStatus === "ok") {
+            copyCalcResult.resultText = backend.dictWord + " - " + backend.dictDefinition;
+            copyCalcResult.running = true;
+            backend.closeMenuRequested();
+        }
     }
 
     Timer {

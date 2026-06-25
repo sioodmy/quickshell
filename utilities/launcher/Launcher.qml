@@ -177,6 +177,30 @@ PanelWindow {
             results.push({ type: "app", entry: appEntry });
         }
 
+        // --- Fallback action: Open in WolframAlpha ---
+        if (query !== "" && ctrl.looksLikeMath(query)) {
+            results.push({
+                type: "action",
+                actionId: "wolfram",
+                name: "Open in WolframAlpha",
+                description: query,
+                icon: "󰃬",
+                iconFamily: "JetBrainsMono Nerd Font"
+            });
+        }
+
+        // --- Fallback action: Dictionary ---
+        if (query !== "" && query.indexOf(" ") === -1 && (ctrl.dictStatus === "ok" || ctrl.dictStatus === "loading")) {
+            results.push({
+                type: "action",
+                actionId: "dictionary",
+                name: "Dictionary",
+                description: query,
+                icon: "󰗊",
+                iconFamily: "JetBrainsMono Nerd Font"
+            });
+        }
+
         // --- Emoji results (only when actively searching) ---
         if (query !== "") {
             var emojiResults = ctrl.filterEmojis(query);
@@ -188,18 +212,6 @@ PanelWindow {
                     display: emojiResults[i].display
                 });
             }
-        }
-
-        // --- Fallback action: Open in WolframAlpha ---
-        if (query !== "" && ctrl.looksLikeMath(query)) {
-            results.push({
-                type: "action",
-                actionId: "wolfram",
-                name: "Open in WolframAlpha",
-                description: query,
-                icon: "󰃬",
-                iconFamily: "JetBrainsMono Nerd Font"
-            });
         }
 
         // --- Fallback action: Search the web ---
@@ -228,6 +240,10 @@ PanelWindow {
                 ctrl.calcResult = "";
                 ctrl.calcExpression = "";
                 ctrl.selectionBuffer = "";
+                ctrl.dictWord = "";
+                ctrl.dictPhonetic = "";
+                ctrl.dictDefinition = "";
+                ctrl.dictStatus = "";
                 launcherWindow.visible = true;
             }
         }
