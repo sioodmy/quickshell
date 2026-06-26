@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../../services"
 
 Item {
     id: backend
@@ -10,7 +11,7 @@ Item {
     property string pinnedCachePath: "~/.local/state/quickshell/pinned_clips.json"
 
     // State Fields
-    property var allItems: []
+    property var allItems: BackendDaemon.cliphistItems
     property var filteredItems: []
     property var pinnedRaws: []
     property string searchText: ""
@@ -98,7 +99,7 @@ Item {
     }
 
     function triggerRefresh() {
-        fetchHistory.running = true;
+        BackendDaemon.send({"action": "cliphist"});
     }
 
     Process {
@@ -122,33 +123,21 @@ Item {
         }
     }
 
-    Process {
-        id: fetchHistory
-        command: ["bash", "-c", backend.scriptPath]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                backend.allItems = this.text.split('\n').filter(line => line.trim() !== "").map(line => {
-                    let parts = line.split('\t');
-                    return {
-                        raw: parts[0] + '\t' + (parts[1] || ""),
-                        display: parts[1] || "",
-                        imagePath: parts[2] || ""
-                    };
-                });
+    Connections {
+        target: BackendDaemon
+        function onCliphistItemsChanged() {
+            let originalLength = backend.pinnedRaws.length;
 
-                let originalLength = backend.pinnedRaws.length;
+            backend.pinnedRaws = backend.pinnedRaws.filter(pinnedRaw => {
+                return backend.allItems.some(item => item.raw === pinnedRaw);
+            });
 
-                backend.pinnedRaws = backend.pinnedRaws.filter(pinnedRaw => {
-                    return backend.allItems.some(item => item.raw === pinnedRaw);
-                });
-
-                if (backend.pinnedRaws.length !== originalLength) {
-                    savePinnedProcess.jsonString = JSON.stringify(backend.pinnedRaws);
-                    savePinnedProcess.running = true;
-                }
-
-                backend.updateSearch();
+            if (backend.pinnedRaws.length !== originalLength) {
+                savePinnedProcess.jsonString = JSON.stringify(backend.pinnedRaws);
+                savePinnedProcess.running = true;
             }
+
+            backend.updateSearch();
         }
     }
 
@@ -173,7 +162,7 @@ Item {
             if (!running && targetRaw !== "") {
                 targetRaw = "";
                 targetId = "";
-                fetchHistory.running = true;
+                backend.triggerRefresh();
             }
         }
     }
@@ -185,7 +174,7 @@ Item {
         onRunningChanged: {
             if (!running && unpinnedList !== "") {
                 unpinnedList = "";
-                fetchHistory.running = true;
+                backend.triggerRefresh();
             }
         }
     }

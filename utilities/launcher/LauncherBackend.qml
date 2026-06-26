@@ -13,8 +13,18 @@ Item {
     signal closeMenuRequested
 
     property string searchText: ""
-    property string calcResult: ""
-    property string calcExpression: ""
+    property string calcExpression: backend.searchText.trim()
+
+    // Aliased to BackendDaemon
+    property string dictWord: BackendDaemon.dictWord
+    property string dictPhonetic: BackendDaemon.dictPhonetic
+    property string dictDefinition: BackendDaemon.dictDefinition
+    property string dictStatus: BackendDaemon.dictStatus
+
+    property string calcResult: BackendDaemon.calcResult
+    property string backendqsSvg: BackendDaemon.backendqsSvg
+    property string backendqsError: BackendDaemon.backendqsError
+    property string backendqsStatus: BackendDaemon.backendqsStatus
 
     // Emoji data
     property string emojiListPath: "~/.cache/quickshell/emojis.json"
@@ -27,8 +37,22 @@ Item {
     property var appFrequencies: ({})
     property string selectionBuffer: ""
 
-    // CHANGE THIS TO YOUR ACTUAL TERMINAL
+    // Terminal emulator to launch apps in
     property string myTerminal: "foot"
+
+    function clearStates() {
+        searchText = "";
+        selectionBuffer = "";
+        BackendDaemon.calcResult = "";
+        BackendDaemon.calcStatus = "";
+        BackendDaemon.dictWord = "";
+        BackendDaemon.dictPhonetic = "";
+        BackendDaemon.dictDefinition = "";
+        BackendDaemon.dictStatus = "";
+        BackendDaemon.backendqsSvg = "";
+        BackendDaemon.backendqsError = "";
+        BackendDaemon.backendqsStatus = "";
+    }
 
     function launchApp(desktopEntry) {
         if (desktopEntry.id) {
@@ -55,8 +79,6 @@ Item {
             workingDirectory: desktopEntry.workingDirectory
         });
 
-        backend.calcResult = "";
-        backend.calcExpression = "";
         backend.closeMenuRequested();
     }
 
@@ -76,15 +98,12 @@ Item {
         }
     }
 
-    Process {
-        id: saveFrequenciesProcess
-        property string jsonString: "{}"
-        command: ["bash", "-c", 'mkdir -p "$(dirname ' + backend.frequenciesCachePath + ')" && printf "%s" "$1" > ' + backend.frequenciesCachePath, "_", jsonString]
-    }
-
     function saveFrequencies() {
-        saveFrequenciesProcess.jsonString = JSON.stringify(backend.appFrequencies);
-        saveFrequenciesProcess.running = true;
+        BackendDaemon.send({
+            "action": "save_json",
+            "path": backend.frequenciesCachePath,
+            "data": backend.appFrequencies
+        });
     }
 
     // --- URL encoding helper ---
@@ -189,8 +208,11 @@ Item {
 
     function saveRecentEmojis() {
         var rawChars = backend.recentEmojis.map(function(item) { return item.emoji; });
-        saveRecentsProcess.jsonString = JSON.stringify(rawChars);
-        saveRecentsProcess.running = true;
+        BackendDaemon.send({
+            "action": "save_json",
+            "path": backend.recentsCachePath,
+            "data": rawChars
+        });
     }
 
     onSearchTextChanged: {
@@ -198,79 +220,15 @@ Item {
         dictDebounce.restart();
     }
 
-    property string dictWord: ""
-    property string dictPhonetic: ""
-    property string dictDefinition: ""
-    property string dictStatus: "" // "loading", "ok", "error", ""
-
     Timer {
         id: dictDebounce
         interval: 300
         onTriggered: {
             var query = backend.searchText.trim();
             if (query === "" || query.indexOf(" ") !== -1) {
-                backend.dictWord = "";
-                backend.dictPhonetic = "";
-                backend.dictDefinition = "";
-                backend.dictStatus = "";
                 return;
             }
-            backend.dictStatus = "loading";
-            dictProcess.wordArg = query;
-            dictProcess.running = true;
-        }
-    }
-
-    Process {
-        id: dictProcess
-        property string wordArg: ""
-        command: ["curl", "-s", "https://api.dictionaryapi.dev/api/v2/entries/en/" + wordArg]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var raw = this.text.trim();
-                    if (!raw || raw.startsWith("<html>") || raw.startsWith("<")) {
-                        backend.dictStatus = "error";
-                        return;
-                    }
-                    var json = JSON.parse(raw);
-                    if (Array.isArray(json) && json.length > 0) {
-                        var entry = json[0];
-                        backend.dictWord = entry.word || dictProcess.wordArg;
-                        backend.dictPhonetic = entry.phonetic || "";
-                        if (!backend.dictPhonetic && entry.phonetics) {
-                            for (var i = 0; i < entry.phonetics.length; i++) {
-                                if (entry.phonetics[i].text) {
-                                    backend.dictPhonetic = entry.phonetics[i].text;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        var def = "";
-                        if (entry.meanings && entry.meanings.length > 0) {
-                            var meanings = entry.meanings;
-                            for (var j = 0; j < meanings.length; j++) {
-                                if (meanings[j].definitions && meanings[j].definitions.length > 0) {
-                                    def = meanings[j].definitions[0].definition;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (def) {
-                            backend.dictDefinition = def;
-                            backend.dictStatus = "ok";
-                        } else {
-                            backend.dictStatus = "error";
-                        }
-                    } else {
-                        backend.dictStatus = "error";
-                    }
-                } catch(e) {
-                    backend.dictStatus = "error";
-                }
-            }
+            BackendDaemon.send({"action": "dictionary", "query": query});
         }
     }
 
@@ -288,67 +246,15 @@ Item {
         onTriggered: {
             var query = backend.searchText.trim();
             if (query === "") {
-                backend.calcResult = "";
-                backend.calcExpression = "";
-                backend.walatexStatus = "";
                 return;
             }
-            // Only evaluate if it looks like a math/conversion expression
             if (backend.looksLikeMath(query)) {
-                rinkProcess.expressionArg = query;
-                rinkProcess.running = true;
-                
-                // Trigger walatex
-                backend.walatexStatus = "loading";
+                BackendDaemon.send({"action": "calc", "query": query});
                 var colStr = String(Theme.on_surface);
                 if (colStr.length === 9 && colStr.startsWith("#ff")) {
                     colStr = "#" + colStr.substring(3);
                 }
-                walatexDaemon.write(JSON.stringify({ query: query, out: "/tmp/quickshell_math.svg", color: colStr }) + "\n");
-            } else {
-                backend.calcResult = "";
-                backend.calcExpression = "";
-                backend.walatexStatus = "";
-            }
-        }
-    }
-
-    Process {
-        id: rinkProcess
-        property string expressionArg: ""
-        command: ["rink", expressionArg]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var raw = this.text.trim();
-                var lines = raw.split("\n");
-                // rink outputs: "> expression", "Input: parsed expression", then "result"
-                // Take the last non-empty line as the result
-                if (lines.length >= 2) {
-                    var result = "";
-                    for (var i = lines.length - 1; i >= 0; i--) {
-                        var l = lines[i].trim();
-                        if (l !== "" && !l.startsWith(">")) {
-                            result = l;
-                            break;
-                        }
-                    }
-                    // Filter out error messages
-                    if (result.indexOf("No such") !== -1 ||
-                        result.indexOf("Expected") !== -1 ||
-                        result.indexOf("Could not") !== -1 ||
-                        result.indexOf("Unknown") !== -1 ||
-                        result.indexOf("did you mean") !== -1 ||
-                        result.indexOf("error") !== -1) {
-                        backend.calcResult = "";
-                        backend.calcExpression = "";
-                    } else {
-                        backend.calcExpression = rinkProcess.expressionArg;
-                        backend.calcResult = result;
-                    }
-                } else {
-                    backend.calcResult = "";
-                    backend.calcExpression = "";
-                }
+                BackendDaemon.send({"action": "math", "query": query, "out": "/tmp/quickshell_math.svg", "color": colStr});
             }
         }
     }
@@ -359,44 +265,8 @@ Item {
         command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", resultText]
     }
 
-    property string walatexSvg: ""
-    property string walatexError: ""
-    property string walatexStatus: "" // "loading", "ok", "error", ""
-
-    Process {
-        id: walatexDaemon
-        command: ["walatex", "daemon"]
-        running: true
-        stdinEnabled: true
-        stdout: SplitParser {
-            onRead: data => {
-                var trimmed = data.trim();
-                if (trimmed === "") return;
-                try {
-                    var parsed = JSON.parse(trimmed);
-                    if (parsed.status === "ok") {
-                        if (parsed.svg_content) {
-                            backend.walatexSvg = "data:image/svg+xml;utf8," + encodeURIComponent(parsed.svg_content);
-                        } else {
-                            backend.walatexSvg = "file:///tmp/quickshell_math.svg?t=" + Date.now();
-                        }
-                        backend.walatexStatus = "ok";
-                        backend.walatexError = "";
-                    } else if (parsed.status === "error") {
-                        // don't clear SVG on error so it can remain faintly visible
-                        backend.walatexError = parsed.error || "Unknown error";
-                        backend.walatexStatus = "error";
-                    }
-                } catch(e) {
-                    console.log("Walatex JSON error:", e);
-                }
-            }
-        }
-    }
-
     function copyResult() {
         if (backend.calcResult !== "") {
-            // Extract just the numeric value (before the parenthetical unit description)
             var clean = backend.calcResult;
             var parenIdx = clean.indexOf(" (");
             if (parenIdx !== -1)
@@ -406,14 +276,12 @@ Item {
         }
     }
 
-    // --- xdg-open process for fallback actions ---
     Process {
         id: xdgOpenProcess
         property string targetUrl: ""
         command: ["xdg-open", targetUrl]
     }
 
-    // --- Emoji processes ---
     Process {
         id: updateEmojisProcess
         command: ["bash", Quickshell.shellPath("scripts/download_emojis.sh")]
@@ -429,8 +297,7 @@ Item {
             onStreamFinished: {
                 try {
                     var textBody = this.text.trim();
-                    if (!textBody)
-                        return;
+                    if (!textBody) return;
                     backend.allEmojis = EmojiLogic.parseEmojiJson(textBody);
                     loadRecentsProcess.running = true;
                 } catch (e) {
@@ -460,12 +327,6 @@ Item {
     }
 
     Process {
-        id: saveRecentsProcess
-        property string jsonString: "[]"
-        command: ["bash", "-c", 'mkdir -p "$(dirname ' + backend.recentsCachePath + ')" && printf "%s" "$1" > ' + backend.recentsCachePath, "_", jsonString]
-    }
-
-    Process {
         id: copyEmojiProcess
         property string selectedEmoji: ""
         command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", selectedEmoji]
@@ -483,7 +344,6 @@ Item {
         }
     }
 
-    // Keep backward compat: emojiMenu toggle now opens the unified launcher
     IpcHandler {
         target: "emojiMenu"
         function toggle() {

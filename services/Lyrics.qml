@@ -57,9 +57,7 @@ Singleton {
         repeat: false
         onTriggered: {
             if (Playerctl.title !== "") {
-                fetchProcess.artistArg = Playerctl.artist;
-                fetchProcess.titleArg = Playerctl.title;
-                fetchProcess.running = true;
+                BackendDaemon.send({"action": "lyrics", "artist": Playerctl.artist, "title": Playerctl.title});
             }
         }
     }
@@ -69,8 +67,8 @@ Singleton {
         interval: 15000 // Retry after 15 seconds
         repeat: false
         onTriggered: {
-            if (Playerctl.title !== "" && Playerctl.title === fetchProcess.titleArg) {
-                fetchProcess.running = true;
+            if (Playerctl.title !== "") {
+                BackendDaemon.send({"action": "lyrics", "artist": Playerctl.artist, "title": Playerctl.title});
             }
         }
     }
@@ -82,27 +80,27 @@ Singleton {
         currentLineTranslit = "";
         currentIndex = -1;
         
-        fetchProcess.running = false;
+        BackendDaemon.lyricsStatus = "";
+        BackendDaemon.lyricsContent = "";
+        
         retryTimer.stop();
         debounceTimer.restart();
     }
     
-    Process {
-        id: fetchProcess
-        property string artistArg: ""
-        property string titleArg: ""
-        command: ["bash", Quickshell.shellPath("scripts/fetch_lyrics.sh"), artistArg, titleArg]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.parseLrc(this.text);
+    Connections {
+        target: BackendDaemon
+        function onLyricsStatusChanged() {
+            if (BackendDaemon.lyricsStatus === "error") {
+                console.log("Lyrics API failed. Retrying in 15 seconds...");
+                retryTimer.start();
+            } else if (BackendDaemon.lyricsStatus === "ok") {
+                root.parseLrc(BackendDaemon.lyricsContent);
             }
         }
     }
     
     function parseLrc(lrc) {
-        if (lrc.trim() === "ERROR_API_FAILED") {
-            console.log("Lyrics API failed. Retrying in 15 seconds...");
-            retryTimer.start();
+        if (!lrc) {
             return;
         }
         

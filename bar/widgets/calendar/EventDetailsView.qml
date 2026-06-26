@@ -169,7 +169,7 @@ Item {
                     Flow {
                         width: parent.width
                         spacing: 8
-                        visible: root.entryData.tags && root.entryData.tags.length > 0
+                        visible: !!(root.entryData.tags && root.entryData.tags.length > 0)
                         
                         Repeater {
                             model: root.entryData.tags || []
@@ -211,7 +211,7 @@ Item {
                             // State
                             Row {
                                 spacing: 10
-                                visible: root.entryData.state ? true : false
+                                visible: !!root.entryData.state
                                 Text { text: "󰡖"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
                                 Rectangle {
                                     width: stateText.implicitWidth + 16
@@ -241,7 +241,7 @@ Item {
                             
                             // Scheduled
                             Row {
-                                visible: root.entryData.scheduled ? true : false
+                                visible: !!root.entryData.scheduled
                                 spacing: 10
                                 Text { text: "󰸗"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
                                 Text { 
@@ -254,7 +254,7 @@ Item {
                             
                             // Deadline
                             Row {
-                                visible: root.entryData.deadline ? true : false
+                                visible: !!root.entryData.deadline
                                 spacing: 10
                                 Text { text: "󰃰"; color: Theme.critical; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
                                 Text { 
@@ -267,7 +267,7 @@ Item {
                             
                             // Source File
                             Row {
-                                visible: root.entryData.file ? true : false
+                                visible: !!root.entryData.file
                                 spacing: 10
                                 Text { text: "󰈔"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
                                 Text {
@@ -282,7 +282,7 @@ Item {
                     
                     // Body / Description Container
                     Rectangle {
-                        visible: root.entryData.body ? true : false
+                        visible: !!root.entryData.body
                         width: parent.width
                         height: bodyText.implicitHeight + 24
                         radius: 16

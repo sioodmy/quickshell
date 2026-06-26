@@ -2,24 +2,22 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 
 /**
  * Org-mode agenda service.
- * Parses all .org files in ~/Notes via a bash script and exposes
- * structured agenda data to QML components.
+ * Connects to the unified BackendDaemon for agenda data.
  */
 Singleton {
     id: root
 
     // Full parsed agenda items (sorted: active first, then by date)
-    property var items: []
+    readonly property var items: BackendDaemon.agendaItems
 
     // Set of date strings ("YYYY-MM-DD") that have agenda entries
     property var datesWithEvents: ({})
 
-    // Loading state
-    property bool loading: false
+    // Loading state (no longer really applicable since it's instant from daemon, but keep for compat)
+    property bool loading: items === undefined || items.length === 0
 
     // Today's items only
     readonly property var todayItems: {
@@ -65,48 +63,18 @@ Singleton {
         return datesWithEvents.hasOwnProperty(d);
     }
 
-    // Refresh data from disk
+    // Refresh data from disk (Daemon does this automatically, but we can send a manual refresh event)
     function refresh() {
-        root.loading = true;
-        fetchProc.running = true;
+        BackendDaemon.send({"action": "agenda_refresh"});
     }
 
-    Process {
-        id: fetchProc
-        command: ["bash", Quickshell.shellPath("scripts/parse_org_agenda.sh")]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    let parsed = JSON.parse(this.text);
-                    root.items = parsed;
-                    console.log("OrgAgenda: loaded", parsed.length, "items");
-
-                    // Build date lookup
-                    let dates = {};
-                    for (let i = 0; i < parsed.length; i++) {
-                        let e = parsed[i];
-                        if (e.deadline) dates[e.deadline] = true;
-                        if (e.scheduled) dates[e.scheduled] = true;
-                    }
-                    root.datesWithEvents = dates;
-                } catch (err) {
-                    console.error("OrgAgenda: Failed to parse JSON:", err, "raw:", this.text.substring(0, 200));
-                    root.items = [];
-                    root.datesWithEvents = {};
-                }
-                root.loading = false;
-            }
+    onItemsChanged: {
+        let dates = {};
+        for (let i = 0; i < items.length; i++) {
+            let e = items[i];
+            if (e.deadline) dates[e.deadline] = true;
+            if (e.scheduled) dates[e.scheduled] = true;
         }
-    }
-
-    // Auto-refresh on startup
-    Component.onCompleted: refresh()
-
-    // Periodic refresh (every 60 seconds)
-    Timer {
-        interval: 60000
-        running: true
-        repeat: true
-        onTriggered: root.refresh()
+        root.datesWithEvents = dates;
     }
 }

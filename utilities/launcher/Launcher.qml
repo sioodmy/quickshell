@@ -236,14 +236,7 @@ PanelWindow {
             if (launcherWindow.visible) {
                 closeMenu();
             } else {
-                ctrl.searchText = "";
-                ctrl.calcResult = "";
-                ctrl.calcExpression = "";
-                ctrl.selectionBuffer = "";
-                ctrl.dictWord = "";
-                ctrl.dictPhonetic = "";
-                ctrl.dictDefinition = "";
-                ctrl.dictStatus = "";
+                ctrl.clearStates();
                 launcherWindow.visible = true;
             }
         }

@@ -50,9 +50,14 @@ Variants {
             running: true
             stdout: StdioCollector {
                 onStreamFinished: {
-                    let val = parseInt(this.text.split(",")[3].replace("%", ""));
-                    if (!isNaN(val)) {
-                        brightnessOsdPopup.brightnessLevel = val / 100.0;
+                    let text = this.text.trim();
+                    if (!text) return;
+                    let parts = text.split(",");
+                    if (parts.length > 3) {
+                        let val = parseInt(parts[3].replace("%", ""));
+                        if (!isNaN(val)) {
+                            brightnessOsdPopup.brightnessLevel = val / 100.0;
+                        }
                     }
                 }
             }

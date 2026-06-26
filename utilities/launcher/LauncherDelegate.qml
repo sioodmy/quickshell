@@ -8,7 +8,7 @@ Item {
     
     property bool isWolfram: itemType === "action" && modelData.actionId === "wolfram"
     property bool isDictionary: itemType === "action" && modelData.actionId === "dictionary"
-    property bool hasExpanded: (isWolfram && ctrl.walatexSvg !== "") || (isDictionary && ctrl.dictStatus === "ok")
+    property bool hasExpanded: (isWolfram && ctrl.backendqsSvg !== "") || (isDictionary && ctrl.dictStatus === "ok")
     
     height: {
         if (!hasExpanded) return 72;
@@ -366,7 +366,7 @@ Item {
                 
                 Image {
                     anchors.centerIn: parent
-                    source: ctrl.walatexSvg
+                    source: ctrl.backendqsSvg
                     fillMode: Image.PreserveAspectFit
                     width: parent.width - 32
                     height: parent.height - 32
@@ -374,13 +374,13 @@ Item {
                     sourceSize.height: height * 2
                     smooth: true
                     antialiasing: true
-                    opacity: ctrl.walatexStatus === "ok" ? 1.0 : 0.0
+                    opacity: ctrl.backendqsStatus === "ok" ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 }
 
                 Item {
                     anchors.fill: parent
-                    visible: ctrl.walatexStatus === "loading" || ctrl.walatexStatus === "error"
+                    visible: ctrl.backendqsStatus === "loading" || ctrl.backendqsStatus === "error"
                     opacity: visible ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 200 } }
 
