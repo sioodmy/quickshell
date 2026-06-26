@@ -321,9 +321,9 @@ Variants {
                     model: Lyrics.parsedLyrics
                     interactive: true // Allow scrolling manually if they want
                     
-                    // Keep the current item perfectly centered in the view
-                    preferredHighlightBegin: height / 2 - 40
-                    preferredHighlightEnd: height / 2 + 40
+                    // Keep the current item near the top of the view
+                    preferredHighlightBegin: 0
+                    preferredHighlightEnd: 40
                     highlightRangeMode: ListView.StrictlyEnforceRange
                     highlightMoveDuration: 500 // Smooth sliding animation
                     
