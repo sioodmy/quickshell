@@ -14,6 +14,8 @@ Rectangle {
     property bool showDate: false
     property bool isOverdue: false
 
+    signal clicked(var eventData)
+
     // Guard all property reads against missing/undefined data
     readonly property string _title: entryData.title || ""
     readonly property string _state: entryData.state || ""
@@ -50,6 +52,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked(root.entryData)
     }
 
     // State indicator stripe on the left

@@ -267,6 +267,11 @@ Item {
                             required property var modelData
                             width: agendaCol.width
                             entryData: modelData
+                            
+                            onClicked: (eventData) => {
+                                eventDetailsView.entryData = eventData;
+                                eventDetailsView.isOpen = true;
+                            }
                         }
                     }
 
@@ -329,6 +334,11 @@ Item {
                             width: agendaCol.width
                             entryData: modelData
                             showDate: true
+                            
+                            onClicked: (eventData) => {
+                                eventDetailsView.entryData = eventData;
+                                eventDetailsView.isOpen = true;
+                            }
                         }
                     }
 
@@ -378,6 +388,11 @@ Item {
                             entryData: modelData
                             showDate: true
                             isOverdue: true
+                            
+                            onClicked: (eventData) => {
+                                eventDetailsView.entryData = eventData;
+                                eventDetailsView.isOpen = true;
+                            }
                         }
                     }
 
@@ -403,6 +418,14 @@ Item {
             selectedDay: root.selectedDay
             selectedMonth: root.selectedMonth
             selectedYear: root.selectedYear
+            
+            onRequestClose: isOpen = false
+        }
+        
+        // ── Event Details View Overlay ──
+        EventDetailsView {
+            id: eventDetailsView
+            anchors.fill: parent
             
             onRequestClose: isOpen = false
         }

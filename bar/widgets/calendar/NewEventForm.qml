@@ -26,22 +26,81 @@ Item {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
     }
     
+    // Entrance slide animation for content
+    property real slideOffset: isOpen ? 0 : 40
+    Behavior on slideOffset { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+
     Rectangle {
+        id: maskShape
         anchors.fill: parent
-        color: Theme.surface_container_highest
         radius: 28
+        visible: false
+        layer.enabled: true
     }
     
+    // Block clicks and wheel events from bleeding through
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
         onWheel: (wheel) => wheel.accepted = true
     }
     
+    Rectangle {
+        id: bgRect
+        anchors.fill: parent
+        color: Theme.surface_container_highest
+        radius: 28
+        clip: true
+        
+        layer.enabled: true
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: maskShape
+        }
+        
+        // ── Animated Background Blobs ──
+        Rectangle {
+            width: 180
+            height: 160
+            radius: 80
+            color: Theme.primary
+            opacity: 0.08
+            x: -40
+            y: parent.height - 130
+            transformOrigin: Item.Center
+            
+            SequentialAnimation on x {
+                loops: Animation.Infinite; paused: !root.isOpen
+                NumberAnimation { to: 20; duration: 9000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: -40; duration: 8000; easing.type: Easing.InOutSine }
+            }
+            NumberAnimation on rotation { from: 0; to: 360; duration: 25000; loops: Animation.Infinite; paused: !root.isOpen }
+        }
+
+        Rectangle {
+            width: 150
+            height: 150
+            radius: 75
+            color: Theme.tertiary
+            opacity: 0.06
+            x: parent.width - 90
+            y: -30
+            transformOrigin: Item.Center
+            
+            SequentialAnimation on y {
+                loops: Animation.Infinite; paused: !root.isOpen
+                NumberAnimation { to: 30; duration: 10000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: -30; duration: 8500; easing.type: Easing.InOutSine }
+            }
+            NumberAnimation on rotation { from: 360; to: 0; duration: 28000; loops: Animation.Infinite; paused: !root.isOpen }
+        }
+    }
+    
     Column {
         anchors.fill: parent
         anchors.margins: 20
         spacing: 10
+        y: slideOffset
         
         Text {
             text: "New Event"
