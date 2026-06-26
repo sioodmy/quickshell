@@ -37,7 +37,7 @@ Variants {
         property real brightnessLevel: 0.0
 
         Process {
-            command: ["sh", "-c", "udevadm monitor --subsystem-match=backlight --udev"]
+            command: ["sh", "-c", "stdbuf -oL udevadm monitor --subsystem-match=backlight --udev"]
             running: true
             stdout: SplitParser {
                 onRead: updateBrightness.running = true
@@ -46,18 +46,15 @@ Variants {
 
         Process {
             id: updateBrightness
-            command: ["sh", "-c", "brightnessctl -m"]
+            command: ["sh", "-c", "brillo -G"]
             running: true
             stdout: StdioCollector {
                 onStreamFinished: {
                     let text = this.text.trim();
                     if (!text) return;
-                    let parts = text.split(",");
-                    if (parts.length > 3) {
-                        let val = parseInt(parts[3].replace("%", ""));
-                        if (!isNaN(val)) {
-                            brightnessOsdPopup.brightnessLevel = val / 100.0;
-                        }
+                    let val = parseFloat(text);
+                    if (!isNaN(val)) {
+                        brightnessOsdPopup.brightnessLevel = val / 100.0;
                     }
                 }
             }
