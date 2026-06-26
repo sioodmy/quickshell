@@ -6,6 +6,7 @@ import QtQuick.Effects
 Item {
     id: bg
     property string weatherCode: ""
+    property string temperature: ""
     property bool miniMode: false
     clip: true
 
@@ -17,6 +18,10 @@ Item {
     readonly property bool isFog: ["143","248","260"].indexOf(weatherCode) >= 0
     readonly property bool isSunny: weatherCode === "113"
     readonly property bool isPartly: weatherCode === "116"
+    readonly property bool isHell: {
+        var t = parseInt(temperature);
+        return !isNaN(t) && t >= 30;
+    }
 
     // ===== SUN GLOW =====
     Item {
@@ -237,6 +242,62 @@ Item {
                     duration: (8000 + Math.random() * 5000) * (miniMode ? 4 : 1)
                     easing.type: Easing.InOutSine
                 }
+            }
+        }
+    }
+
+    // ===== HELL / FIRE =====
+    Repeater {
+        model: isHell && !miniMode ? 40 : 0
+        delegate: Rectangle {
+            id: ember
+            width: (miniMode ? 2 : 4) + Math.random() * (miniMode ? 2 : 4)
+            height: width
+            radius: width / 2
+            
+            // Fire colors: Red, Orange, Yellow
+            property var colors: [Qt.rgba(1, 0.2, 0, 0.8), Qt.rgba(1, 0.5, 0, 0.8), Qt.rgba(1, 0.8, 0, 0.8)]
+            color: colors[Math.floor(Math.random() * colors.length)]
+
+            property real startX: Math.random() * bg.width
+            property real startY: bg.height + Math.random() * 20
+            property real speed: (2000 + Math.random() * 3000) * (miniMode ? 3 : 1)
+            property real drift: (15 + Math.random() * 20) * (miniMode ? 0.3 : 1)
+
+            x: startX
+            y: startY
+
+            SequentialAnimation on y {
+                loops: Animation.Infinite
+                NumberAnimation {
+                    from: ember.startY
+                    to: -20
+                    duration: ember.speed
+                    easing.type: Easing.OutSine
+                }
+                NumberAnimation { from: ember.startY; to: ember.startY; duration: 0 }
+            }
+
+            SequentialAnimation on x {
+                loops: Animation.Infinite
+                NumberAnimation {
+                    from: ember.startX - ember.drift
+                    to: ember.startX + ember.drift
+                    duration: ember.speed * 0.6
+                    easing.type: Easing.InOutSine
+                }
+                NumberAnimation {
+                    from: ember.startX + ember.drift
+                    to: ember.startX - ember.drift
+                    duration: ember.speed * 0.6
+                    easing.type: Easing.InOutSine
+                }
+            }
+
+            SequentialAnimation on opacity {
+                loops: Animation.Infinite
+                NumberAnimation { from: 1; to: 0; duration: ember.speed; easing.type: Easing.InQuad }
+                NumberAnimation { from: 1; to: 1; duration: 0 }
             }
         }
     }

@@ -298,6 +298,9 @@ Item {
             var isCloudy = ["119","122"].indexOf(c) >= 0;
             var isSunny = c === "113";
             
+            var isHell = parseInt(temp) >= 30;
+            
+            if (isHell)    return Qt.rgba(0.6, 0.1, 0.1, 0.25); // Deep red for hell
             if (isThunder) return Qt.rgba(0.15, 0.10, 0.35, 0.18); // deep purple-blue
             if (isRain)    return Qt.rgba(0.10, 0.20, 0.50, 0.18); // dark indigo-blue
             if (isSnow)    return Qt.rgba(0.15, 0.35, 0.60, 0.18); // dark azure blue
@@ -382,6 +385,7 @@ Item {
         WeatherBackground {
             anchors.fill: parent
             weatherCode: weatherData.weatherCode
+            temperature: weatherData.temp
             miniMode: true
             opacity: 0.9
 

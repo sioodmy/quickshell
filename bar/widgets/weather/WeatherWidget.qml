@@ -23,8 +23,13 @@ PanelWindow {
     readonly property bool isFog: ["143","248","260"].indexOf(_code) >= 0
     readonly property bool isSunny: _code === "113"
     readonly property bool isPartly: _code === "116"
+    readonly property bool isHell: {
+        var t = parseInt(root.weatherData ? root.weatherData.temp : "0");
+        return !isNaN(t) && t >= 30;
+    }
 
     function weatherGradient() {
+        if (isHell)    return [Qt.rgba(0.4, 0.05, 0.05, 1), Qt.rgba(0.2, 0.02, 0.02, 1)];
         if (isThunder) return [Qt.rgba(0.12,0.10,0.18,1), Qt.rgba(0.22,0.18,0.32,1)];
         if (isRain)    return [Qt.rgba(0.10,0.12,0.20,1), Qt.rgba(0.18,0.22,0.35,1)];
         if (isSnow)    return [Qt.rgba(0.15,0.18,0.25,1), Qt.rgba(0.25,0.28,0.38,1)];
@@ -76,6 +81,7 @@ PanelWindow {
             id: animBg
             anchors.fill: parent
             weatherCode: root._code
+            temperature: root.weatherData ? root.weatherData.temp : ""
             visible: root.visible
 
             layer.enabled: true
