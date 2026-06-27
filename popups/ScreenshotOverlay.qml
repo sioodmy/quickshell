@@ -24,7 +24,7 @@ PanelWindow {
         anchors.bottomMargin: 70
         anchors.horizontalCenter: parent.horizontalCenter
         
-        width: contentRow.implicitWidth + 36
+        width: contentRow.implicitWidth + 48
         height: 84
         radius: 28
         color: Theme.surface_container_high
@@ -40,14 +40,14 @@ PanelWindow {
         Row {
             id: contentRow
             anchors.centerIn: parent
-            spacing: 12
+            spacing: 16
 
             component MenuBtn: Rectangle {
                 property string icon
                 property string label
                 signal clicked()
 
-                width: labelText.implicitWidth + iconText.implicitWidth + 36
+                width: labelText.implicitWidth + iconText.implicitWidth + 48
                 height: 56
                 radius: 28
                 color: m.containsMouse ? Theme.primary_container : "transparent"
@@ -55,7 +55,7 @@ PanelWindow {
                 Behavior on color { ColorAnimation { duration: 150 } }
 
                 Item {
-                    width: iconText.implicitWidth + 8 + labelText.implicitWidth
+                    width: iconText.implicitWidth + 12 + labelText.implicitWidth
                     height: Math.max(iconText.implicitHeight, labelText.implicitHeight)
                     anchors.centerIn: parent
 
@@ -71,7 +71,7 @@ PanelWindow {
                     Text {
                         id: labelText
                         anchors.left: iconText.right
-                        anchors.leftMargin: 8
+                        anchors.leftMargin: 12
                         anchors.verticalCenter: parent.verticalCenter
                         text: parent.parent.label
                         font.family: "Google Sans Medium"

@@ -18,6 +18,14 @@ PanelWindow {
 
     visible: Screenshot.editorActive
 
+    onVisibleChanged: {
+        if (visible) {
+            drawCanvas.clearCanvas();
+            drawCanvas.activeTool = "pencil";
+            drawCanvas.drawColor = Theme.critical;
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(0,0,0,0.85)
@@ -180,7 +188,7 @@ PanelWindow {
         Row {
             id: topRow
             anchors.centerIn: parent
-            spacing: 12
+            spacing: 16
 
             component ActionBtn: Rectangle {
                 property string icon
@@ -190,33 +198,38 @@ PanelWindow {
                 property color contentColor: Theme.on_surface
                 signal clicked()
 
-                width: lbl.implicitWidth + icn.implicitWidth + 36
+                width: lbl.implicitWidth > 0 ? lbl.implicitWidth + icn.implicitWidth + 48 : 56
                 height: 56
                 radius: 28
                 color: m.containsMouse ? hoverColor : baseColor
 
                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                Row {
+                Item {
+                    width: icn.implicitWidth + (lbl.implicitWidth > 0 ? 12 : 0) + lbl.implicitWidth
+                    height: Math.max(icn.implicitHeight, lbl.implicitHeight)
                     anchors.centerIn: parent
-                    spacing: 8
+
                     Text {
                         id: icn
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
                         text: parent.parent.icon
                         font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 22
                         color: parent.parent.contentColor
-                        anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
                         id: lbl
+                        anchors.left: icn.right
+                        anchors.leftMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
                         visible: text.length > 0
                         text: parent.parent.label
                         font.family: "Google Sans Medium"
                         font.pixelSize: 15
                         font.weight: Font.Bold
                         color: parent.parent.contentColor
-                        anchors.verticalCenter: parent.verticalCenter
                     }
                 }
 
