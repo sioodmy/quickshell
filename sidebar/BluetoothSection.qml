@@ -18,7 +18,7 @@ Column {
     readonly property var sortedDevices: {
         if (!adapter)
             return [];
-        return [...adapter.devices.values].sort((a, b) => {
+        return [...adapter.devices.values].filter(d => d.paired || d.connected).sort((a, b) => {
             if (a.connected !== b.connected)
                 return b.connected - a.connected;
             if (a.paired !== b.paired)
