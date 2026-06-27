@@ -24,269 +24,77 @@ Item {
 
     QtObject {
         id: weatherData
-        property bool valid: false
-        property string emoji: ""
-        property string temp: ""
-        property string location: ""
-        property string condition: ""
-        property string feelsLike: ""
-        property string humidity: ""
-        property string wind: ""
-        property string uv: ""
-        property string weatherCode: ""
+        property var source: BackendDaemon.weatherData
 
-        // Extended data
-        property string pressure: ""
-        property string visibility: ""
-        property string cloudcover: ""
-        property string precipMM: ""
-        property string windGust: ""
-        property string windDir: ""
-        property string windDegree: ""
+        property bool valid: source !== null || cache.temp !== ""
+        
+        property string emoji: source ? source.emoji : cache.emoji
+        property string temp: source ? source.temp : cache.temp
+        property string location: source ? source.location : cache.location
+        property string condition: source ? source.condition : cache.condition
+        property string feelsLike: source ? source.feels_like : cache.feelsLike
+        property string humidity: source ? source.humidity : cache.humidity
+        property string wind: source ? source.wind : cache.wind
+        property string uv: source ? source.uv : cache.uv
+        property string weatherCode: source ? source.weather_code : cache.weatherCode
+        property string pressure: source ? source.pressure : cache.pressure
+        property string visibility: source ? source.visibility : cache.visibility
+        property string cloudcover: source ? source.cloudcover : cache.cloudcover
+        property string precipMM: source ? source.precip_mm : cache.precipMM
+        property string windGust: source ? source.wind_gust : cache.windGust
+        property string windDir: source ? source.wind_dir : cache.windDir
+        property string windDegree: source ? source.wind_degree : cache.windDegree
+        property string sunrise: source ? source.sunrise : cache.sunrise
+        property string sunset: source ? source.sunset : cache.sunset
+        property bool moonIsWaxing: source ? source.moon_is_waxing : cache.moonIsWaxing
+        property string moonIllumination: source ? source.moon_illumination : cache.moonIllumination
+        property string maxTemp: source ? source.max_temp : cache.maxTemp
+        property string minTemp: source ? source.min_temp : cache.minTemp
 
-        // Astronomy
-        property string sunrise: ""
-        property string sunset: ""
-        property string moonPhase: ""
-        property string moonIllumination: ""
-
-        // Daily summary for today
-        property string maxTemp: ""
-        property string minTemp: ""
-
-        // Hourly forecast (list of objects)
-        property var hourlyForecast: []
-
-        // Daily forecast (list of objects for 3 days)
-        property var dailyForecast: []
-
-        // Populate from the on-disk cache so the widget shows data instantly
-        // on startup and remains useful while offline.
-        function loadFromCache() {
-            if (cache.temp === "")
-                return;
-            emoji = cache.emoji;
-            temp = cache.temp;
-            location = cache.location;
-            condition = cache.condition;
-            feelsLike = cache.feelsLike;
-            humidity = cache.humidity;
-            wind = cache.wind;
-            uv = cache.uv;
-            weatherCode = cache.weatherCode;
-            pressure = cache.pressure;
-            visibility = cache.visibility;
-            cloudcover = cache.cloudcover;
-            precipMM = cache.precipMM;
-            windGust = cache.windGust;
-            windDir = cache.windDir;
-            windDegree = cache.windDegree;
-            sunrise = cache.sunrise;
-            sunset = cache.sunset;
-            moonPhase = cache.moonPhase;
-            moonIllumination = cache.moonIllumination;
-            maxTemp = cache.maxTemp;
-            minTemp = cache.minTemp;
-
-            try {
-                hourlyForecast = JSON.parse(cache.hourlyForecastJson);
-            } catch(e) { hourlyForecast = []; }
-            try {
-                dailyForecast = JSON.parse(cache.dailyForecastJson);
-            } catch(e) { dailyForecast = []; }
-
-            valid = true;
+        property var hourlyForecast: {
+            if (source && source.hourly_forecast) return source.hourly_forecast;
+            try { return JSON.parse(cache.hourlyForecastJson); } catch(e) { return []; }
         }
+
+        property var dailyForecast: {
+            if (source && source.daily_forecast) return source.daily_forecast;
+            try { return JSON.parse(cache.dailyForecastJson); } catch(e) { return []; }
+        }
+
+        onSourceChanged: {
+            if (source) {
+                cache.emoji = source.emoji;
+                cache.temp = source.temp;
+                cache.location = source.location;
+                cache.condition = source.condition;
+                cache.feelsLike = source.feels_like;
+                cache.humidity = source.humidity;
+                cache.wind = source.wind;
+                cache.uv = source.uv;
+                cache.weatherCode = source.weather_code;
+                cache.pressure = source.pressure;
+                cache.visibility = source.visibility;
+                cache.cloudcover = source.cloudcover;
+                cache.precipMM = source.precip_mm;
+                cache.windGust = source.wind_gust;
+                cache.windDir = source.wind_dir;
+                cache.windDegree = source.wind_degree;
+                cache.sunrise = source.sunrise;
+                cache.sunset = source.sunset;
+                cache.moonIsWaxing = source.moon_is_waxing;
+                cache.moonIllumination = source.moon_illumination;
+                cache.maxTemp = source.max_temp;
+                cache.minTemp = source.min_temp;
+                cache.hourlyForecastJson = JSON.stringify(source.hourly_forecast);
+                cache.dailyForecastJson = JSON.stringify(source.daily_forecast);
+                cacheView.writeAdapter();
+            }
+        }
+
+        function loadFromCache() {}
 
         function updateWeather() {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", "https://wttr.in/?format=j1");
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status === 200) {
-                        try {
-                            var response = JSON.parse(xhr.responseText);
-                            var current = response.current_condition[0];
-                            var area = response.nearest_area[0];
-                            var today = response.weather[0];
-                            var astro = today.astronomy[0];
-
-                            emoji = getWeatherEmoji(current.weatherCode);
-                            temp = current.temp_C + "°C";
-                            location = area.areaName[0].value + ", " + area.country[0].value;
-                            condition = current.weatherDesc[0].value;
-                            feelsLike = current.FeelsLikeC + "°C";
-                            humidity = current.humidity + "%";
-                            wind = current.windspeedKmph + " km/h " + current.winddir16Point;
-                            uv = current.uvIndex;
-                            weatherCode = current.weatherCode;
-
-                            // Extended
-                            pressure = current.pressure + " hPa";
-                            visibility = current.visibility + " km";
-                            cloudcover = current.cloudcover + "%";
-                            precipMM = current.precipMM + " mm";
-                            var gust = current.WindGustKmph || "";
-                            windGust = gust ? gust + " km/h" : "";
-                            windDir = current.winddir16Point;
-                            windDegree = current.winddirDegree;
-
-                            // Astronomy
-                            sunrise = astro.sunrise;
-                            sunset = astro.sunset;
-                            moonPhase = astro.moon_phase;
-                            moonIllumination = astro.moon_illumination + "%";
-
-                            // Daily
-                            maxTemp = today.maxtempC + "°";
-                            minTemp = today.mintempC + "°";
-
-                            // Parse hourly forecast (today's remaining + tomorrow's)
-                            var allHourly = [];
-                            var currentHour = new Date().getHours();
-                            for (var d = 0; d < response.weather.length && d < 2; d++) {
-                                var dayData = response.weather[d];
-                                for (var h = 0; h < dayData.hourly.length; h++) {
-                                    var hr = dayData.hourly[h];
-                                    var hourNum = parseInt(hr.time) / 100;
-                                    allHourly.push({
-                                        hour: hourNum,
-                                        temp: hr.tempC,
-                                        emoji: getWeatherEmoji(hr.weatherCode),
-                                        condition: hr.weatherDesc[0].value.trim(),
-                                        chanceOfRain: hr.chanceofrain,
-                                        day: d,
-                                        humidity: hr.humidity,
-                                        wind: hr.windspeedKmph,
-                                        _absHour: d * 24 + hourNum
-                                    });
-                                }
-                            }
-                            var closestIdx = 0;
-                            var minDiff = 9999;
-                            for (var hIdx = 0; hIdx < allHourly.length; hIdx++) {
-                                var diff = Math.abs(allHourly[hIdx]._absHour - currentHour);
-                                if (diff < minDiff) {
-                                    minDiff = diff;
-                                    closestIdx = hIdx;
-                                }
-                            }
-                            hourlyForecast = allHourly.slice(closestIdx);
-
-                            // Parse daily forecast (3 days)
-                            var daily = [];
-                            var dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-                            for (var i = 0; i < response.weather.length; i++) {
-                                var wd = response.weather[i];
-                                var dateObj = new Date(wd.date);
-                                // Pick mid-day weather code for representative emoji
-                                var midHourly = wd.hourly[Math.floor(wd.hourly.length / 2)];
-                                daily.push({
-                                    dayName: i === 0 ? "Today" : dayNames[dateObj.getDay()],
-                                    date: wd.date,
-                                    maxTemp: wd.maxtempC,
-                                    minTemp: wd.mintempC,
-                                    emoji: getWeatherEmoji(midHourly.weatherCode),
-                                    condition: midHourly.weatherDesc[0].value.trim(),
-                                    sunrise: wd.astronomy[0].sunrise,
-                                    sunset: wd.astronomy[0].sunset
-                                });
-                            }
-                            dailyForecast = daily;
-
-                            valid = true;
-
-                            // Persist the fresh data to disk.
-                            cache.emoji = emoji;
-                            cache.temp = temp;
-                            cache.location = location;
-                            cache.condition = condition;
-                            cache.feelsLike = feelsLike;
-                            cache.humidity = humidity;
-                            cache.wind = wind;
-                            cache.uv = uv;
-                            cache.weatherCode = weatherCode;
-                            cache.pressure = pressure;
-                            cache.visibility = visibility;
-                            cache.cloudcover = cloudcover;
-                            cache.precipMM = precipMM;
-                            cache.windGust = windGust;
-                            cache.windDir = windDir;
-                            cache.windDegree = windDegree;
-                            cache.sunrise = sunrise;
-                            cache.sunset = sunset;
-                            cache.moonPhase = moonPhase;
-                            cache.moonIllumination = moonIllumination;
-                            cache.maxTemp = maxTemp;
-                            cache.minTemp = minTemp;
-                            cache.hourlyForecastJson = JSON.stringify(hourlyForecast);
-                            cache.dailyForecastJson = JSON.stringify(dailyForecast);
-                            cacheView.writeAdapter();
-                        } catch (e) {
-                            // Keep any previously cached data on parse errors.
-                            console.log("Weather parse error: " + e);
-                        }
-                    } else {
-                        // Network/server error: keep showing cached data.
-                        console.log("Weather fetch failed, status: " + xhr.status);
-                    }
-                }
-            };
-            xhr.send();
-        }
-
-        function getWeatherEmoji(code) {
-            var c = {
-                "113": "☀️",
-                "116": "⛅",
-                "119": "☁️",
-                "122": "☁️",
-                "143": "🌫️",
-                "176": "🌦️",
-                "179": "🌨️",
-                "182": "🌨️",
-                "185": "🌨️",
-                "200": "⛈️",
-                "227": "🌨️",
-                "230": "❄️",
-                "248": "🌫️",
-                "260": "🌫️",
-                "263": "🌧️",
-                "266": "🌧️",
-                "281": "🌧️",
-                "284": "🌧️",
-                "293": "🌧️",
-                "296": "🌧️",
-                "299": "🌧️",
-                "302": "🌧️",
-                "305": "🌧️",
-                "308": "🌧️",
-                "311": "🌨️",
-                "314": "🌨️",
-                "317": "🌨️",
-                "320": "🌨️",
-                "323": "🌨️",
-                "326": "🌨️",
-                "329": "❄️",
-                "332": "❄️",
-                "335": "❄️",
-                "338": "❄️",
-                "350": "🌨️",
-                "353": "🌦️",
-                "356": "🌧️",
-                "359": "🌧️",
-                "362": "🌨️",
-                "365": "🌨️",
-                "368": "🌨️",
-                "371": "❄️",
-                "374": "🌨️",
-                "377": "🌨️",
-                "386": "⛈️",
-                "389": "⛈️",
-                "392": "⛈️",
-                "395": "❄️"
-            };
-            return c[code] || "❓";
+            BackendDaemon.send({action: "weather_refresh"});
         }
 
         function getWeatherTint() {
@@ -347,7 +155,7 @@ Item {
             property string windDegree: ""
             property string sunrise: ""
             property string sunset: ""
-            property string moonPhase: ""
+            property bool moonIsWaxing: true
             property string moonIllumination: ""
             property string maxTemp: ""
             property string minTemp: ""

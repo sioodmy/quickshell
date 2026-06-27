@@ -8,6 +8,7 @@ Singleton {
     id: root
 
     property var agendaItems: []
+    property var weatherData: null
     property string dictStatus: ""
     property string dictWord: ""
     property string dictPhonetic: ""
@@ -35,6 +36,10 @@ Singleton {
                     var type = parsed.type;
                     if (type === "agenda_update") {
                         root.agendaItems = parsed.data || [];
+                    } else if (type === "weather_result") {
+                        if (parsed.status === "ok") {
+                            root.weatherData = parsed.data;
+                        }
                     } else if (type === "dictionary_result") {
                         if (parsed.status === "ok") {
                             root.dictWord = parsed.word || "";

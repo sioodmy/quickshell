@@ -174,8 +174,7 @@ PanelWindow {
 
                                 property bool isWaxing: {
                                     if (!root.weatherData) return true;
-                                    var p = root.weatherData.moonPhase;
-                                    return p.indexOf("Waxing") >= 0 || p === "First Quarter" || p === "Full Moon" || p === "New Moon";
+                                    return root.weatherData.moonIsWaxing;
                                 }
                                 
                                 onIllPercentChanged: requestPaint()

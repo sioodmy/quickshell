@@ -3,6 +3,9 @@ name = "backendqs"
 version = "0.1.0"
 edition = "2021"
 
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
 [dependencies]
 
 serde = { version = "1.0", features = ["derive"] }

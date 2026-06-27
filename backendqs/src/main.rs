@@ -5,6 +5,7 @@ mod agenda;
 mod lyrics;
 mod state;
 mod cliphist;
+mod weather;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -51,6 +52,8 @@ enum DaemonRequest {
     SaveJson { path: String, data: serde_json::Value },
     #[serde(rename = "lyrics")]
     Lyrics { artist: String, title: String },
+    #[serde(rename = "weather_refresh")]
+    WeatherRefresh,
     #[serde(rename = "agenda_refresh")]
     AgendaRefresh,
     #[serde(rename = "cliphist")]
@@ -68,6 +71,8 @@ enum DaemonEvent {
     CalcResult { status: String, error: Option<String>, result: Option<String>, query: String },
     #[serde(rename = "lyrics_result")]
     LyricsResult { status: String, error: Option<String>, lyrics: Option<String> },
+    #[serde(rename = "weather_result")]
+    WeatherResult { status: String, error: Option<String>, data: Option<weather::WeatherData> },
     #[serde(rename = "agenda_update")]
     AgendaUpdate { data: Vec<agenda::AgendaItem> },
     #[serde(rename = "cliphist_result")]
@@ -227,6 +232,16 @@ async fn main() -> Result<()> {
                                 }
                                 Err(e) => {
                                     let _ = tx.send(DaemonEvent::LyricsResult { status: "error".into(), error: Some(e.to_string()), lyrics: None }).await;
+                                }
+                            }
+                        }
+                        DaemonRequest::WeatherRefresh => {
+                            match weather::fetch_weather(&client).await {
+                                Ok(data) => {
+                                    let _ = tx.send(DaemonEvent::WeatherResult { status: "ok".into(), error: None, data: Some(data) }).await;
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(DaemonEvent::WeatherResult { status: "error".into(), error: Some(e.to_string()), data: None }).await;
                                 }
                             }
                         }
