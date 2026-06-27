@@ -87,16 +87,17 @@ PanelWindow {
                         ctx.stroke();
                     } else if (stroke.type === "dot") {
                         if (stroke.points.length < 1) continue;
-                        ctx.globalAlpha = 1.0;
+                        ctx.globalAlpha = 0.85;
                         ctx.beginPath();
-                        ctx.arc(stroke.points[0].x, stroke.points[0].y, 16, 0, 2 * Math.PI);
+                        ctx.arc(stroke.points[0].x, stroke.points[0].y, 24, 0, 2 * Math.PI);
                         ctx.fill();
                         
+                        ctx.globalAlpha = 1.0;
                         ctx.fillStyle = (stroke.color === "#FFFFFF" || stroke.color === "#FFD700" || stroke.color === "#00FF00") ? "#000000" : "#FFFFFF";
-                        ctx.font = "bold 16px 'Google Sans Medium'";
+                        ctx.font = "bold 22px sans-serif";
                         ctx.textAlign = "center";
                         ctx.textBaseline = "middle";
-                        ctx.fillText(stroke.number.toString(), stroke.points[0].x, stroke.points[0].y + 1);
+                        ctx.fillText(stroke.number.toString(), stroke.points[0].x, stroke.points[0].y + 2);
                     }
                 }
 
@@ -115,6 +116,18 @@ PanelWindow {
                             }
                             ctx.stroke();
                         }
+                    } else if (activeTool === "dot") {
+                        ctx.globalAlpha = 0.85;
+                        ctx.beginPath();
+                        ctx.arc(currentStroke[0].x, currentStroke[0].y, 24, 0, 2 * Math.PI);
+                        ctx.fill();
+                        
+                        ctx.globalAlpha = 1.0;
+                        ctx.fillStyle = (drawColor === "#FFFFFF" || drawColor === "#FFD700" || drawColor === "#00FF00") ? "#000000" : "#FFFFFF";
+                        ctx.font = "bold 22px sans-serif";
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "middle";
+                        ctx.fillText(dotCounter.toString(), currentStroke[0].x, currentStroke[0].y + 2);
                     }
                 }
             }
@@ -311,7 +324,7 @@ PanelWindow {
 
                 ToolBtn { icon: "󰏫"; toolName: "pencil" }
                 ToolBtn { icon: "󰸱"; toolName: "highlight" }
-                ToolBtn { icon: "󰎍"; toolName: "dot" }
+                ToolBtn { icon: "\uf4f7"; toolName: "dot" }
             }
 
             // Separator
