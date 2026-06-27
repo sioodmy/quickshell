@@ -823,18 +823,30 @@ Variants {
                                     }
                                 }
 
+                                Timer {
+                                    id: closeDelayTimer
+                                    interval: 400
+                                    onTriggered: Screenshot.dismiss()
+                                }
+
                                 ActionPill {
                                     icon: "󰆏"
                                     label: "Copy"
                                     done: Screenshot.wasCopied
-                                    onTriggered: Screenshot.copyToClipboard()
+                                    onTriggered: {
+                                        Screenshot.copyToClipboard();
+                                        closeDelayTimer.start();
+                                    }
                                 }
 
                                 ActionPill {
                                     icon: "󰈝"
                                     label: "Save"
                                     done: Screenshot.wasSaved
-                                    onTriggered: Screenshot.save()
+                                    onTriggered: {
+                                        Screenshot.save();
+                                        closeDelayTimer.start();
+                                    }
                                 }
 
                                 ActionPill {
