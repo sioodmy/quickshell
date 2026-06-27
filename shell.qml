@@ -74,6 +74,14 @@ ShellRoot {
         id: chargePopupWindow
     }
 
+    ScreenshotEditor {
+        id: screenshotEditor
+    }
+
+    ScreenshotOverlay {
+        id: screenshotOverlay
+    }
+
     // Live synced lyrics on desktop (wallpaper)
     LyricsDesktop {
         id: lyricsDesktop

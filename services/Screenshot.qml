@@ -15,10 +15,25 @@ Singleton {
     property bool wasCopied: false
     property bool wasOcred: false
 
+    property string frozenPath: ""
+    property bool overlayActive: false
+    property string overlayMode: "menu"
+    property bool editorActive: false
+
     IpcHandler {
         target: "screenshot"
         function done(): void {
             readResult.running = true;
+        }
+        function menu(): void {
+            take_menu();
+        }
+        function take(): void {
+            take_menu();
+        }
+        function show_overlay(): void {
+            overlayMode = "menu";
+            overlayActive = true;
         }
     }
 
@@ -37,7 +52,7 @@ Singleton {
         }
     }
 
-    function take() {
+    function take_menu() {
         ControlCenter.hide();
         imagePath = "";
         active = false;
@@ -46,10 +61,32 @@ Singleton {
         wasCopied = false;
         wasOcred = false;
 
-        // Fully detached so slurp isn't blocked by Quickshell overlays
+        overlayMode = "menu";
+        overlayActive = true;
+    }
+
+    function take() {
+        take_menu();
+    }
+
+    function finishFullscreen() {
+        overlayActive = false;
         Quickshell.execDetached({ command: ["bash", "-c",
-            "sleep 0.5; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
+            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; grim \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
         ] });
+    }
+
+    function finishArea() {
+        overlayActive = false;
+        Quickshell.execDetached({ command: ["bash", "-c",
+            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
+        ] });
+    }
+
+
+    function finishWindow() {
+        overlayActive = false;
+        Quickshell.execDetached({ command: ["niri", "msg", "action", "screenshot-window"] });
     }
 
     function copyToClipboard() {

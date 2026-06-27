@@ -758,8 +758,9 @@ Variants {
                             }
 
                             // --- Action Buttons ---
-                            Row {
+                            Grid {
                                 width: parent.width
+                                columns: 2
                                 spacing: 8
 
                                 component ActionPill: Rectangle {
@@ -769,7 +770,7 @@ Variants {
                                     property bool done: false
                                     property bool busy: false
 
-                                    width: (parent.width - 16) / 3
+                                    width: (parent.width - 8) / 2
                                     height: 36
                                     radius: 18
                                     color: {
@@ -834,6 +835,12 @@ Variants {
                                     label: "Save"
                                     done: Screenshot.wasSaved
                                     onTriggered: Screenshot.save()
+                                }
+
+                                ActionPill {
+                                    icon: "󰏫"
+                                    label: "Draw"
+                                    onTriggered: Screenshot.editorActive = true
                                 }
 
                                 ActionPill {
