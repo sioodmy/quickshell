@@ -141,9 +141,9 @@ PanelWindow {
                         property int currentTab: 0
 
                         Repeater {
-                            model: ["Controls", "Notifications", "Clipboard"]
+                            model: ["󰒲", "󰂚", "󰅌", "󰝚"]
                             delegate: Rectangle {
-                                width: (tabBar.width - (tabBar.spacing * 2)) / 3
+                                width: (tabBar.width - (tabBar.spacing * 3)) / 4
                                 height: 40
                                 radius: 20
                                 color: tabBar.currentTab === index ? Theme.primary : "transparent"
@@ -151,7 +151,7 @@ PanelWindow {
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData
-                                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 18; weight: Font.Medium }
                                     color: tabBar.currentTab === index ? Theme.on_primary : Theme.on_surface_variant
                                     Behavior on color { ColorAnimation { duration: 150 } }
                                 }
@@ -393,6 +393,14 @@ PanelWindow {
                     id: clipSection
                     width: parent.width
                     visible: tabBar.currentTab === 2
+                }
+
+                // --- Music Tab ---
+                MusicSection {
+                    id: musicSection
+                    width: parent.width
+                    visible: tabBar.currentTab === 3
+                    height: visible ? (flick.height - 44 - 18) : 0
                 }
 
             }

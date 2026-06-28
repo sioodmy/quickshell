@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import "../../theme"
+import qs.services
 
 PanelWindow {
     id: launcherWindow
@@ -175,6 +176,32 @@ PanelWindow {
             }
 
             results.push({ type: "app", entry: appEntry });
+        }
+
+        // --- Music results ---
+        if (query !== "") {
+            var library = BackendDaemon.musicLibrary ? BackendDaemon.musicLibrary.albums : [];
+            var musicScored = [];
+            for (var m = 0; m < library.length; m++) {
+                var album = library[m];
+                var albumScore = Math.max(scoreMatch(album.title, query), scoreMatch(album.artist, query));
+                if (albumScore >= 0) {
+                    musicScored.push({ type: "music_album", album: album, score: albumScore + 10 });
+                }
+                
+                for (var t = 0; t < album.tracks.length; t++) {
+                    var track = album.tracks[t];
+                    var trackScore = scoreMatch(track.title, query);
+                    if (trackScore >= 0) {
+                        musicScored.push({ type: "music_track", album: album, trackIndex: t, track: track, score: trackScore });
+                    }
+                }
+            }
+            musicScored.sort((a, b) => b.score - a.score);
+            var maxMusic = Math.min(musicScored.length, 10);
+            for (var ms = 0; ms < maxMusic; ms++) {
+                results.push(musicScored[ms]);
+            }
         }
 
         // --- Fallback action: Open in WolframAlpha ---

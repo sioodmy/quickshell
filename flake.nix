@@ -20,9 +20,11 @@
 
           cargoLock = {
             lockFile = ./backendqs/Cargo.lock;
+            allowBuiltinFetchGit = true;
           };
 
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.pkg-config pkgs.cmake ];
+          buildInputs = [ pkgs.alsa-lib pkgs.libopus pkgs.dbus ];
 
           postInstall = ''
             wrapProgram $out/bin/backendqs \
@@ -46,6 +48,11 @@
             pandoc
             tectonic
             poppler-utils
+            pkg-config
+            cmake
+            alsa-lib
+            libopus
+            dbus
           ];
         };
       }

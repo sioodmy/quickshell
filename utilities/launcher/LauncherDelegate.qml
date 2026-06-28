@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell.Widgets
 import "../../theme"
+import qs.services
 
 Item {
     id: delegateRoot
@@ -41,6 +43,10 @@ Item {
             return "";
         } else if (itemType === "action") {
             return modelData.description || "";
+        } else if (itemType === "music_album") {
+            return modelData.album.artist || "";
+        } else if (itemType === "music_track") {
+            return modelData.album.artist + " • " + modelData.album.title;
         }
         return "";
     }
@@ -52,6 +58,10 @@ Item {
             return modelData.display || "";
         } else if (itemType === "action") {
             return modelData.name || "";
+        } else if (itemType === "music_album") {
+            return modelData.album.title || "";
+        } else if (itemType === "music_track") {
+            return modelData.track.title || "";
         }
         return "";
     }
@@ -71,6 +81,12 @@ Item {
             } else if (modelData.actionId === "websearch") {
                 ctrl.openWebSearch();
             }
+        } else if (itemType === "music_album") {
+            MusicService.playTrack(modelData.album, 0);
+            ctrl.toggleLauncher();
+        } else if (itemType === "music_track") {
+            MusicService.playTrack(modelData.album, modelData.trackIndex);
+            ctrl.toggleLauncher();
         }
     }
 
@@ -161,6 +177,44 @@ Item {
                         if (status === Image.Error) {
                             source = "image://icon/application-x-executable";
                         }
+                    }
+                }
+                
+                // Music Cover art
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    visible: itemType === "music_album" || itemType === "music_track"
+                    color: Theme.surface_container_highest
+                    
+                    Image {
+                        id: launcherAlbumCover
+                        anchors.fill: parent
+                        source: (itemType === "music_album" || itemType === "music_track") && modelData.album.cover_path 
+                                ? "file://" + modelData.album.cover_path 
+                                : ""
+                        fillMode: Image.PreserveAspectCrop
+                        
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskSource: ShaderEffectSource {
+                                sourceItem: Rectangle {
+                                    width: launcherAlbumCover.width
+                                    height: launcherAlbumCover.height
+                                    radius: 8
+                                }
+                            }
+                        }
+                    }
+                    
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰝚"
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 18
+                        color: Theme.on_surface_variant
+                        visible: !parent.children[0].status || parent.children[0].status === Image.Error
                     }
                 }
 

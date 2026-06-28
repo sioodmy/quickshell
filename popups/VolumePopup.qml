@@ -4,6 +4,7 @@ import Quickshell.Services.Pipewire
 import QtQuick
 import QtQuick.Effects
 import "../theme"
+import qs.services
 
 Variants {
     id: root
@@ -87,8 +88,10 @@ Variants {
                 id: pill
 
                 width: 320
-                height: 84
+                height: musicRow.visible ? 120 : 84
                 anchors.centerIn: parent
+
+                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                 radius: 28
 
@@ -102,10 +105,75 @@ Variants {
                     shadowVerticalOffset: 6
                 }
 
-                Row {
+                Column {
                     anchors.fill: parent
                     anchors.margins: 18
-                    spacing: 16
+                    spacing: 12
+
+                    Item {
+                        id: musicRow
+                        width: parent.width
+                        height: 24
+                        visible: BackendDaemon.musicState.playing
+                        opacity: visible ? 1.0 : 0.0
+                        Behavior on opacity { NumberAnimation { duration: 250 } }
+
+                        Row {
+                            anchors.centerIn: parent
+                            height: 24
+                            spacing: 8
+
+                            Rectangle {
+                                width: 24
+                                height: 24
+                                radius: 12
+                                color: Theme.surface_container_highest
+
+                                Image {
+                                    id: volAlbumImg
+                                    anchors.fill: parent
+                                    source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true
+                                        maskSource: ShaderEffectSource {
+                                            sourceItem: Rectangle {
+                                                width: volAlbumImg.width
+                                                height: volAlbumImg.height
+                                                radius: 12
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰝚"
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 12
+                                    color: Theme.on_surface_variant
+                                    visible: volAlbumImg.status !== Image.Ready
+                                }
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, musicRow.width - 32)
+                                text: BackendDaemon.musicState.title
+                                font.family: "Google Sans Medium"
+                                font.pixelSize: 14
+                                color: Theme.on_surface
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    Row {
+                        width: parent.width
+                        height: 48
+                        spacing: 16
 
                     Rectangle {
                         width: 48
@@ -217,8 +285,9 @@ Variants {
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
+                } // End of Volume Row
+                } // End of Column
+            } // End of pill Rectangle
+        } // End of Item
+    } // End of PanelWindow
+} // End of Variants

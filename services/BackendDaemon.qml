@@ -21,6 +21,18 @@ Singleton {
     property string lyricsStatus: ""
     property string lyricsContent: ""
     property var cliphistItems: []
+    property var musicLibrary: null
+    property string musicLibraryStatus: ""
+    property var musicState: {
+        "playing": false,
+        "title": "",
+        "artist": "",
+        "album": "",
+        "artUrl": "",
+        "duration": 0,
+        "position": 0,
+        "hasPlayer": false
+    }
 
     Process {
         id: daemon
@@ -80,6 +92,26 @@ Singleton {
                         root.lyricsStatus = parsed.status;
                     } else if (type === "cliphist_result") {
                         root.cliphistItems = parsed.data || [];
+                    } else if (type === "music_library_result") {
+                        if (parsed.status === "ok") {
+                            root.musicLibrary = parsed.library || null;
+                        } else {
+                            root.musicLibrary = null;
+                        }
+                        root.musicLibraryStatus = parsed.status;
+                    } else if (type === "music_state_update") {
+                        let rawUrl = parsed.state.art_url;
+                        let finalUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http")) ? rawUrl : (rawUrl !== "" ? "file://" + rawUrl : "");
+                        root.musicState = {
+                            "playing": parsed.state.playing,
+                            "title": parsed.state.title,
+                            "artist": parsed.state.artist,
+                            "album": parsed.state.album,
+                            "artUrl": finalUrl,
+                            "duration": parsed.state.duration_us / 1000000.0,
+                            "position": parsed.state.position_us / 1000000.0,
+                            "hasPlayer": parsed.state.has_player
+                        };
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);
@@ -88,9 +120,17 @@ Singleton {
         }
     }
 
-    function send(msg) {
-        if (daemon.running) {
-            daemon.write(JSON.stringify(msg) + "\n");
+    function send(obj) {
+        daemon.write(JSON.stringify(obj) + "\n");
+    }
+
+    Timer {
+        id: initTimer
+        running: true
+        interval: 100
+        repeat: false
+        onTriggered: {
+            root.send({action: "music_library"});
         }
     }
 }

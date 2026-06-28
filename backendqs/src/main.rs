@@ -1,3 +1,4 @@
+mod music;
 mod parser;
 mod math;
 mod dictionary;
@@ -10,7 +11,6 @@ mod weather;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use reqwest::Client;
 use std::path::PathBuf;
@@ -52,12 +52,28 @@ enum DaemonRequest {
     SaveJson { path: String, data: serde_json::Value },
     #[serde(rename = "lyrics")]
     Lyrics { artist: String, title: String },
+    #[serde(rename = "lyrics_prefetch")]
+    LyricsPrefetch { artist: String, title: String },
     #[serde(rename = "weather_refresh")]
     WeatherRefresh,
     #[serde(rename = "agenda_refresh")]
     AgendaRefresh,
     #[serde(rename = "cliphist")]
     Cliphist,
+    #[serde(rename = "music_library")]
+    MusicLibrary,
+    #[serde(rename = "music_play_album")]
+    MusicPlayAlbum { tracks: Vec<String>, start_index: usize },
+    #[serde(rename = "music_pause")]
+    MusicPause,
+    #[serde(rename = "music_resume")]
+    MusicResume,
+    #[serde(rename = "music_next")]
+    MusicNext,
+    #[serde(rename = "music_previous")]
+    MusicPrevious,
+    #[serde(rename = "music_seek")]
+    MusicSeek { position: f64 },
 }
 
 #[derive(Serialize)]
@@ -77,6 +93,22 @@ enum DaemonEvent {
     AgendaUpdate { data: Vec<agenda::AgendaItem> },
     #[serde(rename = "cliphist_result")]
     CliphistResult { status: String, error: Option<String>, data: Vec<cliphist::CliphistItem> },
+    #[serde(rename = "music_library_result")]
+    MusicLibraryResult { status: String, error: Option<String>, library: Option<music::Library> },
+    #[serde(rename = "music_state_update")]
+    MusicStateUpdate { state: MusicStateDto },
+}
+
+#[derive(Serialize)]
+pub struct MusicStateDto {
+    pub playing: bool,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub art_url: String,
+    pub duration_us: i64,
+    pub position_us: i64,
+    pub has_player: bool,
 }
 
 #[tokio::main]
@@ -100,6 +132,14 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Daemon => {
+            let player = music::PLAYER.get_or_init(music::Player::new);
+            // Start MPRIS D-Bus server
+            let mpris_state = player.state.clone();
+            tokio::spawn(async move {
+                if let Err(e) = music::start_mpris(mpris_state).await {
+                    eprintln!("MPRIS init error: {}", e);
+                }
+            });
             let client = Client::new();
             let (tx_event, mut rx_event) = tmpsc::channel::<DaemonEvent>(100);
 
@@ -108,6 +148,31 @@ async fn main() -> Result<()> {
                 while let Some(ev) = rx_event.recv().await {
                     if let Ok(json) = serde_json::to_string(&ev) {
                         println!("{}", json);
+                    }
+                }
+            });
+
+            // State updater task
+            let tx_event_clone = tx_event.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+                loop {
+                    interval.tick().await;
+                    if let Some(player) = music::PLAYER.get() {
+                        let dto = {
+                            let state = player.state.lock().unwrap();
+                            MusicStateDto {
+                                playing: state.playing,
+                                title: state.title.clone(),
+                                artist: state.artist.clone(),
+                                album: state.album.clone(),
+                                art_url: state.art_url.clone(),
+                                duration_us: state.duration_us,
+                                position_us: state.live_position_us(),
+                                has_player: !state.title.is_empty(),
+                            }
+                        };
+                        let _ = tx_event_clone.send(DaemonEvent::MusicStateUpdate { state: dto }).await;
                     }
                 }
             });
@@ -152,7 +217,8 @@ async fn main() -> Result<()> {
                 
                 let req: DaemonRequest = match serde_json::from_str(&line) {
                     Ok(r) => r,
-                    Err(_) => {
+                    Err(e) => {
+                        eprintln!("Error deserializing: {} for line: {}", e, line);
                         // Fallback parsing for old requests
                         if let Ok(old_req) = serde_json::from_str::<serde_json::Value>(&line) {
                             if let Some(query) = old_req.get("query").and_then(|v| v.as_str()) {
@@ -235,6 +301,9 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
+                        DaemonRequest::LyricsPrefetch { artist, title } => {
+                            let _ = lyrics::fetch_lyrics(&client, &artist, &title).await;
+                        }
                         DaemonRequest::WeatherRefresh => {
                             match weather::fetch_weather(&client).await {
                                 Ok(data) => {
@@ -259,6 +328,47 @@ async fn main() -> Result<()> {
                                 Err(e) => {
                                     let _ = tx.send(DaemonEvent::CliphistResult { status: "error".into(), error: Some(e.to_string()), data: vec![] }).await;
                                 }
+                            }
+                        }
+                        DaemonRequest::MusicLibrary => {
+                            let res = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap();
+                            match res {
+                                Ok(lib) => {
+                                    let _ = tx.send(DaemonEvent::MusicLibraryResult { status: "ok".into(), error: None, library: Some(lib) }).await;
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(DaemonEvent::MusicLibraryResult { status: "error".into(), error: Some(e.to_string()), library: None }).await;
+                                }
+                            }
+                        }
+                        DaemonRequest::MusicPlayAlbum { tracks, start_index } => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.play_album(tracks, start_index);
+                            }
+                        }
+                        DaemonRequest::MusicPause => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.pause();
+                            }
+                        }
+                        DaemonRequest::MusicResume => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.resume();
+                            }
+                        }
+                        DaemonRequest::MusicNext => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.next();
+                            }
+                        }
+                        DaemonRequest::MusicPrevious => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.previous();
+                            }
+                        }
+                        DaemonRequest::MusicSeek { position } => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.seek(position);
                             }
                         }
                     }

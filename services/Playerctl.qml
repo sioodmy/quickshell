@@ -1,19 +1,31 @@
 pragma Singleton
-
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.services
 
 Singleton {
     id: root
 
-    property string title: ""
-    property string artist: ""
-    property string artUrl: ""
-    property bool isPlaying: false
-    property bool hasPlayer: false
-    property double position: 0
-    property double length: 0
+    property string mprisTitle: ""
+    property string mprisArtist: ""
+    property string mprisArtUrl: ""
+    property bool mprisIsPlaying: false
+    property bool mprisHasPlayer: false
+    property double mprisPosition: 0
+    property double mprisLength: 0
+
+    // Exported fallback properties for lyrics and global player logic
+    // We prefer the backendqs state, but if it has no player, we fall back to global MPRIS
+    property bool useBackend: BackendDaemon.musicState.hasPlayer || BackendDaemon.musicState.playing
+
+    property string title: useBackend ? BackendDaemon.musicState.title : mprisTitle
+    property string artist: useBackend ? BackendDaemon.musicState.artist : mprisArtist
+    property string artUrl: useBackend ? BackendDaemon.musicState.artUrl : mprisArtUrl
+    property bool isPlaying: useBackend ? BackendDaemon.musicState.playing : mprisIsPlaying
+    property bool hasPlayer: useBackend ? BackendDaemon.musicState.hasPlayer : mprisHasPlayer
+    property double position: useBackend ? BackendDaemon.musicState.position : mprisPosition
+    property double length: useBackend ? BackendDaemon.musicState.duration : mprisLength
 
     Process {
         id: posTracker
@@ -24,9 +36,9 @@ Singleton {
                 let trimmed = data.trim();
                 let p = parseFloat(trimmed);
                 if (p >= 0) {
-                    root.position = p;
+                    root.mprisPosition = p;
                 } else {
-                    root.position = 0;
+                    root.mprisPosition = 0;
                 }
             }
         }
@@ -40,58 +52,77 @@ Singleton {
             onRead: data => {
                 let trimmed = data.trim();
                 if (trimmed === "NONE" || trimmed === "") {
-                    root.hasPlayer = false;
-                    root.length = 0;
+                    root.mprisHasPlayer = false;
+                    root.mprisLength = 0;
                 } else {
                     let parts = trimmed.split("|||");
                     if (parts.length >= 4) {
-                        root.hasPlayer = true;
+                        root.mprisHasPlayer = true;
                         let status = parts[0].trim();
-                        root.artist = parts[1].trim();
-                        root.title = parts[2].trim();
+                        root.mprisArtist = parts[1].trim();
+                        root.mprisTitle = parts[2].trim();
                         
                         let rawUrl = parts[3].trim();
-                        if (rawUrl.startsWith("file://")) {
-                            root.artUrl = rawUrl;
-                        } else if (rawUrl.startsWith("http")) {
-                            root.artUrl = rawUrl;
+                        if (rawUrl.startsWith("file://") || rawUrl.startsWith("http")) {
+                            root.mprisArtUrl = rawUrl;
                         } else if (rawUrl !== "") {
-                            root.artUrl = "file://" + rawUrl;
+                            root.mprisArtUrl = "file://" + rawUrl;
                         } else {
-                            root.artUrl = "";
+                            root.mprisArtUrl = "";
                         }
-
-                        root.isPlaying = (status === "Playing");
                         
-                        if (parts.length >= 5 && parts[4].trim() !== "") {
-                            let lenMicro = parseFloat(parts[4].trim());
-                            if (!isNaN(lenMicro) && lenMicro > 0) {
-                                root.length = lenMicro / 1000000.0;
-                            } else {
-                                root.length = 0;
+                        root.mprisIsPlaying = (status === "Playing");
+                        
+                        if (parts.length >= 5) {
+                            let lenStr = parts[4].trim();
+                            if (lenStr !== "") {
+                                let l = parseFloat(lenStr);
+                                if (!isNaN(l) && l > 0) {
+                                    root.mprisLength = l / 1000000.0;
+                                }
                             }
-                        } else {
-                            root.length = 0;
                         }
+                    } else {
+                        root.mprisHasPlayer = false;
                     }
                 }
             }
         }
     }
 
+    // Playback control wrappers to handle both local library and fallback
     function playPause() {
-        Quickshell.execDetached({ command: ["playerctl", "play-pause"] });
+        if (useBackend) {
+            MusicService.toggle();
+        } else {
+            Quickshell.execDetached({ command: ["playerctl", "play-pause"] });
+            mprisIsPlaying = !mprisIsPlaying;
+        }
     }
 
     function next() {
-        Quickshell.execDetached({ command: ["playerctl", "next"] });
+        if (useBackend) {
+            MusicService.next();
+        } else {
+            Quickshell.execDetached({ command: ["playerctl", "next"] });
+            mprisIsPlaying = true;
+        }
     }
 
     function previous() {
-        Quickshell.execDetached({ command: ["playerctl", "previous"] });
+        if (useBackend) {
+            MusicService.previous();
+        } else {
+            Quickshell.execDetached({ command: ["playerctl", "previous"] });
+            mprisIsPlaying = true;
+        }
     }
 
     function setPosition(pos) {
-        Quickshell.execDetached({ command: ["playerctl", "position", pos.toString()] });
+        if (useBackend) {
+            MusicService.setPosition(pos);
+        } else {
+            Quickshell.execDetached({ command: ["playerctl", "position", pos.toString()] });
+        }
     }
 }
