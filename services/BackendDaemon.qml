@@ -31,6 +31,8 @@ Singleton {
         "artUrl": "",
         "duration": 0,
         "position": 0,
+        "volume": 1.0,
+        "loopAlbum": false,
         "hasPlayer": false
     }
 
@@ -110,6 +112,8 @@ Singleton {
                             "artUrl": finalUrl,
                             "duration": parsed.state.duration_us / 1000000.0,
                             "position": parsed.state.position_us / 1000000.0,
+                            "volume": parsed.state.volume,
+                            "loopAlbum": parsed.state.loop_album,
                             "hasPlayer": parsed.state.has_player
                         };
                     }

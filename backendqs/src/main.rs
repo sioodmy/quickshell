@@ -74,6 +74,10 @@ enum DaemonRequest {
     MusicPrevious,
     #[serde(rename = "music_seek")]
     MusicSeek { position: f64 },
+    #[serde(rename = "music_set_volume")]
+    MusicSetVolume { volume: f32 },
+    #[serde(rename = "music_toggle_loop")]
+    MusicToggleLoop,
 }
 
 #[derive(Serialize)]
@@ -108,6 +112,8 @@ pub struct MusicStateDto {
     pub art_url: String,
     pub duration_us: i64,
     pub position_us: i64,
+    pub volume: f32,
+    pub loop_album: bool,
     pub has_player: bool,
 }
 
@@ -169,6 +175,8 @@ async fn main() -> Result<()> {
                                 art_url: state.art_url.clone(),
                                 duration_us: state.duration_us,
                                 position_us: state.live_position_us(),
+                                volume: state.volume,
+                                loop_album: state.loop_album,
                                 has_player: !state.title.is_empty(),
                             }
                         };
@@ -369,6 +377,16 @@ async fn main() -> Result<()> {
                         DaemonRequest::MusicSeek { position } => {
                             if let Some(player) = music::PLAYER.get() {
                                 player.seek(position);
+                            }
+                        }
+                        DaemonRequest::MusicSetVolume { volume } => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.set_volume(volume);
+                            }
+                        }
+                        DaemonRequest::MusicToggleLoop => {
+                            if let Some(player) = music::PLAYER.get() {
+                                player.toggle_loop();
                             }
                         }
                     }

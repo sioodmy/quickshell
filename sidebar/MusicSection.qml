@@ -604,13 +604,50 @@ Item {
                     anchors.leftMargin: 24
                     spacing: 16
                     
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: isThisPlaying ? "󰎆" : modelData.track_number
-                        font.family: isThisPlaying ? "JetBrainsMono Nerd Font" : "Google Sans"
-                        font.pixelSize: 14
-                        color: isThisPlaying ? Theme.primary : Theme.on_surface_variant
+                    Item {
                         width: 24
+                        height: 24
+                        anchors.verticalCenter: parent.verticalCenter
+                        
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.track_number
+                            font.family: "Google Sans"
+                            font.pixelSize: 14
+                            color: Theme.on_surface_variant
+                            visible: !isThisPlaying
+                        }
+                        
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 2
+                            visible: isThisPlaying
+                            
+                            Repeater {
+                                model: 3
+                                Item {
+                                    width: 3
+                                    height: 14
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        width: 3
+                                        height: 4
+                                        radius: 1.5
+                                        color: Theme.primary
+                                        
+                                        SequentialAnimation on height {
+                                            loops: Animation.Infinite
+                                            running: isThisPlaying && BackendDaemon.musicState.playing
+                                            NumberAnimation { to: index === 0 ? 8 : (index === 1 ? 14 : 10); duration: index === 0 ? 300 : (index === 1 ? 250 : 350); easing.type: Easing.InOutSine }
+                                            NumberAnimation { to: index === 0 ? 14 : (index === 1 ? 6 : 14); duration: index === 0 ? 250 : (index === 1 ? 300 : 200); easing.type: Easing.InOutSine }
+                                            NumberAnimation { to: index === 0 ? 6 : (index === 1 ? 12 : 6); duration: index === 0 ? 350 : (index === 1 ? 200 : 250); easing.type: Easing.InOutSine }
+                                        }
+                                        
+                                        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+                        }
                     }
                     
                     Text {
@@ -637,94 +674,204 @@ Item {
     }
 
     // Bottom: Sticky Controls
+    // Bottom: Sticky Controls
     Rectangle {
         id: controlsBar
+        property bool showVolume: false
+        
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 72
-        radius: 36
+        height: showVolume ? 132 : 96
+        Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        radius: 32
         color: Theme.surface_container_highest
 
-        Row {
-            anchors.centerIn: parent
+        component CBtn: Rectangle {
+            property string icon
+            property color icnColor: Theme.on_surface
+            signal clicked()
+            width: 44; height: 44; radius: 22
+            anchors.verticalCenter: parent.verticalCenter
+            color: cbm.containsMouse ? Theme.surface_variant : "transparent"
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Text {
+                anchors.centerIn: parent
+                text: parent.icon
+                font.family: "JetBrainsMono Nerd Font"
+                font.pixelSize: 22
+                color: parent.icnColor
+            }
+            MouseArea {
+                id: cbm
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: parent.clicked()
+            }
+        }
+
+        Column {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 20
             spacing: 16
 
-            component CBtn: Rectangle {
-                property string icon
-                property color icnColor: Theme.on_surface
-                signal clicked()
-                width: 44; height: 44; radius: 22
-                anchors.verticalCenter: parent.verticalCenter
-                color: cbm.containsMouse ? Theme.surface_variant : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Text {
-                    anchors.centerIn: parent
-                    text: parent.icon
-                    font.family: "JetBrainsMono Nerd Font"
-                    font.pixelSize: 22
-                    color: parent.icnColor
-                }
-                MouseArea {
-                    id: cbm
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: parent.clicked()
-                }
-            }
-
-            CBtn {
-                icon: "󰒮"
-                onClicked: MusicService.previous()
-            }
-
-            Rectangle {
-                id: playPauseBtn
-                width: 56
+            // Top Row: Playback Buttons
+            Item {
+                width: parent.width
                 height: 56
-                radius: 28
-                color: Theme.primary_container
-                anchors.verticalCenter: parent.verticalCenter
 
-                Text {
-                    id: playPauseIcon
+                Row {
                     anchors.centerIn: parent
-                    text: BackendDaemon.musicState.playing ? "󰏤" : "󰐊"
-                    font.family: "JetBrainsMono Nerd Font"
-                    font.pixelSize: 28
-                    color: Theme.on_primary_container
+                    spacing: 18
 
-                    // Subtle bounce on state change
-                    scale: 1.0
-                    onTextChanged: playBounce.restart()
-                    SequentialAnimation {
-                        id: playBounce
-                        NumberAnimation { target: playPauseIcon; property: "scale"; to: 0.8; duration: 80; easing.type: Easing.InQuad }
-                        NumberAnimation { target: playPauseIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
+                    CBtn {
+                        icon: "󰕾" // Speaker
+                        icnColor: controlsBar.showVolume ? Theme.primary : Theme.on_surface_variant
+                        onClicked: controlsBar.showVolume = !controlsBar.showVolume
+                    }
+
+                    CBtn {
+                        icon: "󰒮"
+                        onClicked: MusicService.previous()
+                    }
+
+                    Rectangle {
+                        id: playPauseBtn
+                        width: 56
+                        height: 56
+                        radius: 28
+                        color: Theme.primary_container
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        Text {
+                            id: playPauseIcon
+                            anchors.centerIn: parent
+                            text: BackendDaemon.musicState.playing ? "󰏤" : "󰐊"
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 28
+                            color: Theme.on_primary_container
+
+                            scale: 1.0
+                            onTextChanged: playBounce.restart()
+                            SequentialAnimation {
+                                id: playBounce
+                                NumberAnimation { target: playPauseIcon; property: "scale"; to: 0.7; duration: 100; easing.type: Easing.OutCubic }
+                                NumberAnimation { target: playPauseIcon; property: "scale"; to: 1.0; duration: 250; easing.type: Easing.OutBack }
+                            }
+                        }
+
+                        scale: playPauseMouse.containsMouse ? 1.08 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                        
+                        MouseArea {
+                            id: playPauseMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: MusicService.toggle()
+                        }
+                    }
+
+                    CBtn {
+                        icon: "󰒭"
+                        onClicked: MusicService.next()
+                    }
+
+                    CBtn {
+                        icon: "󰑖" // Repeat icon
+                        icnColor: BackendDaemon.musicState.loopAlbum ? Theme.primary : Theme.on_surface_variant
+                        onClicked: MusicService.toggleLoop()
+                        
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 6; height: 6; radius: 3
+                            anchors.verticalCenterOffset: 12
+                            color: Theme.primary
+                            opacity: BackendDaemon.musicState.loopAlbum ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                        }
                     }
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    hoverEnabled: true
-                    onClicked: MusicService.toggle()
-                }
-
-                // Hover glow
-                scale: playPauseMouse.containsMouse ? 1.05 : 1.0
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                MouseArea {
-                    id: playPauseMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: MusicService.toggle()
-                }
             }
 
-            CBtn {
-                icon: "󰒭"
-                onClicked: MusicService.next()
+            // Bottom Row: Volume Slider
+            Item {
+                width: parent.width
+                height: 20
+                opacity: controlsBar.showVolume ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                visible: opacity > 0
+                
+                Rectangle {
+                    id: volTrack
+                    anchors.centerIn: parent
+                    width: parent.width - 16 // Clean margin
+                    height: 6
+                    radius: 3
+                    color: Theme.surface_variant
+                    
+                    property real uiVolume: BackendDaemon.musicState.volume
+                    
+                    Connections {
+                        target: BackendDaemon
+                        function onMusicStateChanged() {
+                            if (!volMouse.pressed) {
+                                volTrack.uiVolume = BackendDaemon.musicState.volume;
+                            }
+                        }
+                    }
+                    
+                    // Fill
+                    Rectangle {
+                        height: parent.height
+                        width: parent.width * parent.uiVolume
+                        radius: 3
+                        color: Theme.on_surface
+                    }
+                    
+                    // Interactive Thumb
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: (parent.width * parent.uiVolume) - (width / 2)
+                        width: volMouse.containsMouse || volMouse.pressed ? 16 : 12
+                        height: width
+                        radius: width / 2
+                        color: Theme.on_surface
+                        
+                        // Drop shadow for the thumb
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            shadowEnabled: true
+                            shadowColor: "#40000000"
+                            shadowBlur: 0.5
+                            shadowVerticalOffset: 2
+                        }
+                        
+                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                    }
+                    
+                    MouseArea {
+                        id: volMouse
+                        anchors.fill: parent
+                        anchors.margins: -12 // Very forgiving hitbox
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onPositionChanged: (mouse) => {
+                            if (pressed) {
+                                let vol = Math.max(0, Math.min(1, mouse.x / volTrack.width));
+                                volTrack.uiVolume = vol;
+                                MusicService.setVolume(vol);
+                            }
+                        }
+                        onClicked: (mouse) => {
+                            let vol = Math.max(0, Math.min(1, mouse.x / volTrack.width));
+                            volTrack.uiVolume = vol;
+                            MusicService.setVolume(vol);
+                        }
+                    }
+                }
             }
         }
     }

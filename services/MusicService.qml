@@ -53,4 +53,18 @@ Singleton {
     function setPosition(pos) {
         BackendDaemon.send({ "action": "music_seek", "position": pos });
     }
+
+    function setVolume(vol) {
+        BackendDaemon.send({ "action": "music_set_volume", "volume": vol });
+        let s = BackendDaemon.musicState;
+        s.volume = vol;
+        BackendDaemon.musicState = s;
+    }
+
+    function toggleLoop() {
+        BackendDaemon.send({ "action": "music_toggle_loop" });
+        let s = BackendDaemon.musicState;
+        s.loopAlbum = !s.loopAlbum;
+        BackendDaemon.musicState = s;
+    }
 }

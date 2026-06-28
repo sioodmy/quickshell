@@ -24,6 +24,8 @@ pub enum PlayerCmd {
     Next,
     Previous,
     Seek { position_secs: f64 },
+    SetVolume { volume: f32 },
+    ToggleLoop,
 }
 
 // ── Shared state between player thread and MPRIS ─────────────────────
@@ -41,6 +43,8 @@ pub struct PlaybackState {
     // For computing live position
     pub position_at: Instant,
     pub position_snapshot_us: i64,
+    pub volume: f32,
+    pub loop_album: bool,
 }
 
 impl Default for PlaybackState {
@@ -56,6 +60,8 @@ impl Default for PlaybackState {
             playlist_index: 0,
             position_at: Instant::now(),
             position_snapshot_us: 0,
+            volume: 1.0,
+            loop_album: false,
         }
     }
 }
@@ -190,6 +196,8 @@ impl Player {
                         if s.playing {
                             if s.playlist_index + 1 < s.playlist.len() {
                                 Some(s.playlist_index + 1)
+                            } else if s.loop_album && !s.playlist.is_empty() {
+                                Some(0)
                             } else {
                                 s.playing = false;
                                 s.position_snapshot_us = s.duration_us;
@@ -235,6 +243,8 @@ impl Player {
                                     let s = state_clone.lock().unwrap();
                                     if s.playlist_index + 1 < s.playlist.len() {
                                         Some(s.playlist_index + 1)
+                                    } else if s.loop_album && !s.playlist.is_empty() {
+                                        Some(0)
                                     } else { None }
                                 };
                                 if let Some(i) = idx { play_index(&player, &state_clone, i); }
@@ -254,6 +264,15 @@ impl Player {
                                 let mut s = state_clone.lock().unwrap();
                                 s.position_snapshot_us = (position_secs * 1_000_000.0) as i64;
                                 s.position_at = Instant::now();
+                            }
+                            PlayerCmd::SetVolume { volume } => {
+                                player.set_volume(volume);
+                                let mut s = state_clone.lock().unwrap();
+                                s.volume = volume;
+                            }
+                            PlayerCmd::ToggleLoop => {
+                                let mut s = state_clone.lock().unwrap();
+                                s.loop_album = !s.loop_album;
                             }
                         }
                     }
@@ -279,6 +298,8 @@ impl Player {
     pub fn next(&self) { let _ = self.tx.send(PlayerCmd::Next); }
     pub fn previous(&self) { let _ = self.tx.send(PlayerCmd::Previous); }
     pub fn seek(&self, pos: f64) { let _ = self.tx.send(PlayerCmd::Seek { position_secs: pos }); }
+    pub fn set_volume(&self, vol: f32) { let _ = self.tx.send(PlayerCmd::SetVolume { volume: vol }); }
+    pub fn toggle_loop(&self) { let _ = self.tx.send(PlayerCmd::ToggleLoop); }
 }
 
 pub static PLAYER: OnceLock<Player> = OnceLock::new();

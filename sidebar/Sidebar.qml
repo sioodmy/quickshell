@@ -141,7 +141,7 @@ PanelWindow {
                         property int currentTab: 0
 
                         Repeater {
-                            model: ["󰒲", "󰂚", "󰅌", "󰝚"]
+                            model: ["󰒓", "󰂚", "󰅌", "󰝚"]
                             delegate: Rectangle {
                                 width: (tabBar.width - (tabBar.spacing * 3)) / 4
                                 height: 40
