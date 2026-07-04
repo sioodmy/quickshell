@@ -53,7 +53,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.topMargin: 70
-        anchors.leftMargin: 16
+        anchors.leftMargin: 64
         height: cardContent.implicitHeight + 48
         radius: 28
         clip: true

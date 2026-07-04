@@ -2,7 +2,7 @@
 
 import Quickshell
 import QtQuick
-import "bar"
+import "dock"
 import "lock"
 import "sidebar"
 import "desktop"
@@ -16,25 +16,14 @@ import qs.services
 ShellRoot {
     id: root
 
-    // Primary desktop bars
-    LeftBar {
-        id: leftBar
-    }
-    BottomBar {
-        id: bottomBar
-    }
-    RightBar {
-        id: rightBar
+    // Application dock (vertical, left side)
+    Dock {
+        id: applicationDock
     }
 
     // Screen masking for rounded workspace effect
     BezelsMask {
         id: desktopBezels
-    }
-
-    // System status bar
-    TopBar {
-        id: topBar
     }
 
     // Session lock screen

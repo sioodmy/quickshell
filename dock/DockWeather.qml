@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.services
 import qs.theme
-import qs.bar.widgets.weather
+import "../popups/weather"
 
 Item {
     id: root
@@ -168,9 +168,9 @@ Item {
         id: visualPill
         anchors.centerIn: parent
 
-        implicitWidth: weatherLabel.implicitWidth + 32
-        implicitHeight: 28
-        radius: height / 2
+        implicitWidth: 40
+        implicitHeight: weatherCol.implicitHeight + 16
+        radius: width / 2
 
         color: {
             var baseColor = Qt.tint(Theme.surface_container, weatherData.getWeatherTint());
@@ -220,15 +220,29 @@ Item {
             onClicked: weatherWidget.visible = !weatherWidget.visible
         }
 
-        Text {
-            id: weatherLabel
+        Column {
+            id: weatherCol
             anchors.centerIn: parent
-            text: weatherData.emoji + "  " + weatherData.temp
-            color: Theme.on_surface
-            font {
-                family: "Google Sans"
-                pixelSize: 14
-                weight: Font.Medium
+            spacing: 2
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: weatherData.emoji
+                color: Theme.on_surface
+                font {
+                    pixelSize: 20
+                }
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: weatherData.temp
+                color: Theme.on_surface
+                font {
+                    family: "Google Sans"
+                    pixelSize: 11
+                    weight: Font.Bold
+                }
             }
         }
     }

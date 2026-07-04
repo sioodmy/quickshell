@@ -30,9 +30,10 @@ PanelWindow {
     Rectangle {
         width: 780
         height: 520
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.topMargin: 70
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.bottomMargin: 16
+        anchors.leftMargin: 64
         color: Theme.surface_container_low
         radius: 32
 
