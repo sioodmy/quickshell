@@ -5,6 +5,7 @@ import Quickshell.Wayland
 import Quickshell.Services.UPower
 
 import qs.theme
+import "../desktop"
 
 WlSessionLockSurface {
     id: surface
@@ -13,10 +14,6 @@ WlSessionLockSurface {
 
     color: Theme.background
 
-    readonly property string lockWall: Quickshell.env("LOCKSCREEN_WALL") || "/home/sioodmy/dev/wallpapers/misc/ghibli.jpg"
-    readonly property string wallSource: lockWall !== ""
-        ? "file://" + lockWall
-        : Theme.wallpaper
 
     SystemClock {
         id: clock
@@ -24,12 +21,8 @@ WlSessionLockSurface {
     }
 
     // --- Wallpaper background (sharp) ---
-    Image {
+    AnimatedWallpaper {
         anchors.fill: parent
-        source: surface.wallSource
-        fillMode: Image.PreserveAspectCrop
-        cache: true
-        asynchronous: true
     }
 
     // --- Split clock (left side) ---
@@ -235,8 +228,7 @@ WlSessionLockSurface {
                 // Charging bolt icon
                 Text {
                     visible: battRow.charging
-                    anchors.centerIn: parent
-                    anchors.horizontalCenterOffset: -1.5
+                    anchors.centerIn: battBody
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: ""

@@ -203,8 +203,7 @@ Rectangle {
 
             Text {
                 visible: batteryIconItem.isCharging
-                anchors.centerIn: parent
-                anchors.horizontalCenterOffset: -1
+                anchors.centerIn: batteryBody
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 text: ""

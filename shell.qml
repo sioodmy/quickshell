@@ -26,6 +26,11 @@ ShellRoot {
         id: desktopBezels
     }
 
+    // Animated Background Wallpaper
+    Wallpaper {
+        id: wallpaper
+    }
+
     // Session lock screen
     Lock {
         id: lockScreen

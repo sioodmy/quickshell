@@ -19,13 +19,13 @@ Variants {
         WlrLayershell.exclusionMode: ExclusionMode.Ignore // Do not reserve space!
         
         anchors {
-            bottom: true
+            top: true
             left: true
             right: true
         }
         
         margins {
-            bottom: 80
+            top: 80
         }
         
         height: 200
