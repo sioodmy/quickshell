@@ -72,17 +72,17 @@ PanelWindow {
         focus: win.shown
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.topMargin: Layout.topBarHeight + 8
+        anchors.left: parent.left
+        anchors.topMargin: 8
         anchors.bottomMargin: 8
-        anchors.rightMargin: win.shown ? 8 : -(width + 24)
+        anchors.leftMargin: win.shown ? 56 : -(width + 56) // 48px dock + 8px gap
 
         radius: 28
         color: Theme.surface_container_low
         border.color: Theme.outline_variant
         border.width: 1
 
-        Behavior on anchors.rightMargin {
+        Behavior on anchors.leftMargin {
             NumberAnimation {
                 id: slideAnim
                 duration: 320
@@ -95,7 +95,7 @@ PanelWindow {
             shadowEnabled: true
             shadowBlur: 1.0
             shadowColor: "#50000000"
-            shadowHorizontalOffset: -6
+            shadowHorizontalOffset: 6
             shadowVerticalOffset: 6
         }
 
