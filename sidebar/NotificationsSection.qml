@@ -91,7 +91,7 @@ Column {
             height: cardCol.implicitHeight + 24
 
             readonly property string iconSource: {
-                if (modelData.image && modelData.image.length > 0)
+                if (modelData.image && modelData.image.length > 0 && !modelData.image.startsWith("image://qsimage/"))
                     return modelData.image;
                 if (modelData.appIcon && modelData.appIcon.length > 0)
                     return Quickshell.iconPath(modelData.appIcon, true);

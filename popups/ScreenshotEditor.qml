@@ -7,13 +7,13 @@ import qs.theme
 
 PanelWindow {
     id: root
-    width: Screen.width
-    height: Screen.height
+    implicitWidth: Screen.width
+    implicitHeight: Screen.height
     color: "transparent"
 
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "screenshot_editor"
-    WlrLayershell.keyboardFocus: KeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
     visible: Screenshot.editorActive

@@ -28,7 +28,7 @@ Variants {
             top: 80
         }
         
-        height: 200
+        implicitHeight: 200
         color: "transparent"
         visible: !Lyrics.showOverlay && Lyrics.parsedLyrics.length > 0
         

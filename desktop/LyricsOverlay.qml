@@ -27,8 +27,8 @@ Variants {
             right: 60
         }
         
-        width: 400
-        height: 80 // Reduced height
+        implicitWidth: 400
+        implicitHeight: 80 // Reduced height
         color: "transparent"
         visible: Lyrics.showOverlay && Lyrics.parsedLyrics.length > 0
         

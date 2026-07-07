@@ -71,6 +71,12 @@ pub struct DailyForecast {
     pub condition: String,
     pub sunrise: String,
     pub sunset: String,
+    pub uv: String,
+    #[serde(rename = "chanceOfRain")]
+    pub chance_of_rain: String,
+    pub wind: String,
+    #[serde(rename = "weatherCode")]
+    pub weather_code: String,
 }
 
 #[derive(Deserialize)]
@@ -123,7 +129,7 @@ pub async fn fetch_weather(client: &Client) -> Result<WeatherData> {
 
     // 2. Fetch Open-Meteo
     let url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto",
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=auto",
         lat, lon
     );
 
@@ -207,11 +213,11 @@ pub async fn fetch_weather(client: &Client) -> Result<WeatherData> {
         });
     }
 
-    // Parse Daily (Next 3 days)
+    // Parse Daily (Next 7 days)
     let mut daily_forecast = Vec::new();
     let day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     let times = daily["time"].as_array().unwrap();
-    for i in 0..std::cmp::min(3, times.len()) {
+    for i in 0..std::cmp::min(7, times.len()) {
         let dc = daily["weather_code"][i].as_u64().unwrap_or(0) as u8;
         let dwwo = map_wmo_to_wwo(dc);
         
@@ -238,6 +244,10 @@ pub async fn fetch_weather(client: &Client) -> Result<WeatherData> {
             condition: get_condition(dc),
             sunrise: parse_time(&daily["sunrise"][i]),
             sunset: parse_time(&daily["sunset"][i]),
+            uv: daily["uv_index_max"][i].as_f64().unwrap_or(0.0).round().to_string(),
+            chance_of_rain: daily["precipitation_probability_max"][i].as_u64().unwrap_or(0).to_string(),
+            wind: format!("{} km/h", daily["wind_speed_10m_max"][i].as_f64().unwrap_or(0.0).round() as i32),
+            weather_code: dwwo.to_string(),
         });
     }
 

@@ -66,7 +66,7 @@ Variants {
 
             Connections {
                 target: DockBackend
-                onFocusSwitched: {
+                function onFocusSwitched() {
                     dockContent.anyHovered = false;
                     dockContent.hoveredWinId = "";
                 }

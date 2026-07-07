@@ -7,7 +7,13 @@ import qs.theme
 PanelWindow {
     id: root
     property var weatherData: null
+    property int selectedDayIndex: -1
+    property var selectedDay: selectedDayIndex !== -1 && weatherData && weatherData.dailyForecast ? weatherData.dailyForecast[selectedDayIndex] : null
     color: "transparent"
+
+    onVisibleChanged: {
+        if (!visible) selectedDayIndex = -1;
+    }
 
     anchors { top: true; left: true; right: true; bottom: true }
     WlrLayershell.namespace: "weather_widget"
@@ -15,7 +21,8 @@ PanelWindow {
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
     // --- Helpers ---
-    readonly property string _code: weatherData ? weatherData.weatherCode : ""
+    readonly property string _code: root.selectedDay && root.selectedDay.weatherCode ? root.selectedDay.weatherCode : (weatherData ? weatherData.weatherCode : "")
+    readonly property string _temp: root.selectedDay ? root.selectedDay.maxTemp : (weatherData ? weatherData.temp : "")
     readonly property bool isRain: ["176","263","266","293","296","299","302","305","308","353","356","359"].indexOf(_code) >= 0
     readonly property bool isThunder: ["200","386","389","392"].indexOf(_code) >= 0
     readonly property bool isSnow: ["179","227","230","329","332","335","338","371","395"].indexOf(_code) >= 0
@@ -24,7 +31,7 @@ PanelWindow {
     readonly property bool isSunny: _code === "113"
     readonly property bool isPartly: _code === "116"
     readonly property bool isHell: {
-        var t = parseInt(root.weatherData ? root.weatherData.temp : "0");
+        var t = parseInt(root._temp);
         return !isNaN(t) && t >= 30;
     }
 
@@ -55,6 +62,7 @@ PanelWindow {
         anchors.topMargin: 70
         anchors.leftMargin: 64
         height: cardContent.implicitHeight + 48
+        Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
         radius: 28
         clip: true
 
@@ -81,7 +89,7 @@ PanelWindow {
             id: animBg
             anchors.fill: parent
             weatherCode: root._code
-            temperature: root.weatherData ? root.weatherData.temp : ""
+            temperature: root._temp
             visible: root.visible
 
             layer.enabled: true
@@ -115,54 +123,103 @@ PanelWindow {
 
                 Column {
                     anchors.left: parent.left
+                    anchors.right: heroEmoji.left
+                    anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 4
+                    spacing: 2
 
+                    // Location — always visible
                     Text {
                         text: root.weatherData ? root.weatherData.location : ""
-                        color: Qt.rgba(1,1,1,0.6)
-                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                        color: Qt.rgba(1,1,1,0.5)
+                        font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                     }
 
+                    // Selected day label
                     Text {
-                        text: root.weatherData ? root.weatherData.temp : ""
+                        visible: root.selectedDay !== null
+                        text: root.selectedDay ? (root.selectedDay.dayName + "  ·  " + root.selectedDay.date) : ""
+                        color: Qt.rgba(1,1,1,0.7)
+                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium; letterSpacing: 0.3 }
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                    }
+
+                    // Temperature
+                    Text {
+                        text: root.selectedDay
+                              ? (root.selectedDay.maxTemp + "°/" + root.selectedDay.minTemp + "°")
+                              : (root.weatherData ? root.weatherData.temp : "")
                         color: "#ffffff"
-                        font { family: "Google Sans"; pixelSize: 52; weight: Font.Light }
+                        font { family: "Google Sans"; pixelSize: 48; weight: Font.Light }
                     }
 
+                    // Condition
                     Text {
-                        text: root.weatherData ? root.weatherData.condition : ""
+                        text: root.selectedDay ? root.selectedDay.condition : (root.weatherData ? root.weatherData.condition : "")
                         color: Qt.rgba(1,1,1,0.75)
                         font { family: "Google Sans"; pixelSize: 14; weight: Font.Normal }
                     }
 
+                    // Sub-stats row
                     Row {
-                        spacing: 16
-                        
+                        spacing: 12
+                        topPadding: 2
+
+                        // H/L for current
                         Row {
-                            spacing: 8
-                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 6
+                            visible: root.selectedDay === null
                             Text {
                                 text: "H:" + (root.weatherData ? root.weatherData.maxTemp : "")
-                                color: Qt.rgba(1,1,1,0.55)
-                                font { family: "Google Sans"; pixelSize: 12 }
+                                color: Qt.rgba(1,1,1,0.5)
+                                font { family: "Google Sans"; pixelSize: 11 }
                             }
                             Text {
                                 text: "L:" + (root.weatherData ? root.weatherData.minTemp : "")
-                                color: Qt.rgba(1,1,1,0.55)
-                                font { family: "Google Sans"; pixelSize: 12 }
+                                color: Qt.rgba(1,1,1,0.5)
+                                font { family: "Google Sans"; pixelSize: 11 }
+                            }
+                        }
+
+                        // Rain chance for selected day
+                        Row {
+                            spacing: 4
+                            visible: root.selectedDay !== null && parseInt(root.selectedDay ? root.selectedDay.chanceOfRain : "0") > 0
+                            Text {
+                                text: "🌧"
+                                font.pixelSize: 11
+                            }
+                            Text {
+                                text: (root.selectedDay ? root.selectedDay.chanceOfRain : "") + "%"
+                                color: "#7cacf8"
+                                font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                            }
+                        }
+
+                        // Wind for selected day
+                        Row {
+                            spacing: 4
+                            visible: root.selectedDay !== null
+                            Text {
+                                text: "💨"
+                                font.pixelSize: 11
+                            }
+                            Text {
+                                text: root.selectedDay ? root.selectedDay.wind : ""
+                                color: Qt.rgba(1,1,1,0.5)
+                                font { family: "Google Sans"; pixelSize: 11 }
                             }
                         }
 
                         // --- Moon Phase ---
                         Row {
                             spacing: 6
-                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.selectedDay === null
 
                             Canvas {
                                 id: moonViz
-                                width: 16
-                                height: 16
+                                width: 14
+                                height: 14
                                 anchors.verticalCenter: parent.verticalCenter
 
                                 property real illPercent: {
@@ -262,8 +319,8 @@ PanelWindow {
 
                             Text {
                                 text: (root.weatherData ? root.weatherData.moonIllumination : "")
-                                color: Qt.rgba(1,1,1,0.55)
-                                font { family: "Google Sans"; pixelSize: 12 }
+                                color: Qt.rgba(1,1,1,0.5)
+                                font { family: "Google Sans"; pixelSize: 11 }
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -271,12 +328,13 @@ PanelWindow {
                 }
 
                 Text {
+                    id: heroEmoji
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.topMargin: 8
-                    text: root.weatherData ? root.weatherData.emoji : ""
-                    font.pixelSize: 60
-                    opacity: 0.9
+                    text: root.selectedDay ? root.selectedDay.emoji : (root.weatherData ? root.weatherData.emoji : "")
+                    font.pixelSize: 56
+                    opacity: 0.85
                 }
             }
 
@@ -284,6 +342,9 @@ PanelWindow {
             Column {
                 width: parent.width
                 spacing: 8
+                visible: root.selectedDayIndex <= 0
+                opacity: visible ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 200 } }
 
                 Text {
                     text: "HOURLY FORECAST"
@@ -327,9 +388,9 @@ PanelWindow {
 
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modelData.day === 0 ? (modelData.hour + ":00") : (modelData.hour + ":00")
-                                        color: Qt.rgba(1,1,1,0.55)
-                                        font { family: "Google Sans"; pixelSize: 10 }
+                                        text: index === 0 ? "Now" : (modelData.hour + ":00")
+                                        color: Qt.rgba(1,1,1, index === 0 ? 0.8 : 0.55)
+                                        font { family: "Google Sans"; pixelSize: 10; weight: index === 0 ? Font.Bold : Font.Normal }
                                     }
                                     Text {
                                         anchors.horizontalCenter: parent.horizontalCenter
@@ -363,7 +424,7 @@ PanelWindow {
                 spacing: 8
 
                 Text {
-                    text: "3-DAY FORECAST"
+                    text: "7-DAY FORECAST"
                     color: Qt.rgba(1,1,1,0.4)
                     font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.2 }
                 }
@@ -374,81 +435,162 @@ PanelWindow {
                     color: Qt.rgba(1,1,1,0.08)
                 }
 
-                Repeater {
-                    model: root.weatherData ? root.weatherData.dailyForecast : []
+                // Scrollable daily list — shows ~3.5 rows, scroll for rest
+                Flickable {
+                    width: parent.width
+                    height: Math.min(dailyCol.height, 36 * 3 + 8 * 2 + 10) // 3 rows + spacing + peek
+                    contentHeight: dailyCol.height
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    interactive: dailyCol.height > height
 
-                    delegate: Item {
-                        required property var modelData
+                    Column {
+                        id: dailyCol
                         width: parent.width
-                        height: 36
+                        spacing: 2
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.dayName
-                            color: Qt.rgba(1,1,1,0.7)
-                            width: 50
-                            font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
-                        }
+                        Repeater {
+                            model: root.weatherData ? root.weatherData.dailyForecast : []
 
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 55
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.emoji
-                            font.pixelSize: 18
-                        }
+                            delegate: Rectangle {
+                                id: dayDelegate
+                                required property var modelData
+                                required property int index
+                                width: dailyCol.width
+                                height: 38
+                                radius: 10
+                                color: {
+                                    if (root.selectedDayIndex === index) return Qt.rgba(1,1,1,0.1);
+                                    if (dayMa.containsMouse) return Qt.rgba(1,1,1,0.05);
+                                    return "transparent";
+                                }
+                                Behavior on color { ColorAnimation { duration: 120 } }
 
-                        // Temperature bar
-                        Row {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
+                                MouseArea {
+                                    id: dayMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.selectedDayIndex = (root.selectedDayIndex === index) ? -1 : index;
+                                    }
+                                }
 
-                            Text {
-                                text: modelData.minTemp + "°"
-                                color: Qt.rgba(1,1,1,0.4)
-                                font { family: "Google Sans"; pixelSize: 12 }
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            // Mini gradient temp bar
-                            Rectangle {
-                                width: 80
-                                height: 4
-                                radius: 2
-                                color: Qt.rgba(1,1,1,0.08)
-                                anchors.verticalCenter: parent.verticalCenter
-
+                                // Selection indicator bar
                                 Rectangle {
-                                    height: parent.height
-                                    radius: 2
-                                    x: {
-                                        var minAll = 0, maxAll = 40;
-                                        return Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll)) * parent.width;
+                                    width: 3
+                                    height: 18
+                                    radius: 1.5
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: "#7cacf8"
+                                    visible: root.selectedDayIndex === index
+                                    opacity: root.selectedDayIndex === index ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.dayName
+                                    color: root.selectedDayIndex === index ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.7)
+                                    width: 44
+                                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 60
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.emoji
+                                    font.pixelSize: 16
+                                }
+
+                                // Rain chance pill
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 82
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: rainText.width + 10
+                                    height: 16
+                                    radius: 8
+                                    color: Qt.rgba(0.48, 0.67, 0.97, 0.15)
+                                    visible: parseInt(modelData.chanceOfRain) > 10
+
+                                    Text {
+                                        id: rainText
+                                        anchors.centerIn: parent
+                                        text: modelData.chanceOfRain + "%"
+                                        color: "#7cacf8"
+                                        font { family: "Google Sans"; pixelSize: 9; weight: Font.Medium }
                                     }
-                                    width: {
-                                        var minAll = 0, maxAll = 40;
-                                        var start = Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll));
-                                        var end = Math.min(1, (parseInt(modelData.maxTemp) - minAll) / (maxAll - minAll));
-                                        return Math.max(4, (end - start) * parent.width);
+                                }
+
+                                // Temperature bar
+                                Row {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+
+                                    Text {
+                                        text: modelData.minTemp + "°"
+                                        color: Qt.rgba(1,1,1,0.4)
+                                        font { family: "Google Sans"; pixelSize: 11 }
+                                        anchors.verticalCenter: parent.verticalCenter
                                     }
-                                    gradient: Gradient {
-                                        orientation: Gradient.Horizontal
-                                        GradientStop { position: 0; color: "#5b8def" }
-                                        GradientStop { position: 1; color: "#f0a050" }
+
+                                    // Mini gradient temp bar
+                                    Rectangle {
+                                        width: 60
+                                        height: 4
+                                        radius: 2
+                                        color: Qt.rgba(1,1,1,0.06)
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        Rectangle {
+                                            height: parent.height
+                                            radius: 2
+                                            x: {
+                                                var minAll = 0, maxAll = 40;
+                                                return Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll)) * parent.width;
+                                            }
+                                            width: {
+                                                var minAll = 0, maxAll = 40;
+                                                var start = Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll));
+                                                var end = Math.min(1, (parseInt(modelData.maxTemp) - minAll) / (maxAll - minAll));
+                                                return Math.max(4, (end - start) * parent.width);
+                                            }
+                                            gradient: Gradient {
+                                                orientation: Gradient.Horizontal
+                                                GradientStop { position: 0; color: "#5b8def" }
+                                                GradientStop { position: 1; color: "#f0a050" }
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: modelData.maxTemp + "°"
+                                        color: Qt.rgba(1,1,1,0.8)
+                                        font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                        anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
                             }
-
-                            Text {
-                                text: modelData.maxTemp + "°"
-                                color: Qt.rgba(1,1,1,0.8)
-                                font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
                         }
                     }
+                }
+
+                // Scroll hint
+                Rectangle {
+                    width: 32
+                    height: 3
+                    radius: 1.5
+                    color: Qt.rgba(1,1,1,0.15)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: dailyCol.height > (36 * 3 + 8 * 2 + 10)
                 }
             }
 
@@ -458,7 +600,7 @@ PanelWindow {
                 spacing: 8
 
                 Text {
-                    text: "DETAILS"
+                    text: root.selectedDay ? "FORECAST DETAILS" : "DETAILS"
                     color: Qt.rgba(1,1,1,0.4)
                     font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.2 }
                 }
@@ -476,16 +618,25 @@ PanelWindow {
                     columnSpacing: 8
 
                     Repeater {
-                        model: root.weatherData ? [
-                            { icon: "🌡", label: "Feels like", value: root.weatherData.feelsLike },
-                            { icon: "💧", label: "Humidity", value: root.weatherData.humidity },
-                            { icon: "💨", label: "Wind", value: root.weatherData.wind },
-                            { icon: "☀", label: "UV Index", value: root.weatherData.uv },
-                            { icon: "🔽", label: "Pressure", value: root.weatherData.pressure },
-                            { icon: "👁", label: "Visibility", value: root.weatherData.visibility },
-                            { icon: "🌅", label: "Sunrise", value: root.weatherData.sunrise },
-                            { icon: "🌇", label: "Sunset", value: root.weatherData.sunset }
-                        ] : []
+                        model: root.weatherData ? (
+                            root.selectedDay ? [
+                                { icon: "🌧", label: "Rain chance", value: root.selectedDay.chanceOfRain + "%" },
+                                { icon: "💨", label: "Wind", value: root.selectedDay.wind },
+                                { icon: "☀", label: "UV Index", value: root.selectedDay.uv },
+                                { icon: "☁", label: "Condition", value: root.selectedDay.condition },
+                                { icon: "🌅", label: "Sunrise", value: root.selectedDay.sunrise },
+                                { icon: "🌇", label: "Sunset", value: root.selectedDay.sunset }
+                            ] : [
+                                { icon: "🌡", label: "Feels like", value: root.weatherData.feelsLike },
+                                { icon: "💧", label: "Humidity", value: root.weatherData.humidity },
+                                { icon: "💨", label: "Wind", value: root.weatherData.wind },
+                                { icon: "☀", label: "UV Index", value: root.weatherData.uv },
+                                { icon: "🔽", label: "Pressure", value: root.weatherData.pressure },
+                                { icon: "👁", label: "Visibility", value: root.weatherData.visibility },
+                                { icon: "🌅", label: "Sunrise", value: root.weatherData.sunrise },
+                                { icon: "🌇", label: "Sunset", value: root.weatherData.sunset }
+                            ]
+                        ) : []
 
                         delegate: Rectangle {
                             required property var modelData
