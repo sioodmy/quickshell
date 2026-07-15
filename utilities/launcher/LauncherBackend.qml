@@ -4,6 +4,7 @@ import Quickshell.Io
 import "../../theme"
 import "../../services"
 import "../emoji/EmojiLogic.js" as EmojiLogic
+import "LauncherColorLogic.js" as ColorLogic
 Item {
     id: backend
 
@@ -66,6 +67,7 @@ Item {
         BackendDaemon.fileSearchQuery = "";
         BackendDaemon.filePreview = null;
         backend.selectedFilePath = "";
+        BackendDaemon.filePreviewPath = "";
     }
 
     function launchApp(desktopEntry) {
@@ -158,7 +160,18 @@ Item {
     }
 
     function looksLikeMath(query) {
+        if (ColorLogic.isColorQuery(query))
+            return false;
         return /[0-9]/.test(query) || /^[\(\-\+]/.test(query) || query.indexOf("int") !== -1 || query.indexOf("sum") !== -1 || query.indexOf("det") !== -1 || query.indexOf("sqrt") !== -1;
+    }
+
+    function isColorPickerQuery(query) {
+        return ColorLogic.isColorQuery(query);
+    }
+
+    function copyColorText(text) {
+        copyCalcResult.resultText = text;
+        copyCalcResult.running = true;
     }
 
     // --- Focus window via niri ---
@@ -391,8 +404,9 @@ Item {
     }
 
     function requestFilePreview(path) {
-        if (backend.selectedFilePath === path) return;
+        if (!path) return;
         backend.selectedFilePath = path;
+        BackendDaemon.filePreviewPath = path;
         BackendDaemon.filePreview = null;
         BackendDaemon.send({"action": "file_preview", "path": path});
     }

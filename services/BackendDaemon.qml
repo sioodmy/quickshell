@@ -27,6 +27,7 @@ Singleton {
     property var fileSearchResults: []
     property string fileSearchQuery: ""
     property var filePreview: null
+    property string filePreviewPath: ""
     property var bluetoothDevices: []
     property var wifiNetworks: []
     property var musicState: {
@@ -128,7 +129,9 @@ Singleton {
                         root.fileSearchQuery = parsed.query || "";
                         root.fileSearchResults = parsed.results || [];
                     } else if (type === "file_preview_result") {
-                        root.filePreview = parsed;
+                        if (parsed.path === root.filePreviewPath) {
+                            root.filePreview = parsed;
+                        }
                     } else if (type === "sysctl_list_result") {
                         if (parsed.kind === "bluetooth") {
                             root.bluetoothDevices = parsed.devices || [];

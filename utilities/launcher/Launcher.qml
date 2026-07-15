@@ -21,9 +21,12 @@ PanelWindow {
     property real fileSplitBlend: 0
 
     readonly property bool weatherModeActive: ctrl.searchText.trim().toLowerCase() === "weather"
+    readonly property bool colorPickerModeActive: ctrl.isColorPickerQuery(ctrl.searchText.trim())
+    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive
 
-    onHasFileSelectedChanged: fileSplitBlend = (hasFileSelected && !weatherModeActive) ? 1 : 0
-    onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !weatherModeActive) ? 1 : 0
+    onHasFileSelectedChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+    onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+    onColorPickerModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
 
     Behavior on fileSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
@@ -441,6 +444,20 @@ PanelWindow {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 220
 
+                function syncFilePreviewForCurrentItem() {
+                    if (launcherWindow.specialViewActive)
+                        return;
+                    var item = searchModel.values[listView.currentIndex];
+                    if (item && item.type === "file") {
+                        launcherWindow.hasFileSelected = true;
+                        launcherWindow.selectedFileData = item.file;
+                        ctrl.requestFilePreview(item.file.path);
+                    } else {
+                        launcherWindow.hasFileSelected = false;
+                        launcherWindow.selectedFileData = null;
+                    }
+                }
+
                 Component.onCompleted: {
                     searchField.forceActiveFocus();
                 }
@@ -709,7 +726,7 @@ PanelWindow {
                             searchField.forceActiveFocus();
                             event.accepted = true;
                         } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-                            if (launcherWindow.weatherModeActive) {
+                            if (launcherWindow.specialViewActive) {
                                 event.accepted = true;
                                 return;
                             }
@@ -727,13 +744,16 @@ PanelWindow {
                                 }
                             }
                             event.accepted = true;
-                        } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_J || event.key === Qt.Key_Down)) {
+                        } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_J || event.key === Qt.Key_Down)) {
                             listView.incrementCurrentIndex();
                             event.accepted = true;
-                        } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_K || event.key === Qt.Key_Up)) {
+                        } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_K || event.key === Qt.Key_Up)) {
                             listView.decrementCurrentIndex();
                             event.accepted = true;
-                        } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
+                        } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
+                            colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                            event.accepted = true;
+                        } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             if (listView.currentItem) {
                                 listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
                             } else if (ctrl.calcResult !== "") {
@@ -809,6 +829,11 @@ PanelWindow {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
                                     BackendDaemon.send({ action: "weather_refresh" });
+                                } else if (launcherWindow.colorPickerModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else {
+                                    Qt.callLater(syncFilePreviewForCurrentItem);
                                 }
                             }
 
@@ -817,7 +842,7 @@ PanelWindow {
                                     mainUi.forceActiveFocus();
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
-                                    if (launcherWindow.weatherModeActive) {
+                                    if (launcherWindow.specialViewActive) {
                                         event.accepted = true;
                                         return;
                                     }
@@ -835,17 +860,20 @@ PanelWindow {
                                         }
                                     }
                                     event.accepted = true;
-                                } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
+                                } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     if (listView.currentItem) {
                                         listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
                                     } else if (ctrl.calcResult !== "") {
                                         ctrl.copyResult();
                                     }
                                     event.accepted = true;
-                                } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_Down || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)))) {
+                                } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
+                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    event.accepted = true;
+                                } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Down || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)))) {
                                     listView.incrementCurrentIndex();
                                     event.accepted = true;
-                                } else if (!launcherWindow.weatherModeActive && (event.key === Qt.Key_Up || (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)))) {
+                                } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Up || (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)))) {
                                     listView.decrementCurrentIndex();
                                     event.accepted = true;
                                 }
@@ -856,7 +884,7 @@ PanelWindow {
                     // --- Calculator Result Card ---
                     Item {
                         id: calcCard
-                        visible: ctrl.calcResult !== ""
+                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive
                         anchors.top: searchArea.bottom
                         anchors.topMargin: 12
                         anchors.left: parent.left
@@ -980,7 +1008,7 @@ PanelWindow {
                     Item {
                         id: belowSearchArea
                         anchors.top: calcCard.visible ? calcCard.bottom : searchArea.bottom
-                        anchors.topMargin: launcherWindow.weatherModeActive ? 0 : 16
+                        anchors.topMargin: launcherWindow.specialViewActive ? 0 : 16
                         Behavior on anchors.topMargin { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                         anchors.left: parent.left
                         anchors.right: parent.right
@@ -990,7 +1018,7 @@ PanelWindow {
                         Item {
                             id: launcherResultsLayer
                             anchors.fill: parent
-                            opacity: launcherWindow.weatherModeActive ? 0 : 1
+                            opacity: launcherWindow.specialViewActive ? 0 : 1
                             visible: opacity > 0.02
 
                             Behavior on opacity {
@@ -1022,19 +1050,9 @@ PanelWindow {
                                         values: launcherWindow.buildFilteredList()
                                     }
 
-                                    onCurrentIndexChanged: {
-                                        if (launcherWindow.weatherModeActive)
-                                            return;
-                                        var item = model.values[currentIndex];
-                                        if (item && item.type === "file") {
-                                            launcherWindow.hasFileSelected = true;
-                                            launcherWindow.selectedFileData = item.file;
-                                            ctrl.requestFilePreview(item.file.path);
-                                        } else {
-                                            launcherWindow.hasFileSelected = false;
-                                            launcherWindow.selectedFileData = null;
-                                        }
-                                    }
+                                    onCurrentIndexChanged: syncFilePreviewForCurrentItem()
+
+                                    onCountChanged: Qt.callLater(syncFilePreviewForCurrentItem)
                                 }
 
                                 Rectangle {
@@ -1095,6 +1113,28 @@ PanelWindow {
                             anchors.bottomMargin: 20
                             revealProgress: launcherWindow.weatherModeActive ? 1 : 0
                             visible: revealProgress > 0.02
+                        }
+
+                        LauncherColorPickerView {
+                            id: colorPickerView
+                            z: launcherWindow.colorPickerModeActive ? 2 : 0
+                            enabled: launcherWindow.colorPickerModeActive
+                            searchQuery: ctrl.searchText
+                            defaultColor: Theme.primary
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+                            revealProgress: launcherWindow.colorPickerModeActive ? 1 : 0
+                            visible: revealProgress > 0.02
+
+                            onCopyRequested: function(text, label) {
+                                ctrl.copyColorText(text);
+                            }
                         }
                     }
                     // ──── Separator ────
@@ -1169,15 +1209,20 @@ PanelWindow {
                             id: imagePreview
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "image"
+                            visible: ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || (ctrl.filePreview.preview_type === "pdf" && !!ctrl.filePreview.preview_path))
                             source: {
-                                if (!ctrl.filePreview || ctrl.filePreview.preview_type !== "image") return "";
-                                return "file://" + ctrl.filePreview.path;
+                                if (!ctrl.filePreview) return "";
+                                if (ctrl.filePreview.preview_type === "image")
+                                    return "file://" + ctrl.filePreview.path;
+                                if (ctrl.filePreview.preview_type === "pdf" && ctrl.filePreview.preview_path)
+                                    return "file://" + ctrl.filePreview.preview_path;
+                                return "";
                             }
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
-                            cache: false
+                            cache: ctrl.filePreview && ctrl.filePreview.preview_type === "pdf"
                             smooth: true
+                            mipmap: true
 
                             // Handle broken images
                             onStatusChanged: {
@@ -1243,6 +1288,7 @@ PanelWindow {
                             visible: {
                                 if (!ctrl.filePreview) return true;
                                 var pt = ctrl.filePreview.preview_type;
+                                if (pt === "pdf" && ctrl.filePreview.preview_path) return false;
                                 return pt !== "image" && pt !== "text";
                             }
 
@@ -1267,6 +1313,7 @@ PanelWindow {
                                         if (!ctrl.filePreview) return "Loading...";
                                         if (ctrl.filePreview.preview_type === "text_too_large") return "File too large to preview";
                                         if (ctrl.filePreview.preview_type === "binary") return "Binary file";
+                                        if (ctrl.filePreview.preview_type === "pdf") return "PDF preview unavailable";
                                         return "No preview available";
                                     }
                                     color: Theme.on_surface_variant

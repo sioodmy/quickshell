@@ -40,6 +40,7 @@ pub struct FileResult {
 pub struct PreviewResult {
     pub path: String,
     pub preview_type: String,
+    pub preview_path: Option<String>,
     pub content: Option<String>,
     pub line_count: u32,
     pub size: u64,
@@ -257,7 +258,15 @@ pub fn load_preview(path: &str) -> PreviewResult {
     if cat == "image" {
         return PreviewResult {
             path: path.into(), preview_type: "image".into(),
-            content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+            preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+        };
+    }
+
+    if cat == "pdf" {
+        let preview_path = crate::pdfpreview::thumbnail_path(path, modified, size);
+        return PreviewResult {
+            path: path.into(), preview_type: "pdf".into(),
+            preview_path, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
         };
     }
 
@@ -267,7 +276,7 @@ pub fn load_preview(path: &str) -> PreviewResult {
             // Too large, don't preview content
             return PreviewResult {
                 path: path.into(), preview_type: "text_too_large".into(),
-                content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+                preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
             };
         }
         match std::fs::read(p) {
@@ -283,7 +292,7 @@ pub fn load_preview(path: &str) -> PreviewResult {
                 if non_text > check_len / 10 {
                     return PreviewResult {
                         path: path.into(), preview_type: "binary".into(),
-                        content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+                        preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
                     };
                 }
 
@@ -294,7 +303,7 @@ pub fn load_preview(path: &str) -> PreviewResult {
 
                 return PreviewResult {
                     path: path.into(), preview_type: "text".into(),
-                    content: Some(content), line_count, size, modified, mime_cat: cat.into(),
+                    preview_path: None, content: Some(content), line_count, size, modified, mime_cat: cat.into(),
                 };
             }
             Err(_) => {}
@@ -303,7 +312,7 @@ pub fn load_preview(path: &str) -> PreviewResult {
 
     PreviewResult {
         path: path.into(), preview_type: "none".into(),
-        content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+        preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
     }
 }
 

@@ -9,6 +9,7 @@ mod cliphist;
 mod weather;
 mod frecency;
 mod filesearch;
+mod pdfpreview;
 mod sysctl;
 
 use anyhow::Result;
