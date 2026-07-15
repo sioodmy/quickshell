@@ -7,6 +7,9 @@ mod lyrics;
 mod state;
 mod cliphist;
 mod weather;
+mod frecency;
+mod filesearch;
+mod sysctl;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -78,6 +81,18 @@ enum DaemonRequest {
     MusicSetVolume { volume: f32 },
     #[serde(rename = "music_toggle_loop")]
     MusicToggleLoop,
+    #[serde(rename = "frecency_load")]
+    FrecencyLoad,
+    #[serde(rename = "frecency_record")]
+    FrecencyRecord { id: String, query: Option<String> },
+    #[serde(rename = "file_search")]
+    FileSearch { query: String },
+    #[serde(rename = "file_preview")]
+    FilePreview { path: String },
+    #[serde(rename = "file_open")]
+    FileOpen { path: String },
+    #[serde(rename = "sysctl_list")]
+    SysctlList { kind: String },
 }
 
 #[derive(Serialize)]
@@ -101,6 +116,14 @@ enum DaemonEvent {
     MusicLibraryResult { status: String, error: Option<String>, library: Option<music::Library> },
     #[serde(rename = "music_state_update")]
     MusicStateUpdate { state: MusicStateDto },
+    #[serde(rename = "frecency_update")]
+    FrecencyUpdate { scores: frecency::FrecencyScores },
+    #[serde(rename = "file_search_result")]
+    FileSearchResult { query: String, results: Vec<filesearch::FileResult> },
+    #[serde(rename = "file_preview_result")]
+    FilePreviewResult(filesearch::PreviewResult),
+    #[serde(rename = "sysctl_list_result")]
+    SysctlListResult { kind: String, devices: Vec<sysctl::DeviceItem> },
 }
 
 #[derive(Serialize)]
@@ -216,6 +239,25 @@ async fn main() -> Result<()> {
                 }
             }
 
+            // Setup Frecency state
+            let frecency_state = std::sync::Arc::new(std::sync::Mutex::new(frecency::load_or_migrate()));
+            // Initial frecency load event
+            {
+                let data = frecency_state.lock().unwrap();
+                let _ = tx_event.send(DaemonEvent::FrecencyUpdate {
+                    scores: frecency::get_scores(&data)
+                }).await;
+            }
+
+            // Build file search index in background
+            let file_index = filesearch::new_index();
+            {
+                let idx = file_index.clone();
+                tokio::spawn(async move {
+                    filesearch::build_index(idx).await;
+                });
+            }
+
             // Stdin reading loop
             let stdin = io::stdin();
             let mut reader = BufReader::new(stdin).lines();
@@ -242,6 +284,8 @@ async fn main() -> Result<()> {
                 let tx = tx_event.clone();
                 let client = client.clone();
                 let notes_dir = notes_dir.clone();
+                let frecency_state = frecency_state.clone();
+                let file_index = file_index.clone();
 
                 tokio::spawn(async move {
                     match req {
@@ -388,6 +432,54 @@ async fn main() -> Result<()> {
                             if let Some(player) = music::PLAYER.get() {
                                 player.toggle_loop();
                             }
+                        }
+                        DaemonRequest::FrecencyLoad => {
+                            let scores = {
+                                let data = frecency_state.lock().unwrap();
+                                frecency::get_scores(&data)
+                            };
+                            let _ = tx.send(DaemonEvent::FrecencyUpdate { scores }).await;
+                        }
+                        DaemonRequest::FrecencyRecord { id, query } => {
+                            let scores = {
+                                let mut data = frecency_state.lock().unwrap();
+                                frecency::record_launch(&mut data, &id, query.as_deref());
+                                frecency::prune_stale_data(&mut data);
+                                frecency::save(&data);
+                                frecency::get_scores(&data)
+                            };
+                            let _ = tx.send(DaemonEvent::FrecencyUpdate { scores }).await;
+                        }
+                        DaemonRequest::FileSearch { query } => {
+                            let frecency_apps = {
+                                let data = frecency_state.lock().unwrap();
+                                frecency::get_scores(&data).apps
+                            };
+                            let results = filesearch::search(&file_index, &query, Some(frecency_apps)).await;
+                            let _ = tx.send(DaemonEvent::FileSearchResult { query, results }).await;
+                        }
+                        DaemonRequest::FilePreview { path } => {
+                            let result = tokio::task::spawn_blocking(move || {
+                                filesearch::load_preview(&path)
+                            }).await.unwrap();
+                            let _ = tx.send(DaemonEvent::FilePreviewResult(result)).await;
+                        }
+                        DaemonRequest::FileOpen { path } => {
+                            let _ = tokio::task::spawn_blocking(move || {
+                                std::process::Command::new("xdg-open")
+                                    .arg(&path)
+                                    .spawn()
+                            }).await;
+                        }
+                        DaemonRequest::SysctlList { kind } => {
+                            let devices = if kind == "bluetooth" {
+                                sysctl::get_bluetooth_devices()
+                            } else if kind == "wifi" || kind == "net" {
+                                sysctl::get_wifi_networks()
+                            } else {
+                                vec![]
+                            };
+                            let _ = tx.send(DaemonEvent::SysctlListResult { kind, devices }).await;
                         }
                     }
                 });

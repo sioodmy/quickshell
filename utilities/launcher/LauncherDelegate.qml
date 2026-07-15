@@ -47,6 +47,10 @@ Item {
             return modelData.album.artist || "";
         } else if (itemType === "music_track") {
             return modelData.album.artist + " • " + modelData.album.title;
+        } else if (itemType === "file") {
+            return modelData.file ? modelData.file.dir : "";
+        } else if (itemType === "system_command") {
+            return modelData.description || "";
         }
         return "";
     }
@@ -62,6 +66,10 @@ Item {
             return modelData.album.title || "";
         } else if (itemType === "music_track") {
             return modelData.track.title || "";
+        } else if (itemType === "file") {
+            return modelData.file ? modelData.file.name : "";
+        } else if (itemType === "system_command") {
+            return modelData.name || "";
         }
         return "";
     }
@@ -87,6 +95,10 @@ Item {
         } else if (itemType === "music_track") {
             MusicService.playTrack(modelData.album, modelData.trackIndex);
             ctrl.toggleLauncher();
+        } else if (itemType === "file") {
+            ctrl.openFile(modelData.file.path);
+        } else if (itemType === "system_command") {
+            ctrl.executeSystemCommand(modelData.actionId, modelData.actionValue);
         }
     }
 
@@ -126,7 +138,7 @@ Item {
             anchors.leftMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             radius: 2
-            color: itemType === "emoji" ? Theme.tertiary : (itemType === "action" ? Theme.secondary : (itemType === "focus" ? Theme.tertiary : Theme.primary))
+            color: itemType === "emoji" ? Theme.tertiary : (itemType === "action" || itemType === "system_command" ? Theme.secondary : (itemType === "focus" ? Theme.tertiary : (itemType === "file" ? Theme.secondary : Theme.primary)))
             Behavior on height {
                 NumberAnimation {
                     duration: 150
@@ -260,6 +272,61 @@ Item {
                         }
                     }
                 }
+
+                // System command icon (nerd font glyph)
+                Text {
+                    anchors.centerIn: parent
+                    visible: delegateRoot.itemType === "system_command"
+                    text: delegateRoot.itemType === "system_command" ? modelData.icon : ""
+                    font {
+                        family: "JetBrainsMono Nerd Font"
+                        pixelSize: 26
+                    }
+                    color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+                }
+
+                // File type icon (nerd font glyph)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 10
+                    visible: delegateRoot.itemType === "file"
+                    color: Theme.surface_container_highest
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: delegateRoot.itemType === "file" && modelData.file ? ctrl.mimeIcon(modelData.file.mime_cat) : ""
+                        font {
+                            family: "JetBrainsMono Nerd Font"
+                            pixelSize: 22
+                        }
+                        color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+                    }
+
+                    // Extension badge
+                    Rectangle {
+                        visible: delegateRoot.itemType === "file" && modelData.file && modelData.file.ext !== ""
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: -4
+                        anchors.bottomMargin: -2
+                        width: extLabel.implicitWidth + 6
+                        height: 14
+                        radius: 4
+                        color: Theme.tertiary_container
+
+                        Text {
+                            id: extLabel
+                            anchors.centerIn: parent
+                            text: (delegateRoot.itemType === "file" && modelData.file) ? modelData.file.ext.toUpperCase() : ""
+                            font {
+                                family: "Google Sans"
+                                pixelSize: 8
+                                weight: Font.Bold
+                            }
+                            color: Theme.on_tertiary_container
+                        }
+                    }
+                }
             }
 
             Column {
@@ -308,10 +375,12 @@ Item {
                 color: {
                     if (delegateRoot.itemType === "emoji")
                         return Theme.tertiary;
-                    if (delegateRoot.itemType === "action")
+                    if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
                         return Theme.secondary;
                     if (delegateRoot.itemType === "focus")
                         return Theme.tertiary;
+                    if (delegateRoot.itemType === "file")
+                        return Theme.secondary;
                     return Theme.primary;
                 }
                 opacity: delegateRoot.isSelected ? 1.0 : 0.0
@@ -350,15 +419,22 @@ Item {
                                     return "Copy";
                                 return "Search";
                             }
+                            if (delegateRoot.itemType === "system_command") {
+                                return "Run";
+                            }
+                            if (delegateRoot.itemType === "file")
+                                return "Open";
                             return "Launch";
                         }
                         color: {
                             if (delegateRoot.itemType === "emoji")
                                 return Theme.on_tertiary;
-                            if (delegateRoot.itemType === "action")
+                            if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
                                 return Theme.on_secondary;
                             if (delegateRoot.itemType === "focus")
                                 return Theme.on_tertiary;
+                            if (delegateRoot.itemType === "file")
+                                return Theme.on_secondary;
                             return Theme.on_primary;
                         }
                         font {
@@ -381,15 +457,20 @@ Item {
                                     return "󰆏";
                                 return "󰇧";
                             }
+                            if (delegateRoot.itemType === "system_command") {
+                                return "󰐍";
+                            }
                             return "󰌑";
                         }
                         color: {
                             if (delegateRoot.itemType === "emoji")
                                 return Theme.on_tertiary;
-                            if (delegateRoot.itemType === "action")
+                            if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
                                 return Theme.on_secondary;
                             if (delegateRoot.itemType === "focus")
                                 return Theme.on_tertiary;
+                            if (delegateRoot.itemType === "file")
+                                return Theme.on_secondary;
                             return Theme.on_primary;
                         }
                         font {

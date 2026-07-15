@@ -26,3 +26,5 @@ image = "0.25.10"
 sha2 = "0.11.0"
 rodio = { git = "https://github.com/RustAudio/rodio", rev = "ee3c21f2f3d926110706a2780658d098831c1ed9", features = ["symphonia-libopus"] }
 zbus = { version = "5", features = ["tokio"] }
+ignore = "0.4.28"
+nucleo-matcher = "0.3.1"

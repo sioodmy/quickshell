@@ -127,6 +127,22 @@ Variants {
             function onNotification(notification) {
                 if (DoNotDisturb.enabled)
                     return;
+                
+                let isKdeConnect = notification.appName && notification.appName.toLowerCase().indexOf("kde connect") !== -1;
+                let recent = qs.services.NotificationHistory ? qs.services.NotificationHistory.items.slice(0, 10) : [];
+                for (let i = 0; i < recent.length; i++) {
+                    let old = recent[i];
+                    let oldIsKdeConnect = old.appName === "Phone" || (old.appName && old.appName.toLowerCase().indexOf("kde connect") !== -1);
+                    
+                    let sameSummary = notification.summary && old.summary && notification.summary === old.summary;
+                    let sameBody = notification.body && old.body && notification.body === old.body;
+                    let bodyLongEnough = notification.body && notification.body.length > 5;
+                    
+                    if ((sameSummary && sameBody) || (sameBody && bodyLongEnough)) {
+                        if (isKdeConnect && !oldIsKdeConnect) return; // Ignore KDE connect duplicate of native
+                    }
+                }
+
                 notificationPopup.addOrUpdateNotification(notification);
             }
         }
@@ -303,8 +319,20 @@ Variants {
                         onFinished: notificationPopup.disposeNotification(notifId)
                     }
 
-                    readonly property string applicationName: (notifType !== "screenshot" && notificationEntry) ? (notificationEntry.appName || "Notification") : "Screenshot"
-                    readonly property var applicationIcon: (notifType !== "screenshot" && notificationEntry) ? (notificationEntry.image || notificationEntry.appIcon || "") : ""
+                    readonly property string applicationName: {
+                        if (notifType === "screenshot") return "Screenshot";
+                        if (!notificationEntry) return "Notification";
+                        let name = notificationEntry.appName || "Notification";
+                        if (name.toLowerCase().indexOf("kde connect") !== -1) return "Phone";
+                        return name;
+                    }
+                    readonly property var applicationIcon: {
+                        if (notifType === "screenshot") return "";
+                        if (!notificationEntry) return "";
+                        let name = notificationEntry.appName || "";
+                        if (name.toLowerCase().indexOf("kde connect") !== -1) return "smartphone";
+                        return notificationEntry.image || notificationEntry.appIcon || "";
+                    }
 
                     property real lifeSpanProgress: 1.0
 

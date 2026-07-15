@@ -16,11 +16,27 @@ Singleton {
     readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/quickshell"
 
     function add(n) {
+        let isKdeConnect = n.appName && n.appName.toLowerCase().indexOf("kde connect") !== -1;
+        
+        let recent = root.items.slice(0, 10);
+        for (let i = 0; i < recent.length; i++) {
+            let old = recent[i];
+            let oldIsKdeConnect = old.appName === "Phone" || (old.appName && old.appName.toLowerCase().indexOf("kde connect") !== -1);
+            
+            let sameSummary = n.summary && old.summary && n.summary === old.summary;
+            let sameBody = n.body && old.body && n.body === old.body;
+            let bodyLongEnough = n.body && n.body.length > 5;
+            
+            if ((sameSummary && sameBody) || (sameBody && bodyLongEnough)) {
+                if (isKdeConnect && !oldIsKdeConnect) return; // Ignore KDE connect duplicate
+            }
+        }
+
         let entry = {
             "summary": n.summary || "",
             "body": n.body || "",
-            "appName": n.appName || "",
-            "appIcon": n.appIcon || "",
+            "appName": isKdeConnect ? "Phone" : (n.appName || ""),
+            "appIcon": isKdeConnect ? "smartphone" : (n.appIcon || ""),
             "image": (n.image || "").toString(),
             "time": Date.now()
         };

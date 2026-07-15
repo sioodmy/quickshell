@@ -23,6 +23,12 @@ Singleton {
     property var cliphistItems: []
     property var musicLibrary: null
     property string musicLibraryStatus: ""
+    property var frecencyScores: ({ apps: {}, quickkeys: {} })
+    property var fileSearchResults: []
+    property string fileSearchQuery: ""
+    property var filePreview: null
+    property var bluetoothDevices: []
+    property var wifiNetworks: []
     property var musicState: {
         "playing": false,
         "title": "",
@@ -38,7 +44,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["backendqs", "daemon"]
+        command: ["/home/sioodmy/.config/quickshell/backendqs/target/release/backendqs", "daemon"]
         running: true
         stdinEnabled: true
         stdout: SplitParser {
@@ -116,6 +122,19 @@ Singleton {
                             "loopAlbum": parsed.state.loop_album,
                             "hasPlayer": parsed.state.has_player
                         };
+                    } else if (type === "frecency_update") {
+                        root.frecencyScores = parsed.scores || { apps: {}, quickkeys: {} };
+                    } else if (type === "file_search_result") {
+                        root.fileSearchQuery = parsed.query || "";
+                        root.fileSearchResults = parsed.results || [];
+                    } else if (type === "file_preview_result") {
+                        root.filePreview = parsed;
+                    } else if (type === "sysctl_list_result") {
+                        if (parsed.kind === "bluetooth") {
+                            root.bluetoothDevices = parsed.devices || [];
+                        } else if (parsed.kind === "wifi" || parsed.kind === "net") {
+                            root.wifiNetworks = parsed.devices || [];
+                        }
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);
@@ -135,6 +154,7 @@ Singleton {
         repeat: false
         onTriggered: {
             root.send({action: "music_library"});
+            root.send({action: "frecency_load"});
         }
     }
 }

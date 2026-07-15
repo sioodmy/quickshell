@@ -4,7 +4,6 @@ import Quickshell.Io
 import "../../theme"
 import "../../services"
 import "../emoji/EmojiLogic.js" as EmojiLogic
-
 Item {
     id: backend
 
@@ -29,13 +28,24 @@ Item {
     // Emoji data
     property string emojiListPath: "~/.cache/quickshell/emojis.json"
     property string recentsCachePath: "~/.local/state/quickshell/recent_emojis.json"
-    property string frequenciesCachePath: "~/.cache/quickshell/app_frequencies.json"
+    property string oldFrequenciesCachePath: "~/.cache/quickshell/app_frequencies.json"
     property var allEmojis: []
     property var filteredEmojis: []
     property var recentEmojis: []
     property var pendingRecents: []
-    property var appFrequencies: ({})
+    
+    // Frecency is now fully managed by the Rust backend.
+    property var frecencyScores: BackendDaemon.frecencyScores
+    property var appFrequencies: frecencyScores.apps || ({})
     property string selectionBuffer: ""
+
+    // File search (delegated to Rust backend)
+    property var fileSearchResults: BackendDaemon.fileSearchResults
+    property string fileSearchQuery: BackendDaemon.fileSearchQuery
+    property var filePreview: BackendDaemon.filePreview
+    property string selectedFilePath: ""
+    property var bluetoothDevices: BackendDaemon.bluetoothDevices
+    property var wifiNetworks: BackendDaemon.wifiNetworks
 
     // Terminal emulator to launch apps in
     property string myTerminal: "foot"
@@ -52,14 +62,20 @@ Item {
         BackendDaemon.backendqsSvg = "";
         BackendDaemon.backendqsError = "";
         BackendDaemon.backendqsStatus = "";
+        BackendDaemon.fileSearchResults = [];
+        BackendDaemon.fileSearchQuery = "";
+        BackendDaemon.filePreview = null;
+        backend.selectedFilePath = "";
     }
 
     function launchApp(desktopEntry) {
         if (desktopEntry.id) {
-            var freqs = backend.appFrequencies;
-            freqs[desktopEntry.id] = (freqs[desktopEntry.id] || 0) + 1;
-            backend.appFrequencies = freqs;
-            saveFrequencies();
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": desktopEntry.id,
+                "query": query
+            });
         }
 
         var finalCommand = [];
@@ -82,28 +98,26 @@ Item {
         backend.closeMenuRequested();
     }
 
-    Process {
-        id: loadFrequenciesProcess
-        command: ["bash", "-c", 'cat ' + backend.frequenciesCachePath + ' 2>/dev/null || echo "{}"']
-        Component.onCompleted: running = true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var textBody = this.text.trim();
-                    backend.appFrequencies = JSON.parse(textBody || "{}");
-                } catch (e) {
-                    console.error("Failed to parse app frequencies:", e);
-                }
-            }
-        }
+    // Get quickkey matches for a query string
+    function getQuickkeyMatches(query) {
+        var q = (query || "").trim().toLowerCase();
+        if (q.length < 2) return [];
+        return backend.frecencyScores.quickkeys[q] || [];
     }
 
-    function saveFrequencies() {
-        BackendDaemon.send({
-            "action": "save_json",
-            "path": backend.frequenciesCachePath,
-            "data": backend.appFrequencies
-        });
+    // Get frecency score for a specific app
+    function getAppFrecency(appId) {
+        return backend.frecencyScores.apps[appId] || 0;
+    }
+
+    // Get the display name for an emoji
+    function getEmojiDisplay(emojiChar) {
+        for (var i = 0; i < backend.allEmojis.length; i++) {
+            if (backend.allEmojis[i].emoji === emojiChar) {
+                return backend.allEmojis[i].display;
+            }
+        }
+        return "Emoji";
     }
 
     // --- URL encoding helper ---
@@ -184,6 +198,13 @@ Item {
         if (isShift) {
             backend.selectionBuffer += emojiChar;
         } else {
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": "emoji:" + emojiChar,
+                "query": query
+            });
+
             var finalEmoji = backend.selectionBuffer + emojiChar;
             copyEmojiProcess.selectedEmoji = finalEmoji;
             copyEmojiProcess.running = true;
@@ -218,6 +239,7 @@ Item {
     onSearchTextChanged: {
         calcDebounce.restart();
         dictDebounce.restart();
+        fileSearchDebounce.restart();
     }
 
     Timer {
@@ -337,6 +359,83 @@ Item {
         }
     }
 
+    // --- File search and Sysctl ---
+    Timer {
+        id: fileSearchDebounce
+        interval: 150
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length >= 3) {
+                BackendDaemon.send({"action": "file_search", "query": query});
+            } else {
+                BackendDaemon.fileSearchResults = [];
+            }
+            
+            var queryLower = query.toLowerCase();
+            if (queryLower.startsWith("bt") || queryLower.startsWith("bluetooth")) {
+                BackendDaemon.send({"action": "sysctl_list", "kind": "bluetooth"});
+            } else if (queryLower.startsWith("wifi") || queryLower.startsWith("net")) {
+                BackendDaemon.send({"action": "sysctl_list", "kind": "wifi"});
+            }
+        }
+    }
+
+    function openFile(path) {
+        BackendDaemon.send({"action": "file_open", "path": path});
+        BackendDaemon.send({
+            "action": "frecency_record",
+            "id": path,
+            "query": backend.searchText.trim()
+        });
+        backend.closeMenuRequested();
+    }
+
+    function requestFilePreview(path) {
+        if (backend.selectedFilePath === path) return;
+        backend.selectedFilePath = path;
+        BackendDaemon.filePreview = null;
+        BackendDaemon.send({"action": "file_preview", "path": path});
+    }
+
+    Process {
+        id: copyFileProcess
+        property string filePath: ""
+        command: ["bash", "-c", 'wl-copy < "$1"', "_", filePath]
+    }
+
+    function copyFile(path) {
+        copyFileProcess.filePath = path;
+        copyFileProcess.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function copyFilePath(path) {
+        copyCalcResult.resultText = path;
+        copyCalcResult.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        var kb = bytes / 1024;
+        if (kb < 1024) return kb.toFixed(1) + " KB";
+        var mb = kb / 1024;
+        if (mb < 1024) return mb.toFixed(1) + " MB";
+        var gb = mb / 1024;
+        return gb.toFixed(2) + " GB";
+    }
+
+    function mimeIcon(cat) {
+        if (cat === "image") return "󰋩";
+        if (cat === "video") return "󰕧";
+        if (cat === "audio") return "󰝚";
+        if (cat === "pdf") return "󰈦";
+        if (cat === "archive") return "󰀼";
+        if (cat === "document") return "󱎒";
+        if (cat === "text") return "󰈙";
+        return "󰈔";
+    }
+
     IpcHandler {
         target: "appLauncher"
         function toggle() {
@@ -349,5 +448,30 @@ Item {
         function toggle() {
             backend.openMenuRequested();
         }
+    }
+
+    function executeSystemCommand(actionId, value) {
+        if (actionId === "vol_mute") {
+            Process.run("wpctl", ["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
+        } else if (actionId === "vol_set") {
+            Process.run("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)]);
+        } else if (actionId === "bl_set") {
+            Process.run("brillo", ["-S", value]);
+        } else if (actionId === "shutdown") {
+            Process.run("systemctl", ["poweroff"]);
+        } else if (actionId === "reboot") {
+            Process.run("systemctl", ["reboot"]);
+        } else if (actionId === "sleep") {
+            Process.run("systemctl", ["suspend"]);
+        } else if (actionId === "lock") {
+            Quickshell.executeCommand("qdbus", ["org.quickshell", "/", "Quickshell", "lockscreen.toggle"]);
+        } else if (actionId === "audio_out_hdmi") {
+            Process.run("bash", ["-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"]);
+        } else if (actionId === "bt_connect") {
+            Process.run("bluetoothctl", ["connect", value]);
+        } else if (actionId === "wifi_connect") {
+            Process.run("nmcli", ["device", "wifi", "connect", value]);
+        }
+        backend.closeMenuRequested();
     }
 }
