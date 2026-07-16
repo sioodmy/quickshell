@@ -20,7 +20,6 @@ Singleton {
     property string backendqsError: ""
     property string lyricsStatus: ""
     property string lyricsContent: ""
-    property var cliphistItems: []
     property var musicLibrary: null
     property string musicLibraryStatus: ""
     property var frecencyScores: ({ apps: {}, quickkeys: {} })
@@ -30,6 +29,10 @@ Singleton {
     property string filePreviewPath: ""
     property var bluetoothDevices: []
     property var wifiNetworks: []
+    property var cliphistItems: []
+
+    // Emitted once a clipboard copy has been written to the Wayland selection.
+    signal cliphistCopied()
     property var musicState: {
         "playing": false,
         "title": "",
@@ -99,8 +102,6 @@ Singleton {
                             root.lyricsContent = "";
                         }
                         root.lyricsStatus = parsed.status;
-                    } else if (type === "cliphist_result") {
-                        root.cliphistItems = parsed.data || [];
                     } else if (type === "music_library_result") {
                         if (parsed.status === "ok") {
                             root.musicLibrary = parsed.library || null;
@@ -138,6 +139,27 @@ Singleton {
                         } else if (parsed.kind === "wifi" || parsed.kind === "net") {
                             root.wifiNetworks = parsed.devices || [];
                         }
+                    } else if (type === "cliphist_list_result") {
+                        root.cliphistItems = parsed.items || [];
+                    } else if (type === "cliphist_ocr_update") {
+                        // Patch the matching entry with freshly recognised OCR
+                        // text so the launcher can fuzzy-match it immediately.
+                        var items = root.cliphistItems;
+                        var changed = false;
+                        for (var i = 0; i < items.length; i++) {
+                            if (items[i].id === parsed.id) {
+                                items[i].ocr_text = parsed.ocr_text || "";
+                                items[i].search_text = parsed.search_text || "";
+                                items[i].ocr_done = true;
+                                changed = true;
+                                break;
+                            }
+                        }
+                        if (changed)
+                            root.cliphistItems = items.slice();
+                    } else if (type === "cliphist_action_done") {
+                        if (parsed.action === "copy")
+                            root.cliphistCopied();
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);

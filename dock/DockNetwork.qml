@@ -38,7 +38,7 @@ Item {
         }
         font {
             family: "JetBrainsMono Nerd Font"
-            pixelSize: 14
+            pixelSize: 11
         }
         color: Networking.wifiEnabled ? Theme.primary : Theme.on_surface_variant
     }

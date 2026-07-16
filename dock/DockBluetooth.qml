@@ -21,7 +21,7 @@ Item {
         text: (root.adapter && root.adapter.enabled) ? "󰂯" : "󰂲"
         font {
             family: "JetBrainsMono Nerd Font"
-            pixelSize: 14
+            pixelSize: 11
         }
         color: (root.adapter && root.adapter.enabled && root.connectedDevices.length > 0) ? Theme.primary : Theme.on_surface_variant
     }

@@ -20,11 +20,13 @@ Scope {
     readonly property bool authenticating: pam.active
     property string statusMessage: ""
     property bool statusIsError: false
+    // True while the unlock exit animation is playing after a successful PAM auth.
+    property bool unlocking: false
 
     property string pendingPassword: ""
 
     function submit(password) {
-        if (password.length === 0)
+        if (password.length === 0 || unlocking)
             return;
         if (pam.active)
             pam.abort();
@@ -34,14 +36,33 @@ Scope {
         pam.start();
     }
 
+    function finishUnlock() {
+        unlockAnimTimer.stop();
+        root.unlocking = false;
+        root.locked = false;
+    }
+
     onLockedChanged: {
-        if (!locked) {
+        if (locked) {
+            root.unlocking = false;
+            unlockAnimTimer.stop();
+        } else {
             if (pam.active)
                 pam.abort();
             root.pendingPassword = "";
             root.statusMessage = "";
             root.statusIsError = false;
+            root.unlocking = false;
+            unlockAnimTimer.stop();
         }
+    }
+
+    // Gives the lock surface time to play its unlock animation before the
+    // Wayland session lock is released.
+    Timer {
+        id: unlockAnimTimer
+        interval: 950
+        onTriggered: root.finishUnlock()
     }
 
     PamContext {
@@ -62,7 +83,8 @@ Scope {
             if (result === PamResult.Success) {
                 root.statusMessage = "";
                 root.statusIsError = false;
-                root.locked = false;
+                root.unlocking = true;
+                unlockAnimTimer.restart();
             } else if (result === PamResult.MaxTries) {
                 root.statusMessage = "Too many attempts";
                 root.statusIsError = true;
@@ -87,11 +109,14 @@ Scope {
         }
 
         function unlock(): void {
-            root.locked = false;
+            root.finishUnlock();
         }
 
         function toggle(): void {
-            root.locked = !root.locked;
+            if (root.locked)
+                root.finishUnlock();
+            else
+                root.locked = true;
         }
     }
 

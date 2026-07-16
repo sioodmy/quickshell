@@ -3,7 +3,7 @@ pragma Singleton
 import Quickshell
 import Quickshell.Io
 
-/** Backlight brightness provider/controller backed by brillo. */
+/** Backlight brightness provider/controller backed by brightnessctl. */
 Singleton {
     id: root
 
@@ -15,7 +15,7 @@ Singleton {
         let p = Math.max(0, Math.min(100, Math.round(percent)));
         root.value = p / 100.0;
         root.available = true;
-        setProc.command = ["brillo", "-S", p.toString()];
+        setProc.command = ["brightnessctl", "set", `${p}%`];
         setProc.running = true;
     }
 
@@ -25,15 +25,20 @@ Singleton {
 
     Process {
         id: readProc
-        command: ["brillo", "-G"]
+        command: ["brightnessctl", "-m"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                let v = parseFloat(this.text.trim());
-                if (!isNaN(v)) {
-                    root.value = v / 100.0;
-                    root.available = true;
-                }
+                // brightnessctl -m => "backlight,<name>,<cur>,<max>,<percent>%"
+                let text = this.text.trim();
+                if (!text) return;
+                let parts = text.split(",");
+                if (parts.length < 5) return;
+                let percentStr = parts[4].trim().replace("%", "");
+                let v = parseFloat(percentStr);
+                if (isNaN(v)) return;
+                root.value = v / 100.0;
+                root.available = true;
             }
         }
     }

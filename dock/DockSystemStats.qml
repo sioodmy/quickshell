@@ -10,9 +10,9 @@ Rectangle {
     signal requestTooltip(string text, real globalY)
     signal hideTooltip()
     
-    implicitWidth: 40
+    implicitWidth: 28
     implicitHeight: layout.implicitHeight + 20
-    radius: 20
+    radius: width / 2
 
     color: ccTap.pressed
         ? Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12))
@@ -88,8 +88,8 @@ Rectangle {
         // --- Audio ---
         Canvas {
             id: audioIcon
-            width: 16
-            height: 16
+            width: 12
+            height: 12
             anchors.horizontalCenter: parent.horizontalCenter
 
             property real _v: root.volumeLevel
@@ -108,7 +108,7 @@ Rectangle {
                 
                 ctx.beginPath();
                 ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2.5;
                 ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
                 ctx.stroke();
                 
@@ -117,7 +117,7 @@ Rectangle {
                     var startAngle = -Math.PI / 2;
                     var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
                     ctx.arc(cx, cy, r, startAngle, endAngle);
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = 2.5;
                     ctx.lineCap = "round";
                     ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
                     ctx.stroke();
@@ -139,8 +139,8 @@ Rectangle {
         // --- Battery ---
         Item {
             id: batteryIconItem
-            width: 12
-            height: 26
+            width: 10
+            height: 20
             anchors.horizontalCenter: parent.horizontalCenter
 
             // Internal logic
@@ -153,7 +153,7 @@ Rectangle {
             // Battery nub (terminal)
             Rectangle {
                 id: batteryNub
-                width: 6
+                width: 4
                 height: 2
                 anchors {
                     top: parent.top
@@ -208,7 +208,7 @@ Rectangle {
                 verticalAlignment: Text.AlignVCenter
                 text: ""
                 font.family: "JetBrainsMono Nerd Font"
-                font.pixelSize: 9
+                font.pixelSize: 7
                 color: Theme.on_surface
             }
 

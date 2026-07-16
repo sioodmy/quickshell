@@ -3,7 +3,7 @@ import qs.theme
 
 Item {
     id: root
-    height: 36
+    height: 32
 
     property bool isMonthYearView
     property int displayMonth
@@ -17,9 +17,9 @@ Item {
     Rectangle {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        width: monthYearText.width + 24
-        height: 36
-        radius: 18
+        width: monthYearText.width + 16
+        height: 32
+        radius: 16
         color: monthYearMouse.containsMouse ? Theme.surface_variant : "transparent"
         scale: monthYearMouse.pressed ? 0.95 : 1.0
 
@@ -42,7 +42,7 @@ Item {
             text: root.isMonthYearView ? "Select Month" : Qt.formatDate(new Date(root.displayYear, root.displayMonth, 1), "MMMM yyyy")
             color: Theme.on_surface
             font.family: "Google Sans"
-            font.pointSize: 16
+            font.pointSize: 13
             font.weight: Font.Medium
         }
 
@@ -58,7 +58,7 @@ Item {
     Row {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 12
+        spacing: 6
         opacity: root.isMonthYearView ? 0 : 1
         visible: opacity > 0
         Behavior on opacity {
@@ -67,15 +67,14 @@ Item {
             }
         }
 
-        // Today Button
         Rectangle {
-            width: 72
-            height: 36
-            radius: 18
+            width: 56
+            height: 28
+            radius: 14
             color: todayMouse.containsMouse ? Theme.surface_variant : "transparent"
             border.color: Theme.outline_variant
             border.width: 1
-            scale: todayMouse.pressed ? 0.95 : (todayMouse.containsMouse ? 1.05 : 1.0)
+            scale: todayMouse.pressed ? 0.95 : (todayMouse.containsMouse ? 1.04 : 1.0)
 
             Behavior on scale {
                 NumberAnimation {
@@ -95,7 +94,7 @@ Item {
                 text: "Today"
                 color: Theme.primary
                 font.family: "Google Sans"
-                font.pointSize: 11
+                font.pointSize: 10
                 font.weight: Font.Bold
             }
             MouseArea {
@@ -107,11 +106,10 @@ Item {
             }
         }
 
-        // Prev Button
         Rectangle {
-            width: 36
-            height: 36
-            radius: 18
+            width: 28
+            height: 28
+            radius: 14
             color: prevMouse.containsMouse ? Theme.surface_variant : "transparent"
             scale: prevMouse.pressed ? 0.9 : (prevMouse.containsMouse ? 1.05 : 1.0)
 
@@ -132,7 +130,7 @@ Item {
                 anchors.centerIn: parent
                 text: "❮"
                 color: Theme.on_surface
-                font.pointSize: 12
+                font.pointSize: 10
             }
             MouseArea {
                 id: prevMouse
@@ -143,11 +141,10 @@ Item {
             }
         }
 
-        // Next Button
         Rectangle {
-            width: 36
-            height: 36
-            radius: 18
+            width: 28
+            height: 28
+            radius: 14
             color: nextMouse.containsMouse ? Theme.surface_variant : "transparent"
             scale: nextMouse.pressed ? 0.9 : (nextMouse.containsMouse ? 1.05 : 1.0)
 
@@ -168,7 +165,7 @@ Item {
                 anchors.centerIn: parent
                 text: "❯"
                 color: Theme.on_surface
-                font.pointSize: 12
+                font.pointSize: 10
             }
             MouseArea {
                 id: nextMouse

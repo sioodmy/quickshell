@@ -27,8 +27,8 @@ Rectangle {
     readonly property string _body: entryData.body || ""
     readonly property var _tags: entryData.tags || []
 
-    height: cardContent.implicitHeight + 16
-    radius: 16
+    height: cardContent.implicitHeight + 12
+    radius: 12
     color: cardMouse.containsMouse
         ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
         : Theme.surface_container
@@ -41,7 +41,6 @@ Rectangle {
     Behavior on color { ColorAnimation { duration: 120 } }
     Behavior on border.color { ColorAnimation { duration: 150 } }
 
-    // Subtle press/hover scale
     scale: cardMouse.pressed ? 0.97 : 1.0
     Behavior on scale {
         NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
@@ -55,14 +54,12 @@ Rectangle {
         onClicked: root.clicked(root.entryData)
     }
 
-    // State indicator stripe on the left
     Rectangle {
         id: stateStripe
         anchors.left: parent.left
-        anchors.leftMargin: 0
         anchors.verticalCenter: parent.verticalCenter
         width: 3
-        height: parent.height - 16
+        height: parent.height - 12
         radius: 2
         color: {
             if (root.isOverdue) return Theme.critical;
@@ -81,23 +78,21 @@ Rectangle {
     Column {
         id: cardContent
         anchors.left: stateStripe.right
-        anchors.leftMargin: 10
+        anchors.leftMargin: 8
         anchors.right: parent.right
-        anchors.rightMargin: 12
+        anchors.rightMargin: 10
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
+        spacing: 3
 
-        // ── Top row: state chip + title ──
         Row {
             width: parent.width
-            spacing: 6
+            spacing: 5
 
-            // State chip
             Rectangle {
                 visible: root._state !== ""
-                width: stateChipText.implicitWidth + 12
-                height: 18
-                radius: 9
+                width: stateChipText.implicitWidth + 10
+                height: 16
+                radius: 8
                 anchors.verticalCenter: parent.verticalCenter
                 color: {
                     if (root._state === "DONE") return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12);
@@ -127,20 +122,19 @@ Rectangle {
                         if (root._state === "WAITING") return Theme.tertiary;
                         return Theme.on_surface_variant;
                     }
-                    font { family: "Google Sans"; pointSize: 8; weight: Font.Bold }
+                    font { family: "Google Sans"; pointSize: 7; weight: Font.Bold }
                 }
             }
 
-            // Title
             Text {
-                width: parent.width - (root._state !== "" ? stateChipText.implicitWidth + 18 : 0)
+                width: parent.width - (root._state !== "" ? stateChipText.implicitWidth + 15 : 0)
                 text: root._title
                 color: (root._state === "DONE" || root._state === "CANCELLED")
                     ? Theme.on_surface_variant
                     : Theme.on_surface
                 font {
                     family: "Google Sans"
-                    pointSize: 11
+                    pointSize: 10
                     weight: Font.DemiBold
                     strikeout: root._state === "DONE" || root._state === "CANCELLED"
                 }
@@ -150,20 +144,18 @@ Rectangle {
             }
         }
 
-        // ── Date/time row ──
         Row {
             visible: root._deadline !== "" || root._scheduled !== "" || root.showDate
-            spacing: 8
+            spacing: 6
 
-            // Deadline badge
             Row {
                 visible: root._deadline !== ""
-                spacing: 3
+                spacing: 2
 
                 Text {
                     text: "󰃰"
                     color: root.isOverdue ? Theme.critical : Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 9 }
+                    font { family: "JetBrainsMono Nerd Font"; pointSize: 8 }
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -177,22 +169,21 @@ Rectangle {
                     }
                     color: root.isOverdue ? Theme.critical : Theme.on_surface_variant
                     font {
-                        family: "Google Sans"; pointSize: 9; weight: Font.Medium
+                        family: "Google Sans"; pointSize: 8; weight: Font.Medium
                         italic: root.isOverdue
                     }
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
 
-            // Scheduled badge
             Row {
                 visible: root._scheduled !== "" && root._deadline === ""
-                spacing: 3
+                spacing: 2
 
                 Text {
                     text: "󰸗"
                     color: Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 9 }
+                    font { family: "JetBrainsMono Nerd Font"; pointSize: 8 }
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -205,25 +196,24 @@ Rectangle {
                         return formatted;
                     }
                     color: Theme.on_surface_variant
-                    font { family: "Google Sans"; pointSize: 9; weight: Font.Medium }
+                    font { family: "Google Sans"; pointSize: 8; weight: Font.Medium }
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
         }
 
-        // ── Tags row ──
         Row {
             visible: root._tags.length > 0
-            spacing: 4
+            spacing: 3
 
             Repeater {
                 model: root._tags
 
                 Rectangle {
                     required property var modelData
-                    width: tagText.implicitWidth + 10
-                    height: 16
-                    radius: 8
+                    width: tagText.implicitWidth + 8
+                    height: 14
+                    radius: 7
                     color: Qt.rgba(Theme.secondary.r, Theme.secondary.g, Theme.secondary.b, 0.12)
 
                     Text {
@@ -231,31 +221,29 @@ Rectangle {
                         anchors.centerIn: parent
                         text: modelData
                         color: Theme.secondary
-                        font { family: "Google Sans"; pointSize: 8; weight: Font.Medium }
+                        font { family: "Google Sans"; pointSize: 7; weight: Font.Medium }
                     }
                 }
             }
         }
 
-        // ── Body preview ──
         Text {
             visible: root._body !== ""
             width: parent.width
             text: root._body.split("\\n")[0]
             color: Theme.on_surface_variant
             opacity: 0.7
-            font { family: "Google Sans"; pointSize: 9 }
+            font { family: "Google Sans"; pointSize: 8 }
             elide: Text.ElideRight
             maximumLineCount: 1
         }
 
-        // ── Source file badge ──
         Text {
             visible: root._file !== ""
             text: "from " + root._file
             color: Theme.on_surface_variant
             opacity: 0.35
-            font { family: "Google Sans"; pointSize: 8; weight: Font.Medium; italic: true }
+            font { family: "Google Sans"; pointSize: 7; weight: Font.Medium; italic: true }
         }
     }
 }

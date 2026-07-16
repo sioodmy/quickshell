@@ -376,10 +376,12 @@ Item {
                             anchors.margins: 10
                             spacing: 6
 
-                            Canvas {
+                            // Pure QML sun arc (no Canvas)
+                            Item {
                                 id: sunArc
                                 width: parent.width
                                 height: parent.height - 44
+                                clip: true
 
                                 property real progress: {
                                     var _ = weather.nowTick;
@@ -390,79 +392,72 @@ Item {
                                     return weather.isDaytime;
                                 }
 
-                                onProgressChanged: requestPaint()
-                                onDaytimeChanged: requestPaint()
-                                onWidthChanged: requestPaint()
-                                onHeightChanged: requestPaint()
+                                readonly property real arcBase: height - 4
+                                // Reserve enough headroom for the sun glow at peak height.
+                                readonly property real arcRadius: Math.min(width / 2 - 8, height - 18)
+                                readonly property real cx: width / 2
+                                readonly property real clamped: Math.max(0, Math.min(1, progress))
+                                readonly property real angle: Math.PI - clamped * Math.PI
+                                readonly property bool onArc: progress >= 0 && progress <= 1
 
-                                Connections {
-                                    target: weather.info
-                                    function onSunriseChanged() { sunArc.requestPaint() }
-                                    function onSunsetChanged() { sunArc.requestPaint() }
+                                // Horizontal baseline
+                                Rectangle {
+                                    x: 8
+                                    y: sunArc.arcBase
+                                    width: sunArc.width - 16
+                                    height: 1
+                                    color: Qt.rgba(1, 1, 1, sunArc.daytime ? 0.14 : 0.08)
                                 }
 
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.clearRect(0, 0, width, height);
+                                // Arc ring — clip a large circle to show only the upper half
+                                Item {
+                                    x: sunArc.cx - sunArc.arcRadius
+                                    y: sunArc.arcBase - sunArc.arcRadius
+                                    width: sunArc.arcRadius * 2
+                                    height: sunArc.arcRadius
+                                    clip: true
 
-                                    var cx = width / 2;
-                                    var baseline = height - 4;
-                                    var radius = Math.min(width / 2 - 8, height - 12);
-                                    var p = progress;
-                                    var onArc = p >= 0 && p <= 1;
-                                    var clamped = Math.max(0, Math.min(1, p));
-                                    var angle = Math.PI - clamped * Math.PI;
-
-                                    ctx.beginPath();
-                                    ctx.moveTo(8, baseline);
-                                    ctx.lineTo(width - 8, baseline);
-                                    ctx.strokeStyle = Qt.rgba(1, 1, 1, daytime ? 0.14 : 0.08);
-                                    ctx.lineWidth = 1;
-                                    ctx.stroke();
-
-                                    ctx.beginPath();
-                                    ctx.arc(cx, baseline, radius, Math.PI, 0, false);
-                                    var arcGrad = ctx.createLinearGradient(0, baseline - radius, width, baseline);
-                                    if (daytime) {
-                                        arcGrad.addColorStop(0, Qt.rgba(1, 0.55, 0.2, 0.55));
-                                        arcGrad.addColorStop(0.5, Qt.rgba(1, 0.85, 0.35, 0.85));
-                                        arcGrad.addColorStop(1, Qt.rgba(1, 0.45, 0.25, 0.55));
-                                    } else {
-                                        arcGrad.addColorStop(0, Qt.rgba(0.5, 0.55, 0.75, 0.35));
-                                        arcGrad.addColorStop(0.5, Qt.rgba(0.7, 0.75, 0.95, 0.5));
-                                        arcGrad.addColorStop(1, Qt.rgba(0.5, 0.55, 0.75, 0.35));
+                                    // Outer ring
+                                    Rectangle {
+                                        width: sunArc.arcRadius * 2
+                                        height: sunArc.arcRadius * 2
+                                        radius: sunArc.arcRadius
+                                        color: "transparent"
+                                        border.width: 2.5
+                                        border.color: sunArc.daytime
+                                            ? Qt.rgba(1, 0.75, 0.3, 0.7)
+                                            : Qt.rgba(0.6, 0.65, 0.85, 0.42)
                                     }
-                                    ctx.strokeStyle = arcGrad;
-                                    ctx.lineWidth = 2.5;
-                                    ctx.stroke();
 
-                                    ctx.beginPath();
-                                    ctx.arc(cx, baseline, radius, Math.PI, 0, false);
-                                    ctx.lineTo(cx + radius, baseline);
-                                    ctx.lineTo(cx - radius, baseline);
-                                    ctx.closePath();
-                                    var fillGrad = ctx.createLinearGradient(0, baseline - radius, 0, baseline);
-                                    fillGrad.addColorStop(0, daytime ? Qt.rgba(1, 0.7, 0.2, 0.14) : Qt.rgba(0.5, 0.6, 0.9, 0.1));
-                                    fillGrad.addColorStop(1, "transparent");
-                                    ctx.fillStyle = fillGrad;
-                                    ctx.fill();
+                                    // Subtle fill glow inside the arc
+                                    Rectangle {
+                                        width: sunArc.arcRadius * 2
+                                        height: sunArc.arcRadius * 2
+                                        radius: sunArc.arcRadius
+                                        color: sunArc.daytime
+                                            ? Qt.rgba(1, 0.7, 0.2, 0.08)
+                                            : Qt.rgba(0.5, 0.6, 0.9, 0.05)
+                                    }
+                                }
 
-                                    if (daytime && onArc) {
-                                        var sx = cx + radius * Math.cos(angle);
-                                        var sy = baseline - radius * Math.sin(angle);
+                                // Sun/Moon dot on the arc
+                                Rectangle {
+                                    id: sunDot
+                                    visible: sunArc.daytime && sunArc.onArc
+                                    width: 11
+                                    height: 11
+                                    radius: 5.5
+                                    color: Qt.rgba(1, 0.92, 0.45, 0.95)
+                                    x: sunArc.cx + sunArc.arcRadius * Math.cos(sunArc.angle) - 5.5
+                                    y: sunArc.arcBase - sunArc.arcRadius * Math.sin(sunArc.angle) - 5.5
 
-                                        var glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, 14);
-                                        glow.addColorStop(0, Qt.rgba(1, 0.9, 0.4, 0.6));
-                                        glow.addColorStop(1, "transparent");
-                                        ctx.beginPath();
-                                        ctx.arc(sx, sy, 14, 0, Math.PI * 2);
-                                        ctx.fillStyle = glow;
-                                        ctx.fill();
-
-                                        ctx.beginPath();
-                                        ctx.arc(sx, sy, 5.5, 0, Math.PI * 2);
-                                        ctx.fillStyle = Qt.rgba(1, 0.92, 0.45, 0.95);
-                                        ctx.fill();
+                                    // Glow effect
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 28
+                                        height: 28
+                                        radius: 14
+                                        color: Qt.rgba(1, 0.9, 0.4, 0.25)
                                     }
                                 }
                             }
@@ -502,95 +497,12 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
 
-                                    Canvas {
+                                    // Moon icon (pure QML, no Canvas)
+                                    Text {
                                         id: moonViz
-                                        width: root.celestialSize
-                                        height: root.celestialSize
-                                        antialiasing: true
-
-                                        property real illPercent: {
-                                            if (!weather.info.moonIllumination) return 50;
-                                            var s = weather.info.moonIllumination.replace("%", "").trim();
-                                            var v = parseFloat(s);
-                                            return isNaN(v) ? 50 : v;
-                                        }
-                                        property bool isWaxing: weather.info.moonIsWaxing
-
-                                        onIllPercentChanged: requestPaint()
-                                        onIsWaxingChanged: requestPaint()
-
-                                        Connections {
-                                            target: weather.info
-                                            function onMoonIlluminationChanged() { moonViz.requestPaint() }
-                                            function onMoonIsWaxingChanged() { moonViz.requestPaint() }
-                                        }
-
-                                        Component.onCompleted: requestPaint()
-
-                                        onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.clearRect(0, 0, width, height);
-                                            var cx = width / 2;
-                                            var cy = height / 2;
-                                            var r = Math.max(1, width / 2 - 0.5);
-
-                                            ctx.beginPath();
-                                            ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                                            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.14);
-                                            ctx.fill();
-
-                                            var p = illPercent / 100.0;
-                                            if (p <= 0.02 || p >= 0.98) {
-                                                ctx.beginPath();
-                                                ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                                                ctx.fillStyle = Qt.rgba(1, 1, 1, p <= 0.02 ? 0.2 : 0.95);
-                                                ctx.fill();
-                                                return;
-                                            }
-
-                                            var w = Math.abs(p - 0.5) * 2 * r;
-                                            var shade = Qt.rgba(1, 1, 1, 0.95);
-                                            var shadow = Qt.rgba(1, 1, 1, 0.14);
-
-                                            ctx.save();
-                                            ctx.beginPath();
-                                            if (isWaxing) {
-                                                ctx.rect(cx, cy - r, r, r * 2);
-                                            } else {
-                                                ctx.rect(cx - r, cy - r, r, r * 2);
-                                            }
-                                            ctx.clip();
-
-                                            ctx.beginPath();
-                                            ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                                            ctx.fillStyle = shade;
-                                            ctx.fill();
-
-                                            if (p < 0.5) {
-                                                ctx.beginPath();
-                                                ctx.ellipse(cx - w, cy - r, Math.max(0.5, w * 2), r * 2);
-                                                ctx.fillStyle = shadow;
-                                                ctx.fill();
-                                            }
-                                            ctx.restore();
-
-                                            if (p >= 0.5) {
-                                                ctx.save();
-                                                ctx.beginPath();
-                                                if (isWaxing) {
-                                                    ctx.rect(cx - r, cy - r, r, r * 2);
-                                                } else {
-                                                    ctx.rect(cx, cy - r, r, r * 2);
-                                                }
-                                                ctx.clip();
-
-                                                ctx.beginPath();
-                                                ctx.ellipse(cx - w, cy - r, Math.max(0.5, w * 2), r * 2);
-                                                ctx.fillStyle = shade;
-                                                ctx.fill();
-                                                ctx.restore();
-                                            }
-                                        }
+                                        text: "🌙"
+                                        font.pixelSize: root.celestialSize
+                                        anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
                             }

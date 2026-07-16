@@ -2,30 +2,38 @@ function filterEmojis(baseItems, queryStr) {
   let query = queryStr.toLowerCase().trim();
   if (query.length === 0) return [];
 
+  // Cap early during iteration — no need to score thousands then slice.
+  const hardCap = 40;
   let results = [];
 
-  // Simple, fast iteration
   for (let i = 0; i < baseItems.length; i++) {
     let item = baseItems[i];
+    let search = item.searchString;
 
-    // Check if the query exists anywhere in the search string (name + tags)
-    if (item.searchString.includes(query)) {
-      // Prioritize items that actually start with the query
-      let displayLower = item.display.toLowerCase();
-      item.score = displayLower.startsWith(query) ? 2 : 1;
+    if (!search.includes(query)) continue;
 
-      results.push(item);
-    }
+    let displayLower = item.display.toLowerCase();
+    // Prefer prefix hits; for 1-char queries only keep those (substring floods).
+    let starts = displayLower.startsWith(query);
+    if (query.length === 1 && !starts) continue;
+
+    results.push({
+      emoji: item.emoji,
+      display: item.display,
+      category: item.category,
+      searchString: search,
+      score: starts ? 2 : 1,
+    });
+
+    if (results.length >= hardCap * 3) break;
   }
 
-  // Sort by score (startsWith first), then by shortest display name
   results.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
     return a.display.length - b.display.length;
   });
 
-  // Cap results to keep rendering fast
-  return results.slice(0, 50);
+  return results.slice(0, hardCap);
 }
 
 function parseEmojiJson(textBody) {
@@ -41,7 +49,6 @@ function parseEmojiJson(textBody) {
       emoji: key,
       display: displayDesc,
       category: "All",
-      // Flatten display name and tags into one searchable string
       searchString: (displayDesc + " " + tags.join(" ")).toLowerCase(),
       score: 0,
     });

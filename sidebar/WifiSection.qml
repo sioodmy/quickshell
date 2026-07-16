@@ -8,6 +8,17 @@ Column {
     spacing: 8
 
     property bool expanded: false
+    property bool forceExpanded: false
+    property string filterQuery: ""
+    property int selectedIndex: 0
+    property int connectingIndex: -1
+    property bool selectedPskActive: false
+    property string selectedPskText: ""
+
+    signal refocusSearchRequested()
+    signal connectionAttemptFailed()
+
+    readonly property bool isExpanded: forceExpanded || expanded
 
     readonly property var wifiDevice: {
         for (const device of Networking.devices.values) {
@@ -39,9 +50,111 @@ Column {
         });
     }
 
+    function networkFilterScore(network, query) {
+        var name = (network.name || "").toLowerCase();
+        if (name === query)
+            return 1000;
+        if (name.startsWith(query))
+            return 800;
+        var words = name.split(/[\s\-_]+/);
+        for (var i = 0; i < words.length; i++) {
+            if (words[i].startsWith(query))
+                return 600;
+        }
+        if (query.length >= 2 && name.indexOf(query) !== -1)
+            return 200;
+        return -1;
+    }
+
+    readonly property var filteredNetworks: {
+        var q = filterQuery.trim().toLowerCase();
+        if (!q)
+            return sortedNetworks;
+        var scored = [];
+        for (var i = 0; i < sortedNetworks.length; i++) {
+            var score = networkFilterScore(sortedNetworks[i], q);
+            if (score >= 0)
+                scored.push({ network: sortedNetworks[i], score: score });
+        }
+        scored.sort((a, b) => {
+            if (b.score !== a.score)
+                return b.score - a.score;
+            if (a.network.connected !== b.network.connected)
+                return b.network.connected - a.network.connected;
+            return b.network.signalStrength - a.network.signalStrength;
+        });
+        return scored.map(function(entry) { return entry.network; });
+    }
+
+    readonly property var topMatch: filteredNetworks.length > 0 ? filteredNetworks[0] : null
+    readonly property var selectedNetwork: filteredNetworks.length > 0 && selectedIndex >= 0 && selectedIndex < filteredNetworks.length
+        ? filteredNetworks[selectedIndex] : null
+    readonly property real estimatedSelectedY: 72 + selectedIndex * 48
+
+    function clampSelectedIndex() {
+        if (filteredNetworks.length === 0)
+            selectedIndex = 0;
+        else if (selectedIndex >= filteredNetworks.length)
+            selectedIndex = filteredNetworks.length - 1;
+        else if (selectedIndex < 0)
+            selectedIndex = 0;
+    }
+
+    function incrementSelection() {
+        if (filteredNetworks.length === 0)
+            return;
+        selectedIndex = (selectedIndex + 1) % filteredNetworks.length;
+    }
+
+    function decrementSelection() {
+        if (filteredNetworks.length === 0)
+            return;
+        selectedIndex = selectedIndex <= 0 ? filteredNetworks.length - 1 : selectedIndex - 1;
+    }
+
+    function activateSelected() {
+        if (!selectedNetwork)
+            return false;
+        if (selectedNetwork.connected)
+            return false;
+        connectingIndex = selectedIndex;
+        if (selectedPskActive && selectedPskText.length > 0) {
+            selectedNetwork.connectWithPsk(selectedPskText);
+            selectedPskText = "";
+            return true;
+        }
+        selectedNetwork.connect();
+        return true;
+    }
+
+    function resetConnecting() {
+        connectingIndex = -1;
+    }
+
+    function activateTopMatch() {
+        return activateSelected();
+    }
+
+    onFilterQueryChanged: selectedIndex = 0
+    onFilteredNetworksChanged: clampSelectedIndex()
+    onSelectedIndexChanged: {
+        selectedPskActive = false;
+        selectedPskText = "";
+    }
+
     onExpandedChanged: {
-        if (wifiDevice)
+        if (wifiDevice && !forceExpanded)
             wifiDevice.scannerEnabled = expanded;
+    }
+
+    onForceExpandedChanged: {
+        if (wifiDevice && forceExpanded)
+            wifiDevice.scannerEnabled = true;
+    }
+
+    Component.onCompleted: {
+        if (wifiDevice && forceExpanded)
+            wifiDevice.scannerEnabled = true;
     }
 
     // --- Tile header ---
@@ -109,7 +222,7 @@ Column {
             anchors.bottom: parent.bottom
             anchors.right: toggleWifi.left
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.expanded = !root.expanded
+            onClicked: if (!root.forceExpanded) root.expanded = !root.expanded
         }
     }
 
@@ -117,11 +230,11 @@ Column {
     Column {
         width: parent.width
         spacing: 4
-        visible: root.expanded && Networking.wifiEnabled
+        visible: root.isExpanded && Networking.wifiEnabled
 
         Text {
-            visible: root.sortedNetworks.length === 0
-            text: "Searching for networks…"
+            visible: root.filteredNetworks.length === 0
+            text: root.filterQuery.trim() ? "No matching networks" : "Searching for networks…"
             color: Theme.on_surface_variant
             font { family: "Google Sans"; pixelSize: 13 }
             leftPadding: 8
@@ -130,38 +243,83 @@ Column {
         }
 
         Repeater {
-            model: root.sortedNetworks
+            model: root.filteredNetworks
 
             Rectangle {
                 id: netItem
                 required property var modelData
-                property bool open: false
+                required property int index
+                property bool userOpen: false
+                property bool open: root.forceExpanded ? (index === root.selectedIndex) : userOpen
                 property bool showPsk: false
                 property string failText: ""
+                property bool isKeyboardSelected: root.forceExpanded && index === root.selectedIndex
+                property bool isConnecting: root.forceExpanded && index === root.connectingIndex
+
+                onShowPskChanged: {
+                    if (root.forceExpanded && index === root.selectedIndex)
+                        root.selectedPskActive = showPsk;
+                }
 
                 width: parent.width
                 radius: 16
-                color: modelData.connected
-                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14)
-                    : (rowMouse.containsMouse || netItem.open
-                        ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-                        : "transparent")
+                color: netItem.isConnecting
+                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
+                    : (netItem.isKeyboardSelected
+                        ? Theme.secondary_container
+                        : (modelData.connected
+                            ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14)
+                            : (rowMouse.containsMouse || netItem.open
+                                ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                                : "transparent")))
                 height: col.height
 
                 Behavior on color { ColorAnimation { duration: 150 } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    color: Theme.primary
+                    opacity: connectingPulse.opacity
+                    visible: netItem.isConnecting
+
+                    QtObject {
+                        id: connectingPulse
+                        property real opacity: 0.12
+                    }
+
+                    SequentialAnimation {
+                        running: netItem.isConnecting
+                        loops: Animation.Infinite
+                        NumberAnimation { target: connectingPulse; property: "opacity"; from: 0.08; to: 0.24; duration: 450; easing.type: Easing.InOutSine }
+                        NumberAnimation { target: connectingPulse; property: "opacity"; from: 0.24; to: 0.08; duration: 450; easing.type: Easing.InOutSine }
+                    }
+                }
 
                 Connections {
                     target: netItem.modelData
                     function onConnectionFailed(reason) {
                         netItem.failText = "Connection failed";
                         netItem.showPsk = true;
-                        netItem.open = true;
+                        if (netItem.index === root.connectingIndex) {
+                            root.connectingIndex = -1;
+                            root.connectionAttemptFailed();
+                        }
+                        if (root.forceExpanded && netItem.index === root.selectedIndex) {
+                            root.selectedPskActive = true;
+                            Qt.callLater(function() { pskInput.forceActiveFocus(); });
+                        }
                     }
                     function onStateChanged() {
                         if (netItem.modelData.connected) {
                             netItem.showPsk = false;
                             netItem.failText = "";
-                            netItem.open = false;
+                            if (!root.forceExpanded)
+                                netItem.userOpen = false;
+                            if (netItem.index === root.selectedIndex) {
+                                root.selectedPskActive = false;
+                                root.selectedPskText = "";
+                            }
                         }
                     }
                 }
@@ -180,7 +338,13 @@ Column {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: netItem.open = !netItem.open
+                            onEntered: if (root.forceExpanded) root.selectedIndex = netItem.index
+                            onClicked: {
+                                if (root.forceExpanded)
+                                    root.selectedIndex = netItem.index;
+                                else
+                                    netItem.userOpen = !netItem.userOpen;
+                            }
                         }
 
                         Text {
@@ -188,6 +352,8 @@ Column {
                             anchors.leftMargin: 10
                             anchors.verticalCenter: parent.verticalCenter
                             text: {
+                                if (netItem.isConnecting)
+                                    return "󰤭";
                                 const s = netItem.modelData.signalStrength;
                                 if (s >= 0.75) return "󰤨";
                                 if (s >= 0.5) return "󰤥";
@@ -195,7 +361,15 @@ Column {
                                 return "󰤟";
                             }
                             font { family: "JetBrainsMono Nerd Font"; pixelSize: 15 }
-                            color: netItem.modelData.connected ? Theme.primary : Theme.on_surface_variant
+                            color: netItem.isConnecting || netItem.modelData.connected ? Theme.primary : Theme.on_surface_variant
+
+                            RotationAnimation on rotation {
+                                running: netItem.isConnecting
+                                from: 0
+                                to: 360
+                                duration: 1200
+                                loops: Animation.Infinite
+                            }
                         }
 
                         Column {
@@ -209,14 +383,19 @@ Column {
                             Text {
                                 width: parent.width
                                 text: netItem.modelData.name
-                                color: Theme.on_surface
+                                color: netItem.isKeyboardSelected ? Theme.on_secondary_container : Theme.on_surface
                                 font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
                                 elide: Text.ElideRight
                             }
                             Text {
-                                visible: netItem.modelData.connected || netItem.modelData.known
-                                text: netItem.modelData.connected ? "Connected" : "Saved"
-                                color: Theme.on_surface_variant
+                                visible: netItem.isConnecting || netItem.modelData.connected || netItem.modelData.known
+                                text: netItem.isConnecting
+                                    ? "Connecting…"
+                                    : (netItem.modelData.connected ? "Connected" : "Saved")
+                                color: netItem.isConnecting
+                                    ? Theme.primary
+                                    : (netItem.isKeyboardSelected ? Theme.on_secondary_container : Theme.on_surface_variant)
+                                opacity: netItem.isKeyboardSelected && !netItem.isConnecting ? 0.8 : 1.0
                                 font { family: "Google Sans"; pixelSize: 11 }
                             }
                         }
@@ -256,9 +435,37 @@ Column {
                                 font { family: "Google Sans"; pixelSize: 13 }
                                 echoMode: TextInput.Password
                                 clip: true
+                                text: netItem.index === root.selectedIndex ? root.selectedPskText : ""
+                                onTextChanged: {
+                                    if (netItem.index === root.selectedIndex)
+                                        root.selectedPskText = text;
+                                }
                                 onAccepted: {
                                     netItem.modelData.connectWithPsk(text);
                                     text = "";
+                                    if (netItem.index === root.selectedIndex)
+                                        root.selectedPskText = "";
+                                }
+
+                                Keys.onPressed: event => {
+                                    if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                                        if ((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab)
+                                            root.decrementSelection();
+                                        else
+                                            root.incrementSelection();
+                                        netItem.showPsk = false;
+                                        root.selectedPskActive = false;
+                                        root.selectedPskText = "";
+                                        root.refocusSearchRequested();
+                                        event.accepted = true;
+                                    } else if (event.key === Qt.Key_Escape) {
+                                        netItem.showPsk = false;
+                                        root.selectedPskActive = false;
+                                        root.selectedPskText = "";
+                                        pskInput.text = "";
+                                        root.refocusSearchRequested();
+                                        event.accepted = true;
+                                    }
                                 }
 
                                 Text {

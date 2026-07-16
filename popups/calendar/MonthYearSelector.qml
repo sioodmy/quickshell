@@ -4,6 +4,12 @@ import qs.theme
 Item {
     id: root
 
+    readonly property int monthW: 64
+    readonly property int monthH: 36
+    readonly property int monthSpacing: 8
+    readonly property int monthStrideX: monthW + monthSpacing
+    readonly property int monthStrideY: monthH + monthSpacing
+
     property int displayYear
     property int displayMonth
 
@@ -13,18 +19,18 @@ Item {
 
     Column {
         anchors.centerIn: parent
-        spacing: 32
+        spacing: 20
 
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 24
+            spacing: 16
 
             Rectangle {
-                width: 40
-                height: 40
-                radius: 20
+                width: 32
+                height: 32
+                radius: 16
                 color: yearPrevMouse.containsMouse ? Theme.surface_variant : "transparent"
-                scale: yearPrevMouse.pressed ? 0.9 : (yearPrevMouse.containsMouse ? 1.1 : 1.0)
+                scale: yearPrevMouse.pressed ? 0.9 : (yearPrevMouse.containsMouse ? 1.08 : 1.0)
 
                 Behavior on scale {
                     NumberAnimation {
@@ -38,7 +44,7 @@ Item {
                     anchors.centerIn: parent
                     text: "❮"
                     color: Theme.on_surface
-                    font.pointSize: 14
+                    font.pointSize: 11
                 }
                 MouseArea {
                     id: yearPrevMouse
@@ -54,16 +60,16 @@ Item {
                 text: root.displayYear.toString()
                 color: Theme.on_surface
                 font.family: "Google Sans"
-                font.pointSize: 22
+                font.pointSize: 18
                 font.weight: Font.Bold
             }
 
             Rectangle {
-                width: 40
-                height: 40
-                radius: 20
+                width: 32
+                height: 32
+                radius: 16
                 color: yearNextMouse.containsMouse ? Theme.surface_variant : "transparent"
-                scale: yearNextMouse.pressed ? 0.9 : (yearNextMouse.containsMouse ? 1.1 : 1.0)
+                scale: yearNextMouse.pressed ? 0.9 : (yearNextMouse.containsMouse ? 1.08 : 1.0)
 
                 Behavior on scale {
                     NumberAnimation {
@@ -77,7 +83,7 @@ Item {
                     anchors.centerIn: parent
                     text: "❯"
                     color: Theme.on_surface
-                    font.pointSize: 14
+                    font.pointSize: 11
                 }
                 MouseArea {
                     id: yearNextMouse
@@ -94,14 +100,13 @@ Item {
             height: monthGrid.implicitHeight
             anchors.horizontalCenter: parent.horizontalCenter
 
-            // Sliding Pill
             Rectangle {
-                width: 76
-                height: 48
-                radius: 24
+                width: root.monthW
+                height: root.monthH
+                radius: root.monthH / 2
                 color: Theme.primary
-                x: (root.displayMonth % 4) * 88
-                y: Math.floor(root.displayMonth / 4) * 60
+                x: (root.displayMonth % 4) * root.monthStrideX
+                y: Math.floor(root.displayMonth / 4) * root.monthStrideY
 
                 Behavior on x {
                     NumberAnimation {
@@ -122,17 +127,17 @@ Item {
             Grid {
                 id: monthGrid
                 columns: 4
-                spacing: 12
+                spacing: root.monthSpacing
 
                 Repeater {
                     model: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
                     Rectangle {
-                        width: 76
-                        height: 48
-                        radius: 24
+                        width: root.monthW
+                        height: root.monthH
+                        radius: root.monthH / 2
                         readonly property bool isSelectedMonth: index === root.displayMonth
                         color: monthMouse.containsMouse && !isSelectedMonth ? Theme.surface_variant : "transparent"
-                        scale: monthMouse.pressed ? 0.9 : (monthMouse.containsMouse && !isSelectedMonth ? 1.05 : 1.0)
+                        scale: monthMouse.pressed ? 0.9 : (monthMouse.containsMouse && !isSelectedMonth ? 1.04 : 1.0)
 
                         Behavior on scale {
                             NumberAnimation {
@@ -152,7 +157,7 @@ Item {
                             text: modelData
                             color: isSelectedMonth ? Theme.on_primary : Theme.on_surface
                             font.family: "Google Sans"
-                            font.pointSize: 13
+                            font.pointSize: 11
                             font.weight: isSelectedMonth ? Font.Bold : Font.Medium
                             Behavior on color {
                                 ColorAnimation {

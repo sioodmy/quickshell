@@ -46,16 +46,18 @@ Variants {
 
         Process {
             id: updateBrightness
-            command: ["sh", "-c", "brillo -G"]
+            command: ["brightnessctl", "-m"]
             running: true
             stdout: StdioCollector {
                 onStreamFinished: {
                     let text = this.text.trim();
                     if (!text) return;
-                    let val = parseFloat(text);
-                    if (!isNaN(val)) {
-                        brightnessOsdPopup.brightnessLevel = val / 100.0;
-                    }
+                    // brightnessctl -m => "backlight,<name>,<cur>,<max>,<percent>%"
+                    let parts = text.split(",");
+                    if (parts.length < 5) return;
+                    let percentStr = parts[4].trim().replace("%", "");
+                    let val = parseFloat(percentStr);
+                    if (!isNaN(val)) brightnessOsdPopup.brightnessLevel = val / 100.0;
                 }
             }
         }

@@ -34,6 +34,7 @@ Item {
     property var filteredEmojis: []
     property var recentEmojis: []
     property var pendingRecents: []
+    property var emojiDisplayByChar: ({})
     
     // Frecency is now fully managed by the Rust backend.
     property var frecencyScores: BackendDaemon.frecencyScores
@@ -45,8 +46,6 @@ Item {
     property string fileSearchQuery: BackendDaemon.fileSearchQuery
     property var filePreview: BackendDaemon.filePreview
     property string selectedFilePath: ""
-    property var bluetoothDevices: BackendDaemon.bluetoothDevices
-    property var wifiNetworks: BackendDaemon.wifiNetworks
 
     // Terminal emulator to launch apps in
     property string myTerminal: "foot"
@@ -114,12 +113,7 @@ Item {
 
     // Get the display name for an emoji
     function getEmojiDisplay(emojiChar) {
-        for (var i = 0; i < backend.allEmojis.length; i++) {
-            if (backend.allEmojis[i].emoji === emojiChar) {
-                return backend.allEmojis[i].display;
-            }
-        }
-        return "Emoji";
+        return backend.emojiDisplayByChar[emojiChar] || "Emoji";
     }
 
     // --- URL encoding helper ---
@@ -334,6 +328,11 @@ Item {
                     var textBody = this.text.trim();
                     if (!textBody) return;
                     backend.allEmojis = EmojiLogic.parseEmojiJson(textBody);
+                    var displayMap = {};
+                    for (var i = 0; i < backend.allEmojis.length; i++) {
+                        displayMap[backend.allEmojis[i].emoji] = backend.allEmojis[i].display;
+                    }
+                    backend.emojiDisplayByChar = displayMap;
                     loadRecentsProcess.running = true;
                 } catch (e) {
                     console.error("Failed to parse emoji list:", e);
@@ -382,13 +381,6 @@ Item {
                 BackendDaemon.send({"action": "file_search", "query": query});
             } else {
                 BackendDaemon.fileSearchResults = [];
-            }
-            
-            var queryLower = query.toLowerCase();
-            if (queryLower.startsWith("bt") || queryLower.startsWith("bluetooth")) {
-                BackendDaemon.send({"action": "sysctl_list", "kind": "bluetooth"});
-            } else if (queryLower.startsWith("wifi") || queryLower.startsWith("net")) {
-                BackendDaemon.send({"action": "sysctl_list", "kind": "wifi"});
             }
         }
     }
@@ -470,7 +462,7 @@ Item {
         } else if (actionId === "vol_set") {
             Process.run("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)]);
         } else if (actionId === "bl_set") {
-            Process.run("brillo", ["-S", value]);
+            Process.run("brightnessctl", ["set", `${value}%`]);
         } else if (actionId === "shutdown") {
             Process.run("systemctl", ["poweroff"]);
         } else if (actionId === "reboot") {
@@ -478,13 +470,39 @@ Item {
         } else if (actionId === "sleep") {
             Process.run("systemctl", ["suspend"]);
         } else if (actionId === "lock") {
-            Quickshell.executeCommand("qdbus", ["org.quickshell", "/", "Quickshell", "lockscreen.toggle"]);
+            Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] });
         } else if (actionId === "audio_out_hdmi") {
             Process.run("bash", ["-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"]);
         } else if (actionId === "bt_connect") {
             Process.run("bluetoothctl", ["connect", value]);
         } else if (actionId === "wifi_connect") {
             Process.run("nmcli", ["device", "wifi", "connect", value]);
+        } else if (actionId === "night_on") {
+            NightLight.enable();
+        } else if (actionId === "night_off") {
+            NightLight.disable();
+        } else if (actionId === "night_toggle") {
+            NightLight.toggle();
+        } else if (actionId === "night_set") {
+            NightLight.setIntensity(value);
+            if (!NightLight.enabled) NightLight.enable();
+        } else if (actionId === "ss_fullscreen") {
+            Screenshot.finishFullscreen();
+        } else if (actionId === "ss_area") {
+            Screenshot.finishArea();
+        } else if (actionId === "ss_window") {
+            Screenshot.finishWindow();
+        } else if (actionId === "ss_menu") {
+            Screenshot.take_menu();
+        } else if (actionId === "rec_fullscreen") {
+            ScreenRecord.startFullscreen();
+        } else if (actionId === "rec_area") {
+            ScreenRecord.startArea();
+        } else if (actionId === "rec_stop") {
+            ScreenRecord.stop();
+        } else if (actionId === "rec_audio_toggle") {
+            ScreenRecord.toggleAudio();
+            return;
         }
         backend.closeMenuRequested();
     }

@@ -5,7 +5,12 @@ import qs.services
 
 Item {
     id: root
-    
+
+    property bool forceLauncherMode: false
+    property string filterQuery: ""
+    property int selectedIndex: 0
+    property int selectedTrackIndex: 0
+
     onVisibleChanged: {
         if (visible && !BackendDaemon.musicLibrary) {
             BackendDaemon.send({action: "music_library"});
@@ -14,12 +19,13 @@ Item {
 
     property var library: BackendDaemon.musicLibrary ? BackendDaemon.musicLibrary.albums : []
     property var selectedAlbum: null
-    
+
     property string searchQuery: ""
+    readonly property string effectiveSearchQuery: forceLauncherMode ? filterQuery : searchQuery
     property var filteredAlbums: {
         if (!library) return [];
-        if (searchQuery === "") return library;
-        let q = searchQuery.toLowerCase();
+        if (effectiveSearchQuery === "") return library;
+        let q = effectiveSearchQuery.toLowerCase();
         let res = [];
         for (let i = 0; i < library.length; i++) {
             let album = library[i];
@@ -38,6 +44,128 @@ Item {
         }
         return res;
     }
+
+    readonly property real estimatedSelectedY: {
+        var base = BackendDaemon.musicState.hasPlayer ? 156 : 0;
+        if (selectedAlbum !== null)
+            return base + 280 + selectedTrackIndex * 52;
+        return base + selectedIndex * 72;
+    }
+
+    function scoreMatch(text, query) {
+        if (!text)
+            return -1;
+        var textLower = text.toString().toLowerCase();
+        var queryLower = query.toLowerCase();
+        if (textLower === queryLower)
+            return 1000;
+        if (textLower.startsWith(queryLower))
+            return 800;
+        var words = textLower.split(/[\s\-_]+/);
+        for (var i = 0; i < words.length; i++) {
+            if (words[i].startsWith(queryLower))
+                return 600;
+        }
+        if (query.length >= 3 && textLower.indexOf(queryLower) !== -1)
+            return 200;
+        return -1;
+    }
+
+    function clampSelectedIndex() {
+        if (selectedAlbum !== null) {
+            if (!selectedAlbum.tracks || selectedAlbum.tracks.length === 0)
+                selectedTrackIndex = 0;
+            else if (selectedTrackIndex >= selectedAlbum.tracks.length)
+                selectedTrackIndex = selectedAlbum.tracks.length - 1;
+            else if (selectedTrackIndex < 0)
+                selectedTrackIndex = 0;
+            return;
+        }
+        if (filteredAlbums.length === 0)
+            selectedIndex = 0;
+        else if (selectedIndex >= filteredAlbums.length)
+            selectedIndex = filteredAlbums.length - 1;
+        else if (selectedIndex < 0)
+            selectedIndex = 0;
+    }
+
+    function incrementSelection() {
+        if (selectedAlbum !== null) {
+            if (!selectedAlbum.tracks || selectedAlbum.tracks.length === 0)
+                return;
+            selectedTrackIndex = (selectedTrackIndex + 1) % selectedAlbum.tracks.length;
+            return;
+        }
+        if (filteredAlbums.length === 0)
+            return;
+        selectedIndex = (selectedIndex + 1) % filteredAlbums.length;
+    }
+
+    function decrementSelection() {
+        if (selectedAlbum !== null) {
+            if (!selectedAlbum.tracks || selectedAlbum.tracks.length === 0)
+                return;
+            selectedTrackIndex = selectedTrackIndex <= 0
+                ? selectedAlbum.tracks.length - 1
+                : selectedTrackIndex - 1;
+            return;
+        }
+        if (filteredAlbums.length === 0)
+            return;
+        selectedIndex = selectedIndex <= 0 ? filteredAlbums.length - 1 : selectedIndex - 1;
+    }
+
+    function findTopPlayMatch(query) {
+        if (!query || !library)
+            return null;
+        var best = null;
+        var bestScore = -1;
+        for (var m = 0; m < library.length; m++) {
+            var album = library[m];
+            for (var t = 0; t < album.tracks.length; t++) {
+                var track = album.tracks[t];
+                var trackScore = Math.max(scoreMatch(track.title, query), scoreMatch(album.artist, query));
+                if (trackScore > bestScore) {
+                    bestScore = trackScore;
+                    best = { type: "track", album: album, trackIndex: t };
+                }
+            }
+            var albumScore = Math.max(scoreMatch(album.title, query), scoreMatch(album.artist, query));
+            if (albumScore > bestScore) {
+                bestScore = albumScore;
+                best = { type: "album", album: album, trackIndex: 0 };
+            }
+        }
+        return bestScore >= 0 ? best : null;
+    }
+
+    function activateTopMatch() {
+        var q = filterQuery.trim();
+        if (q === "")
+            return activateSelected();
+        var match = findTopPlayMatch(q);
+        if (!match)
+            return false;
+        MusicService.playTrack(match.album, match.trackIndex);
+        return true;
+    }
+
+    function activateSelected() {
+        if (selectedAlbum !== null) {
+            if (!selectedAlbum.tracks || selectedAlbum.tracks.length === 0)
+                return false;
+            MusicService.playTrack(selectedAlbum, selectedTrackIndex);
+            return true;
+        }
+        if (filteredAlbums.length === 0)
+            return false;
+        MusicService.playTrack(filteredAlbums[selectedIndex], 0);
+        return true;
+    }
+
+    onFilterQueryChanged: selectedIndex = 0
+    onFilteredAlbumsChanged: clampSelectedIndex()
+    onSelectedAlbumChanged: selectedTrackIndex = 0
 
     // Helper: format seconds to m:ss
     function formatTime(secs) {
@@ -336,14 +464,18 @@ Item {
                 onTextChanged: root.searchQuery = text
             }
         }
-        visible: root.selectedAlbum === null
+        visible: root.selectedAlbum === null && !root.forceLauncherMode
     }
 
     // List: Albums
     ListView {
         id: list
-        anchors.top: searchBar.bottom
-        anchors.topMargin: 16
+        anchors.top: root.forceLauncherMode
+            ? (nowPlayingInfo.visible ? nowPlayingInfo.bottom : parent.top)
+            : searchBar.bottom
+        anchors.topMargin: root.forceLauncherMode
+            ? (nowPlayingInfo.visible ? 16 : 0)
+            : 16
         anchors.bottom: controlsBar.top
         anchors.bottomMargin: 16
         width: parent.width
@@ -353,14 +485,41 @@ Item {
         visible: root.selectedAlbum === null
         
         model: root.filteredAlbums
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 24
+            visible: root.filteredAlbums.length === 0 && root.effectiveSearchQuery !== ""
+            text: "No matching songs"
+            color: Theme.on_surface_variant
+            font.family: "Google Sans"
+            font.pixelSize: 14
+        }
         
         delegate: Rectangle {
             id: albumDelegate
             width: ListView.view.width
             height: 64
             radius: 16
-            color: delegateMouse.containsMouse ? Theme.surface_variant : "transparent"
+            property bool isKeyboardSelected: root.forceLauncherMode && index === root.selectedIndex
+            color: isKeyboardSelected
+                ? Theme.secondary_container
+                : (delegateMouse.containsMouse ? Theme.surface_variant : "transparent")
             Behavior on color { ColorAnimation { duration: 150 } }
+
+            Rectangle {
+                width: 4
+                height: isKeyboardSelected ? parent.height * 0.5 : 0
+                opacity: isKeyboardSelected ? 1.0 : 0.0
+                anchors.left: parent.left
+                anchors.leftMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 2
+                color: Theme.primary
+                Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutQuart } }
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
             
             Row {
                 anchors.fill: parent
@@ -594,9 +753,24 @@ Item {
                 width: ListView.view.width
                 height: 48
                 radius: 12
-                color: trackMouse.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.1) : "transparent"
-                
                 property bool isThisPlaying: BackendDaemon.musicState.title !== "" && BackendDaemon.musicState.title === modelData.title
+                property bool isKeyboardSelected: root.forceLauncherMode && index === root.selectedTrackIndex
+                color: isKeyboardSelected
+                    ? Theme.secondary_container
+                    : (trackMouse.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.1) : "transparent")
+
+                Rectangle {
+                    width: 4
+                    height: isKeyboardSelected ? parent.height * 0.5 : 0
+                    opacity: isKeyboardSelected ? 1.0 : 0.0
+                    anchors.left: parent.left
+                    anchors.leftMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: 2
+                    color: Theme.primary
+                    Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutQuart } }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
                 
                 Row {
                     anchors.fill: parent

@@ -117,8 +117,8 @@ Item {
         scale: itemMouseArea.pressed ? 0.98 : (delegateRoot.isSelected || delegateRoot.isHovered ? 1.015 : 1.0)
         Behavior on scale {
             NumberAnimation {
-                duration: 200
-                easing.type: Easing.OutBack
+                duration: 120
+                easing.type: Easing.OutCubic
             }
         }
 

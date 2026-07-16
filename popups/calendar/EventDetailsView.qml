@@ -24,7 +24,7 @@ Item {
     Rectangle {
         id: maskShape
         anchors.fill: parent
-        radius: 28
+        radius: 20
         visible: false
         layer.enabled: true
     }
@@ -40,7 +40,7 @@ Item {
         id: bgRect
         anchors.fill: parent
         color: Theme.surface_container_highest
-        radius: 28
+        radius: 20
         clip: true
         
         layer.enabled: true

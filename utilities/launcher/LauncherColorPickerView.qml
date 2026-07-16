@@ -130,17 +130,51 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        id: previewSwatch
+                    Flow {
+                        id: shadesList
                         anchors.top: headerCol.bottom
                         anchors.topMargin: 10
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
-                        radius: 16
-                        color: root.selectedColor
-                        border.color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.14)
-                        border.width: 1
+                        spacing: 8
+                        clip: true
+
+                        Repeater {
+                            model: [
+                                Qt.hsva(root.hue / 360, root.saturation, 0.15, 1),
+                                Qt.hsva(root.hue / 360, root.saturation, 0.30, 1),
+                                Qt.hsva(root.hue / 360, root.saturation, 0.45, 1),
+                                Qt.hsva(root.hue / 360, root.saturation, 0.65, 1),
+                                Qt.hsva(root.hue / 360, root.saturation, 0.85, 1),
+                                Qt.hsva(root.hue / 360, root.saturation * 0.8, 1.0, 1),
+                                Qt.hsva(root.hue / 360, root.saturation * 0.6, 1.0, 1),
+                                Qt.hsva(root.hue / 360, root.saturation * 0.4, 1.0, 1),
+                                Qt.hsva(root.hue / 360, root.saturation * 0.2, 1.0, 1),
+                                Qt.hsva(root.hue / 360, 0.05, 1.0, 1)
+                            ]
+                            delegate: Rectangle {
+                                property color shadeColor: modelData
+                                width: (shadesList.width - 4 * 8) / 5
+                                height: (shadesList.height - 8) / 2
+                                radius: 8
+                                color: shadeColor
+                                border.color: String(root.selectedColor) === String(shadeColor) ? Theme.primary : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.14)
+                                border.width: String(root.selectedColor) === String(shadeColor) ? 2 : 1
+                                
+                                MouseArea {
+                                    id: shadeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.setFromColor(shadeColor);
+                                    }
+                                }
+                                scale: shadeMouse.pressed ? 0.92 : (shadeMouse.containsMouse ? 1.06 : 1)
+                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+                            }
+                        }
                     }
                 }
 

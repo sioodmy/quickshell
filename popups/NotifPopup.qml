@@ -66,6 +66,27 @@ Variants {
             }
         }
 
+        Connections {
+            target: ScreenRecord
+            function onActiveChanged() {
+                if (ScreenRecord.active) {
+                    let found = false;
+                    for (let i = 0; i < notifModel.count; i++) {
+                        if (notifModel.get(i).notifType === "recording") {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        notifModel.insert(0, {
+                            notifId: "recording_id",
+                            notifType: "recording"
+                        });
+                    }
+                }
+            }
+        }
+
         function disposeNotification(notificationId) {
             let idStr = notificationId.toString();
             let temp = {};
@@ -80,6 +101,8 @@ Variants {
                 if (notifModel.get(i).notifId === idStr) {
                     if (notifModel.get(i).notifType === "screenshot") {
                         Screenshot.active = false;
+                    } else if (notifModel.get(i).notifType === "recording") {
+                        ScreenRecord.active = false;
                     }
                     notifModel.remove(i, 1);
                     return;
@@ -306,11 +329,12 @@ Variants {
 
                     readonly property string applicationName: {
                         if (notifType === "screenshot") return "Screenshot";
+                        if (notifType === "recording") return "Recording";
                         if (!notificationEntry) return "Notification";
                         return notificationEntry.appName || "Notification";
                     }
                     readonly property var applicationIcon: {
-                        if (notifType === "screenshot") return "";
+                        if (notifType === "screenshot" || notifType === "recording") return "";
                         if (!notificationEntry) return "";
                         if (notificationEntry.image && notificationEntry.image.length > 0) return notificationEntry.image;
                         if (notificationEntry.appIcon && notificationEntry.appIcon.length > 0) return Quickshell.iconPath(notificationEntry.appIcon, true) || "";
@@ -368,6 +392,15 @@ Variants {
                         }
                     }
 
+                    Connections {
+                        target: ScreenRecord
+                        function onActiveChanged() {
+                            if (notifType === "recording" && !ScreenRecord.active) {
+                                cardDelegate.slideOut();
+                            }
+                        }
+                    }
+
                     NumberAnimation {
                         id: expiryAnim
                         target: cardDelegate
@@ -394,6 +427,8 @@ Variants {
 
                             if (notifType === "screenshot") {
                                 Screenshot.dismiss();
+                            } else if (notifType === "recording") {
+                                ScreenRecord.dismiss();
                             } else if (notificationEntry && typeof notificationEntry.expire === "function") {
                                 notificationEntry.expire();
                             }
@@ -475,7 +510,7 @@ Variants {
                                 if (cardDelegate.slidingOut)
                                     return;
 
-                                if (notifType === "screenshot")
+                                if (notifType === "screenshot" || notifType === "recording")
                                     return;
 
                                 let invoked = false;
@@ -517,17 +552,17 @@ Variants {
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: width / 2
-                                        color: Theme.primary_container
-                                        visible: notifType === "screenshot" || !cardDelegate.applicationIcon
+                                        color: notifType === "recording" ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22) : Theme.primary_container
+                                        visible: notifType === "screenshot" || notifType === "recording" || !cardDelegate.applicationIcon
 
                                         Text {
                                             anchors.centerIn: parent
-                                            text: notifType === "screenshot" ? "󰹑" : "!"
-                                            color: Theme.on_primary_container
+                                            text: notifType === "screenshot" ? "󰹑" : (notifType === "recording" ? "󰕧" : "!")
+                                            color: notifType === "recording" ? Theme.critical : Theme.on_primary_container
                                             font {
-                                                family: notifType === "screenshot" ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
+                                                family: (notifType === "screenshot" || notifType === "recording") ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
                                                 pixelSize: 13
-                                                bold: notifType !== "screenshot"
+                                                bold: notifType !== "screenshot" && notifType !== "recording"
                                             }
                                         }
                                     }
@@ -546,7 +581,7 @@ Variants {
                                         anchors.fill: parent
                                         source: cardDelegate.applicationIcon
                                         fillMode: Image.PreserveAspectCrop
-                                        visible: !!cardDelegate.applicationIcon && notifType !== "screenshot"
+                                        visible: !!cardDelegate.applicationIcon && notifType !== "screenshot" && notifType !== "recording"
                                         layer.enabled: true
                                         layer.smooth: true
                                         layer.effect: MultiEffect {
@@ -679,6 +714,11 @@ Variants {
                                                 return;
                                             }
 
+                                            if (notifType === "recording") {
+                                                ScreenRecord.dismiss();
+                                                return;
+                                            }
+
                                             if (notificationEntry && typeof notificationEntry.dismiss === "function") {
                                                 notificationEntry.dismiss();
                                             }
@@ -689,7 +729,13 @@ Variants {
 
                             Loader {
                                 width: parent.width
-                                sourceComponent: notifType === "screenshot" ? screenshotContent : notificationContent
+                                sourceComponent: {
+                                    if (notifType === "screenshot")
+                                        return screenshotContent;
+                                    if (notifType === "recording")
+                                        return recordingContent;
+                                    return notificationContent;
+                                }
                             }
                         }
                     }
@@ -872,6 +918,185 @@ Variants {
                                     done: Screenshot.wasOcred
                                     busy: Screenshot.ocring
                                     onTriggered: Screenshot.ocr()
+                                }
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: recordingContent
+                        Column {
+                            width: layoutContent.width
+                            spacing: 10
+
+                            Rectangle {
+                                width: parent.width
+                                height: Math.min(width * 0.5625, 160)
+                                radius: 16
+                                color: Theme.surface_container_high
+                                clip: true
+
+                                Image {
+                                    id: recPreviewImg
+                                    anchors.fill: parent
+                                    source: ScreenRecord.thumbPath ? ("file://" + ScreenRecord.thumbPath + "?t=" + ScreenRecord.fileName) : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: false
+                                    visible: status === Image.Ready
+
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        maskEnabled: true
+                                        maskSource: recPreviewMask
+                                        maskThresholdMin: 0.5
+                                        maskSpreadAtMin: 1.0
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: recPreviewMask
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    visible: false
+                                    layer.enabled: true
+                                }
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    visible: recPreviewImg.status !== Image.Ready
+
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: "󰕧"
+                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 28 }
+                                        color: Theme.on_surface_variant
+                                    }
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: parent.parent.width - 24
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: ScreenRecord.fileName
+                                        elide: Text.ElideMiddle
+                                        font { family: "Google Sans"; pixelSize: 12 }
+                                        color: Theme.on_surface_variant
+                                    }
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: 10
+                                    width: Math.min(fileChipText.implicitWidth + 16, parent.width - 20)
+                                    height: 24
+                                    radius: 12
+                                    color: Qt.rgba(0, 0, 0, 0.55)
+                                    visible: recPreviewImg.status === Image.Ready
+
+                                    Text {
+                                        id: fileChipText
+                                        anchors.centerIn: parent
+                                        width: parent.width - 12
+                                        text: ScreenRecord.fileName
+                                        elide: Text.ElideMiddle
+                                        color: "#ffffff"
+                                        font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                    }
+                                }
+                            }
+
+                            Grid {
+                                width: parent.width
+                                columns: 2
+                                spacing: 8
+
+                                component RecActionPill: Rectangle {
+                                    id: recPill
+                                    property string icon
+                                    property string label
+                                    property bool done: false
+                                    property bool danger: false
+
+                                    width: (parent.width - 8) / 2
+                                    height: 36
+                                    radius: 18
+                                    color: {
+                                        if (done) return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18);
+                                        if (danger && recPillMouse.containsMouse)
+                                            return Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22);
+                                        if (recPillMouse.containsMouse)
+                                            return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14);
+                                        return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
+                                    }
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    signal triggered()
+
+                                    scale: recPillMouse.pressed ? 0.94 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                                    Row {
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: recPill.done ? "󰄬" : recPill.icon
+                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                            color: {
+                                                if (recPill.done) return Theme.primary;
+                                                if (recPill.danger) return Theme.critical;
+                                                return Theme.on_surface_variant;
+                                            }
+                                        }
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: recPill.label
+                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                                            color: {
+                                                if (recPill.done) return Theme.primary;
+                                                if (recPill.danger) return Theme.critical;
+                                                return Theme.on_surface;
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: recPillMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: recPill.triggered()
+                                    }
+                                }
+
+                                Timer {
+                                    id: recCloseDelay
+                                    interval: 400
+                                    onTriggered: ScreenRecord.dismiss()
+                                }
+
+                                RecActionPill {
+                                    icon: "󰈈"
+                                    label: "Open"
+                                    done: ScreenRecord.wasOpened
+                                    onTriggered: {
+                                        ScreenRecord.openFile();
+                                        recCloseDelay.start();
+                                    }
+                                }
+
+                                RecActionPill {
+                                    icon: "󰆴"
+                                    label: "Remove"
+                                    danger: true
+                                    done: ScreenRecord.wasRemoved
+                                    onTriggered: {
+                                        ScreenRecord.removeFile();
+                                        recCloseDelay.start();
+                                    }
                                 }
                             }
                         }

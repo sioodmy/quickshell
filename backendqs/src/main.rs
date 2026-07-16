@@ -5,12 +5,12 @@ mod dictionary;
 mod agenda;
 mod lyrics;
 mod state;
-mod cliphist;
 mod weather;
 mod frecency;
 mod filesearch;
 mod pdfpreview;
 mod sysctl;
+mod cliphist;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -62,8 +62,6 @@ enum DaemonRequest {
     WeatherRefresh,
     #[serde(rename = "agenda_refresh")]
     AgendaRefresh,
-    #[serde(rename = "cliphist")]
-    Cliphist,
     #[serde(rename = "music_library")]
     MusicLibrary,
     #[serde(rename = "music_play_album")]
@@ -94,6 +92,14 @@ enum DaemonRequest {
     FileOpen { path: String },
     #[serde(rename = "sysctl_list")]
     SysctlList { kind: String },
+    #[serde(rename = "cliphist_list")]
+    CliphistList,
+    #[serde(rename = "cliphist_copy")]
+    CliphistCopy { raw: String, image_path: Option<String> },
+    #[serde(rename = "cliphist_delete")]
+    CliphistDelete { raw: String },
+    #[serde(rename = "cliphist_wipe")]
+    CliphistWipe,
 }
 
 #[derive(Serialize)]
@@ -111,8 +117,6 @@ enum DaemonEvent {
     WeatherResult { status: String, error: Option<String>, data: Option<weather::WeatherData> },
     #[serde(rename = "agenda_update")]
     AgendaUpdate { data: Vec<agenda::AgendaItem> },
-    #[serde(rename = "cliphist_result")]
-    CliphistResult { status: String, error: Option<String>, data: Vec<cliphist::CliphistItem> },
     #[serde(rename = "music_library_result")]
     MusicLibraryResult { status: String, error: Option<String>, library: Option<music::Library> },
     #[serde(rename = "music_state_update")]
@@ -125,6 +129,12 @@ enum DaemonEvent {
     FilePreviewResult(filesearch::PreviewResult),
     #[serde(rename = "sysctl_list_result")]
     SysctlListResult { kind: String, devices: Vec<sysctl::DeviceItem> },
+    #[serde(rename = "cliphist_list_result")]
+    CliphistListResult { items: Vec<cliphist::ClipItem> },
+    #[serde(rename = "cliphist_ocr_update")]
+    CliphistOcrUpdate { id: String, ocr_text: String, search_text: String },
+    #[serde(rename = "cliphist_action_done")]
+    CliphistActionDone { action: String },
 }
 
 #[derive(Serialize)]
@@ -250,6 +260,11 @@ async fn main() -> Result<()> {
                 }).await;
             }
 
+            // Clipboard history state + a single-permit gate so at most one
+            // tesseract OCR pass runs at a time (battery friendly).
+            let cliphist_state = cliphist::new_state();
+            let ocr_sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+
             // Build file search index in background
             let file_index = filesearch::new_index();
             {
@@ -287,6 +302,8 @@ async fn main() -> Result<()> {
                 let notes_dir = notes_dir.clone();
                 let frecency_state = frecency_state.clone();
                 let file_index = file_index.clone();
+                let cliphist_state = cliphist_state.clone();
+                let ocr_sem = ocr_sem.clone();
 
                 tokio::spawn(async move {
                     match req {
@@ -370,17 +387,6 @@ async fn main() -> Result<()> {
                         DaemonRequest::AgendaRefresh => {
                             if let Ok(items) = agenda::parse_directory(&notes_dir) {
                                 let _ = tx.send(DaemonEvent::AgendaUpdate { data: items }).await;
-                            }
-                        }
-                        DaemonRequest::Cliphist => {
-                            let res = tokio::task::spawn_blocking(move || cliphist::get_history()).await.unwrap();
-                            match res {
-                                Ok(data) => {
-                                    let _ = tx.send(DaemonEvent::CliphistResult { status: "ok".into(), error: None, data }).await;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(DaemonEvent::CliphistResult { status: "error".into(), error: Some(e.to_string()), data: vec![] }).await;
-                                }
                             }
                         }
                         DaemonRequest::MusicLibrary => {
@@ -482,6 +488,22 @@ async fn main() -> Result<()> {
                             };
                             let _ = tx.send(DaemonEvent::SysctlListResult { kind, devices }).await;
                         }
+                        DaemonRequest::CliphistList => {
+                            handle_cliphist_list(cliphist_state, ocr_sem, tx).await;
+                        }
+                        DaemonRequest::CliphistCopy { raw, image_path } => {
+                            let img = image_path.unwrap_or_default();
+                            let _ = tokio::task::spawn_blocking(move || cliphist::copy_item(&raw, &img)).await;
+                            let _ = tx.send(DaemonEvent::CliphistActionDone { action: "copy".into() }).await;
+                        }
+                        DaemonRequest::CliphistDelete { raw } => {
+                            let _ = tokio::task::spawn_blocking(move || cliphist::delete_item(&raw)).await;
+                            handle_cliphist_list(cliphist_state, ocr_sem, tx).await;
+                        }
+                        DaemonRequest::CliphistWipe => {
+                            let _ = tokio::task::spawn_blocking(|| cliphist::wipe()).await;
+                            handle_cliphist_list(cliphist_state, ocr_sem, tx).await;
+                        }
                     }
                 });
             }
@@ -489,6 +511,62 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn handle_cliphist_list(
+    state: cliphist::SharedState,
+    ocr_sem: std::sync::Arc<tokio::sync::Semaphore>,
+    tx: tmpsc::Sender<DaemonEvent>,
+) {
+    let state_for_list = state.clone();
+    let res = tokio::task::spawn_blocking(move || cliphist::get_history(&state_for_list)).await;
+
+    let (items, jobs) = match res {
+        Ok(Ok(v)) => v,
+        Ok(Err(e)) => {
+            eprintln!("cliphist list error: {e}");
+            (Vec::new(), Vec::new())
+        }
+        Err(e) => {
+            eprintln!("cliphist list join error: {e}");
+            (Vec::new(), Vec::new())
+        }
+    };
+
+    let _ = tx.send(DaemonEvent::CliphistListResult { items }).await;
+
+    // Kick off any pending OCR passes. They are serialized by the semaphore so
+    // only one tesseract process runs at a time; results stream back as they
+    // finish and are cached persistently for future opens.
+    for job in jobs {
+        let sem = ocr_sem.clone();
+        let st = state.clone();
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let _permit = match sem.acquire().await {
+                Ok(p) => p,
+                Err(_) => return,
+            };
+            let path = job.image_path.clone();
+            let ocr = tokio::task::spawn_blocking(move || cliphist::run_ocr(&path))
+                .await
+                .ok()
+                .flatten();
+            match ocr {
+                Some(text) => {
+                    cliphist::store_ocr(&st, &job.hash, &text);
+                    let _ = tx
+                        .send(DaemonEvent::CliphistOcrUpdate {
+                            id: job.id,
+                            search_text: text.to_lowercase(),
+                            ocr_text: text,
+                        })
+                        .await;
+                }
+                None => cliphist::clear_in_progress(&st, &job.hash),
+            }
+        });
+    }
 }
 
 async fn handle_math(query: String, out: Option<String>, color: Option<String>, tx: tmpsc::Sender<DaemonEvent>) {

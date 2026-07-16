@@ -6,7 +6,6 @@ import "dock"
 import "lock"
 import "sidebar"
 import "desktop"
-import qs.utilities.clipboard
 
 import qs.utilities.launcher
 import qs.popups
@@ -26,10 +25,7 @@ ShellRoot {
         id: desktopBezels
     }
 
-    // Animated Background Wallpaper
-    Wallpaper {
-        id: wallpaper
-    }
+
 
     // Session lock screen
     Lock {
@@ -44,11 +40,6 @@ ShellRoot {
     // Floating notification overlay
     NotifPopup {
         id: notificationOverlay
-    }
-
-    // Clipboard
-    Clipboard {
-        id: clipboardWindow
     }
 
     // Application Launcher
@@ -74,6 +65,10 @@ ShellRoot {
 
     ScreenshotOverlay {
         id: screenshotOverlay
+    }
+
+    RecordingIndicator {
+        id: recordingIndicator
     }
 
     // Live synced lyrics on desktop (wallpaper)

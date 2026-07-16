@@ -36,8 +36,8 @@ Item {
     Rectangle {
         id: iconBg
         anchors.centerIn: parent
-        width: 32
-        height: 32
+        width: root.width
+        height: root.width
         radius: width / 2
         
         // Transparent by default, highlight on hover

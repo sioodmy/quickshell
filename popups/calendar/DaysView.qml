@@ -5,6 +5,10 @@ import qs.services
 Item {
     id: root
 
+    readonly property int cellSize: 38
+    readonly property int cellSpacing: 6
+    readonly property int cellStride: cellSize + cellSpacing
+
     property alias model: daysRepeater.model
     property int activeCellIndex
     property int lastValidIndex
@@ -18,24 +22,23 @@ Item {
 
     Column {
         id: gridContainer
-        spacing: 12
+        spacing: 10
         anchors.centerIn: parent
 
-        // Days of week header
         Grid {
             columns: 7
-            spacing: 8
+            spacing: root.cellSpacing
             Repeater {
                 model: ["M", "T", "W", "T", "F", "S", "S"]
                 Item {
-                    width: 46
-                    height: 24
+                    width: root.cellSize
+                    height: 20
                     Text {
                         anchors.centerIn: parent
                         text: modelData
                         color: Theme.on_surface_variant
                         font.family: "Google Sans"
-                        font.pointSize: 12
+                        font.pointSize: 10
                         font.weight: Font.Medium
                     }
                 }
@@ -46,15 +49,14 @@ Item {
             width: daysGrid.implicitWidth
             height: daysGrid.implicitHeight
 
-            // Sliding Selection Circle
             Rectangle {
-                width: 46
-                height: 46
-                radius: 23
+                width: root.cellSize
+                height: root.cellSize
+                radius: root.cellSize / 2
                 color: Theme.primary
                 opacity: root.activeCellIndex !== -1 ? 1 : 0
-                x: (root.lastValidIndex % 7) * 54
-                y: Math.floor(root.lastValidIndex / 7) * 54
+                x: (root.lastValidIndex % 7) * root.cellStride
+                y: Math.floor(root.lastValidIndex / 7) * root.cellStride
 
                 Behavior on x {
                     NumberAnimation {
@@ -80,27 +82,27 @@ Item {
             Grid {
                 id: daysGrid
                 columns: 7
-                spacing: 8
+                spacing: root.cellSpacing
 
                 Repeater {
                     id: daysRepeater
                     Rectangle {
                         id: dayCell
-                        width: 46
-                        height: 46
-                        radius: 23
+                        width: root.cellSize
+                        height: root.cellSize
+                        radius: root.cellSize / 2
                         readonly property bool isSelectedDay: (model.isCurrentMonth && parseInt(model.dayText) === root.selectedDay && root.displayMonth === root.selectedMonth && root.displayYear === root.selectedYear)
 
-                        // Check if this day has org events
                         readonly property bool hasEvents: {
-                            if (!model.isCurrentMonth) return false;
+                            if (!model.isCurrentMonth)
+                                return false;
                             return OrgAgenda.hasEventsOnDate(root.displayYear, root.displayMonth, parseInt(model.dayText));
                         }
 
                         color: (dayMouse.containsMouse && model.isCurrentMonth && !isSelectedDay) ? Theme.surface_variant : "transparent"
                         border.color: model.isToday && !isSelectedDay ? Theme.primary : "transparent"
-                        border.width: model.isToday && !isSelectedDay ? 2 : 0
-                        scale: dayMouse.pressed && model.isCurrentMonth ? 0.90 : (dayMouse.containsMouse && model.isCurrentMonth ? 1.1 : 1.0)
+                        border.width: model.isToday && !isSelectedDay ? 1.5 : 0
+                        scale: dayMouse.pressed && model.isCurrentMonth ? 0.90 : (dayMouse.containsMouse && model.isCurrentMonth ? 1.08 : 1.0)
 
                         Behavior on scale {
                             NumberAnimation {
@@ -117,10 +119,10 @@ Item {
 
                         Text {
                             anchors.centerIn: parent
-                            anchors.verticalCenterOffset: dayCell.hasEvents ? -3 : 0
+                            anchors.verticalCenterOffset: dayCell.hasEvents ? -2 : 0
                             text: model.dayText
                             font.family: "Google Sans"
-                            font.pointSize: 13
+                            font.pointSize: 11
                             font.weight: dayCell.isSelectedDay || model.isToday ? Font.Bold : Font.Medium
                             color: dayCell.isSelectedDay ? Theme.on_primary : (model.isToday ? Theme.primary : (!model.isCurrentMonth ? Theme.outline : Theme.on_surface))
                             Behavior on color {
@@ -136,23 +138,26 @@ Item {
                             }
                         }
 
-                        // Event dot indicator
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.bottom
-                            anchors.bottomMargin: 6
-                            width: 5
-                            height: 5
-                            radius: 3
+                            anchors.bottomMargin: 5
+                            width: 4
+                            height: 4
+                            radius: 2
                             visible: dayCell.hasEvents
                             color: dayCell.isSelectedDay ? Theme.on_primary : Theme.primary
                             opacity: dayCell.hasEvents ? 1 : 0
 
                             Behavior on opacity {
-                                NumberAnimation { duration: 200 }
+                                NumberAnimation {
+                                    duration: 200
+                                }
                             }
                             Behavior on color {
-                                ColorAnimation { duration: 150 }
+                                ColorAnimation {
+                                    duration: 150
+                                }
                             }
                         }
 
@@ -173,4 +178,3 @@ Item {
         }
     }
 }
-

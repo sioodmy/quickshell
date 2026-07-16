@@ -8,6 +8,12 @@ Column {
     spacing: 8
 
     property bool expanded: false
+    property bool forceExpanded: false
+    property string filterQuery: ""
+    property int selectedIndex: 0
+    property int connectingIndex: -1
+
+    readonly property bool isExpanded: forceExpanded || expanded
 
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property var connectedDevices: {
@@ -27,9 +33,104 @@ Column {
         });
     }
 
+    function deviceFilterScore(device, query) {
+        var name = (device.name || device.address || "").toLowerCase();
+        if (name === query)
+            return 1000;
+        if (name.startsWith(query))
+            return 800;
+        var words = name.split(/[\s\-_]+/);
+        for (var i = 0; i < words.length; i++) {
+            if (words[i].startsWith(query))
+                return 600;
+        }
+        if (query.length >= 2 && name.indexOf(query) !== -1)
+            return 200;
+        return -1;
+    }
+
+    readonly property var filteredDevices: {
+        var q = filterQuery.trim().toLowerCase();
+        if (!q)
+            return sortedDevices;
+        var scored = [];
+        for (var i = 0; i < sortedDevices.length; i++) {
+            var score = deviceFilterScore(sortedDevices[i], q);
+            if (score >= 0)
+                scored.push({ device: sortedDevices[i], score: score });
+        }
+        scored.sort((a, b) => {
+            if (b.score !== a.score)
+                return b.score - a.score;
+            if (a.device.connected !== b.device.connected)
+                return b.device.connected - a.device.connected;
+            return (a.device.name || a.device.address).localeCompare(b.device.name || b.device.address);
+        });
+        return scored.map(function(entry) { return entry.device; });
+    }
+
+    readonly property var topMatch: filteredDevices.length > 0 ? filteredDevices[0] : null
+    readonly property var selectedDevice: filteredDevices.length > 0 && selectedIndex >= 0 && selectedIndex < filteredDevices.length
+        ? filteredDevices[selectedIndex] : null
+    readonly property real estimatedSelectedY: 72 + selectedIndex * 48
+
+    function clampSelectedIndex() {
+        if (filteredDevices.length === 0)
+            selectedIndex = 0;
+        else if (selectedIndex >= filteredDevices.length)
+            selectedIndex = filteredDevices.length - 1;
+        else if (selectedIndex < 0)
+            selectedIndex = 0;
+    }
+
+    function incrementSelection() {
+        if (filteredDevices.length === 0)
+            return;
+        selectedIndex = (selectedIndex + 1) % filteredDevices.length;
+    }
+
+    function decrementSelection() {
+        if (filteredDevices.length === 0)
+            return;
+        selectedIndex = selectedIndex <= 0 ? filteredDevices.length - 1 : selectedIndex - 1;
+    }
+
+    function activateSelected() {
+        if (!selectedDevice)
+            return false;
+        if (selectedDevice.connected || selectedDevice.pairing)
+            return false;
+        connectingIndex = selectedIndex;
+        if (!selectedDevice.paired)
+            selectedDevice.pair();
+        selectedDevice.connect();
+        return true;
+    }
+
+    function resetConnecting() {
+        connectingIndex = -1;
+    }
+
+    function activateTopMatch() {
+        return activateSelected();
+    }
+
+    onFilterQueryChanged: selectedIndex = 0
+    onFilteredDevicesChanged: clampSelectedIndex()
+
     onExpandedChanged: {
-        if (adapter && adapter.enabled)
+        if (adapter && adapter.enabled && !forceExpanded)
             adapter.discovering = expanded;
+    }
+
+    onForceExpandedChanged: {
+        if (adapter && adapter.enabled && forceExpanded)
+            adapter.discovering = true;
+    }
+
+    Component.onCompleted: {
+        if (adapter && adapter.enabled && forceExpanded)
+            adapter.discovering = true;
     }
 
     // --- Tile header ---
@@ -107,7 +208,7 @@ Column {
             anchors.bottom: parent.bottom
             anchors.right: toggleBt.left
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.expanded = !root.expanded
+            onClicked: if (!root.forceExpanded) root.expanded = !root.expanded
         }
     }
 
@@ -115,11 +216,11 @@ Column {
     Column {
         width: parent.width
         spacing: 4
-        visible: root.expanded && root.adapter && root.adapter.enabled
+        visible: root.isExpanded && root.adapter && root.adapter.enabled
 
         Text {
-            visible: root.sortedDevices.length === 0
-            text: "Searching for devices…"
+            visible: root.filteredDevices.length === 0
+            text: root.filterQuery.trim() ? "No matching devices" : "Searching for devices…"
             color: Theme.on_surface_variant
             font { family: "Google Sans"; pixelSize: 13 }
             leftPadding: 8
@@ -128,23 +229,51 @@ Column {
         }
 
         Repeater {
-            model: root.sortedDevices
+            model: root.filteredDevices
 
             Rectangle {
                 id: devItem
                 required property var modelData
-                property bool open: false
+                required property int index
+                property bool userOpen: false
+                property bool open: root.forceExpanded ? (index === root.selectedIndex) : userOpen
+                property bool isKeyboardSelected: root.forceExpanded && index === root.selectedIndex
+                property bool isConnecting: root.forceExpanded && index === root.connectingIndex
 
                 width: parent.width
                 radius: 16
-                color: modelData.connected
-                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14)
-                    : (rowMouse.containsMouse || devItem.open
-                        ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-                        : "transparent")
+                color: devItem.isConnecting
+                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
+                    : (devItem.isKeyboardSelected
+                        ? Theme.secondary_container
+                        : (modelData.connected
+                            ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14)
+                            : (rowMouse.containsMouse || devItem.open
+                                ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                                : "transparent")))
                 height: col.height
 
                 Behavior on color { ColorAnimation { duration: 150 } }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    color: Theme.primary
+                    opacity: connectingPulse.opacity
+                    visible: devItem.isConnecting
+
+                    QtObject {
+                        id: connectingPulse
+                        property real opacity: 0.12
+                    }
+
+                    SequentialAnimation {
+                        running: devItem.isConnecting
+                        loops: Animation.Infinite
+                        NumberAnimation { target: connectingPulse; property: "opacity"; from: 0.08; to: 0.24; duration: 450; easing.type: Easing.InOutSine }
+                        NumberAnimation { target: connectingPulse; property: "opacity"; from: 0.24; to: 0.08; duration: 450; easing.type: Easing.InOutSine }
+                    }
+                }
 
                 Column {
                     id: col
@@ -160,7 +289,13 @@ Column {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: devItem.open = !devItem.open
+                            onEntered: if (root.forceExpanded) root.selectedIndex = devItem.index
+                            onClicked: {
+                                if (root.forceExpanded)
+                                    root.selectedIndex = devItem.index;
+                                else
+                                    devItem.userOpen = !devItem.userOpen;
+                            }
                         }
 
                         Text {
@@ -169,7 +304,15 @@ Column {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "󰂯"
                             font { family: "JetBrainsMono Nerd Font"; pixelSize: 15 }
-                            color: devItem.modelData.connected ? Theme.primary : Theme.on_surface_variant
+                            color: devItem.isConnecting || devItem.modelData.connected ? Theme.primary : Theme.on_surface_variant
+
+                            RotationAnimation on rotation {
+                                running: devItem.isConnecting
+                                from: 0
+                                to: 360
+                                duration: 1200
+                                loops: Animation.Infinite
+                            }
                         }
 
                         Column {
@@ -183,12 +326,14 @@ Column {
                             Text {
                                 width: parent.width
                                 text: devItem.modelData.name || devItem.modelData.address
-                                color: Theme.on_surface
+                                color: devItem.isKeyboardSelected ? Theme.on_secondary_container : Theme.on_surface
                                 font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
                                 elide: Text.ElideRight
                             }
                             Text {
                                 text: {
+                                    if (devItem.isConnecting)
+                                        return "Connecting…";
                                     if (devItem.modelData.connected)
                                         return devItem.modelData.batteryAvailable
                                             ? "Connected · " + Math.round(devItem.modelData.battery * 100) + "%"
@@ -199,7 +344,10 @@ Column {
                                         return "Paired";
                                     return "Available";
                                 }
-                                color: Theme.on_surface_variant
+                                color: devItem.isConnecting
+                                    ? Theme.primary
+                                    : (devItem.isKeyboardSelected ? Theme.on_secondary_container : Theme.on_surface_variant)
+                                opacity: devItem.isKeyboardSelected && !devItem.isConnecting ? 0.8 : 1.0
                                 font { family: "Google Sans"; pixelSize: 11 }
                             }
                         }

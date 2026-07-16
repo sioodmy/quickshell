@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import Quickshell.Services.Pipewire
 
 import QtQuick
 import QtQuick.Controls
@@ -22,20 +23,65 @@ PanelWindow {
 
     readonly property bool weatherModeActive: ctrl.searchText.trim().toLowerCase() === "weather"
     readonly property bool colorPickerModeActive: ctrl.isColorPickerQuery(ctrl.searchText.trim())
-    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive
+    readonly property var connectivityQuery: parseConnectivityQuery(ctrl.searchText.trim())
+    readonly property var musicQuery: parseMusicQuery(ctrl.searchText.trim())
+    readonly property bool btModeActive: connectivityQuery && connectivityQuery.mode === "bt"
+    readonly property bool wifiModeActive: connectivityQuery && connectivityQuery.mode === "wifi"
+    readonly property bool connectivityModeActive: btModeActive || wifiModeActive
+    readonly property bool musicModeActive: musicQuery !== null
+
+    readonly property var sliderQuery: parseSliderQuery(ctrl.searchText.trim())
+    readonly property bool volSliderActive: sliderQuery && sliderQuery.mode === "vol"
+    readonly property bool blSliderActive: sliderQuery && sliderQuery.mode === "bl"
+    readonly property bool sliderModeActive: volSliderActive || blSliderActive
+    readonly property bool sliderHasValue: sliderModeActive && sliderQuery.value >= 0
+
+    readonly property var nightQuery: parseNightQuery(ctrl.searchText.trim())
+    readonly property bool nightModeActive: nightQuery !== null
+
+    readonly property var clipQuery: parseClipQuery(ctrl.searchText.trim())
+    readonly property bool clipModeActive: clipQuery !== null
+
+    readonly property var ssQuery: parseSsQuery(ctrl.searchText.trim())
+    readonly property bool ssModeActive: ssQuery !== null
+
+    readonly property var recQuery: parseRecQuery(ctrl.searchText.trim())
+    readonly property bool recModeActive: recQuery !== null
+
+    readonly property bool captureModeActive: ssModeActive || recModeActive
+
+    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
+
+    readonly property var pipewireSink: Pipewire.defaultAudioSink
+    PwObjectTracker { objects: launcherWindow.pipewireSink ? [launcherWindow.pipewireSink] : [] }
 
     onHasFileSelectedChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onColorPickerModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+    onNightModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+    onClipModeActiveChanged: {
+        fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0;
+        if (clipModeActive && contentLoader.item)
+            contentLoader.item.refreshClipboard();
+    }
+    onMusicModeActiveChanged: {
+        fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+        if (musicModeActive && !BackendDaemon.musicLibrary)
+            BackendDaemon.send({ action: "music_library" });
+    }
 
     Behavior on fileSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
     }
 
-    color: "transparent"
-    visible: false
+    property real openProgress: 0.0
+    property bool menuOpen: false
+    property string bluetoothConnectedDeviceLabel: ""
 
-    WlrLayershell.layer: WlrLayer.Overlay
+    color: "transparent"
+    visible: menuOpen || openAnim.running || closeAnim.running
+
+    WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: "launcher_overlay"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     exclusiveZone: -1
@@ -47,17 +93,74 @@ PanelWindow {
         right: true
     }
 
+    NumberAnimation {
+        id: openAnim
+        target: launcherWindow
+        property: "openProgress"
+        from: 0; to: 1
+        duration: 200
+        easing.type: Easing.OutCubic
+        onStarted: LauncherState.open = true
+        onFinished: LauncherState.openProgress = 1.0
+    }
+
+    NumberAnimation {
+        id: closeAnim
+        target: launcherWindow
+        property: "openProgress"
+        from: 1; to: 0
+        duration: 150
+        easing.type: Easing.InCubic
+        onFinished: {
+            launcherWindow.menuOpen = false;
+            LauncherState.open = false;
+            LauncherState.openProgress = 0.0;
+        }
+    }
+
+    onOpenProgressChanged: LauncherState.openProgress = openProgress
+
+    // Ensure the notification appears right after the launcher has closed.
+    Timer {
+        id: bluetoothConnectedNotifTimer
+        interval: 170
+        repeat: false
+        running: false
+        onTriggered: {
+            if (!bluetoothConnectedDeviceLabel)
+                return;
+            Quickshell.execDetached({
+                command: [
+                    "notify-send",
+                    "-a", "Quickshell",
+                    "-u", "normal",
+                    "-t", "800",
+                    "Bluetooth",
+                    "Connected to " + bluetoothConnectedDeviceLabel
+                ]
+            });
+            bluetoothConnectedDeviceLabel = "";
+        }
+    }
+
     // Click-away to dismiss
     MouseArea {
         anchors.fill: parent
         onClicked: launcherWindow.closeMenu()
     }
 
-    function scoreMatch(text, query) {
+    // Keep the visible list small — uncapped matches flood ListView with heavy delegates.
+    readonly property int maxEmptyApps: 12
+    readonly property int maxAppResults: 8
+    readonly property int maxMusicResults: 5
+    readonly property int maxFileResults: 8
+    readonly property int maxEmojiResults: 6
+
+    // queryLower must already be lowercased; queryLen avoids re-reading the string.
+    function scoreMatch(text, queryLower, queryLen) {
         if (!text)
             return -1;
         var textLower = text.toString().toLowerCase();
-        var queryLower = query.toLowerCase();
 
         // Exact match
         if (textLower === queryLower)
@@ -75,25 +178,181 @@ PanelWindow {
         }
 
         // single/double letter matches polluting short queries
-        if (query.length >= 3 && textLower.indexOf(queryLower) !== -1)
+        if (queryLen >= 3 && textLower.indexOf(queryLower) !== -1)
             return 200;
 
         return -1;
+    }
+
+    function parseConnectivityQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q.startsWith("bluetooth"))
+            return { mode: "bt", filter: q.substring(9).trim() };
+        if (q.startsWith("bt"))
+            return { mode: "bt", filter: q.substring(2).trim() };
+        if (q.startsWith("wifi"))
+            return { mode: "wifi", filter: q.substring(4).trim() };
+        if (q.startsWith("net"))
+            return { mode: "wifi", filter: q.substring(3).trim() };
+        return null;
+    }
+
+    function parseSliderQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q === "vol" || q.startsWith("vol ")) {
+            var rest = q === "vol" ? "" : q.substring(4).trim();
+            if (rest === "" || rest === "mute")
+                return { mode: "vol", value: -1, mute: rest === "mute" };
+            var num = parseInt(rest);
+            if (!isNaN(num) && num >= 0 && num <= 100)
+                return { mode: "vol", value: num, mute: false };
+            return { mode: "vol", value: -1, mute: false };
+        }
+        if (q === "bl" || q.startsWith("bl ")) {
+            var rest = q === "bl" ? "" : q.substring(3).trim();
+            if (rest === "")
+                return { mode: "bl", value: -1, mute: false };
+            var num = parseInt(rest);
+            if (!isNaN(num) && num >= 0 && num <= 100)
+                return { mode: "bl", value: num, mute: false };
+            return { mode: "bl", value: -1, mute: false };
+        }
+        return null;
+    }
+
+    function parseMusicQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (!q.startsWith("music"))
+            return null;
+        var rest = q.substring(5).trim();
+        var commands = ["stop", "pause", "play", "resume", "next", "prev", "previous"];
+        if (commands.indexOf(rest) !== -1)
+            return { filter: "", command: rest };
+        return { filter: rest, command: null };
+    }
+
+    function parseNightQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "night" && !q.startsWith("night "))
+            return null;
+        var rest = q === "night" ? "" : q.substring(6).trim();
+        if (rest === "")
+            return { command: null, value: -1 };
+        if (rest === "on")
+            return { command: "on", value: -1 };
+        if (rest === "off")
+            return { command: "off", value: -1 };
+        if (rest === "toggle")
+            return { command: "toggle", value: -1 };
+        var num = parseInt(rest);
+        if (!isNaN(num) && num >= 0 && num <= 100)
+            return { command: "set", value: num };
+        return { command: null, value: -1 };
+    }
+
+    function parseClipQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "clip" && !q.startsWith("clip "))
+            return null;
+        var rest = q === "clip" ? "" : query.trim().substring(5).trim();
+        return { filter: rest };
+    }
+
+    function parseSsQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "ss" && q !== "screenshot" && !q.startsWith("ss ") && !q.startsWith("screenshot "))
+            return null;
+        var rest = "";
+        if (q.startsWith("screenshot "))
+            rest = q.substring(11).trim();
+        else if (q.startsWith("ss "))
+            rest = q.substring(3).trim();
+        else if (q === "screenshot" || q === "ss")
+            rest = "";
+
+        if (rest === "" || rest === "menu")
+            return { command: rest === "menu" ? "menu" : null };
+        if (rest === "area" || rest === "region" || rest === "select")
+            return { command: "area" };
+        if (rest === "full" || rest === "fullscreen" || rest === "screen")
+            return { command: "fullscreen" };
+        if (rest === "window" || rest === "win")
+            return { command: "window" };
+        return { command: null };
+    }
+
+    function parseRecQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "rec" && q !== "record" && !q.startsWith("rec ") && !q.startsWith("record "))
+            return null;
+        var rest = "";
+        if (q.startsWith("record "))
+            rest = q.substring(7).trim();
+        else if (q.startsWith("rec "))
+            rest = q.substring(4).trim();
+
+        if (rest === "")
+            return { command: null };
+        if (rest === "area" || rest === "region" || rest === "select")
+            return { command: "area" };
+        if (rest === "full" || rest === "fullscreen" || rest === "screen")
+            return { command: "fullscreen" };
+        if (rest === "stop" || rest === "end")
+            return { command: "stop" };
+        if (rest === "audio" || rest === "mic")
+            return { command: "audio" };
+        return { command: null };
+    }
+
+    function executeMusicCommand(command) {
+        if (command === "stop" || command === "pause") {
+            if (Playerctl.isPlaying)
+                Playerctl.playPause();
+        } else if (command === "play" || command === "resume") {
+            if (!Playerctl.isPlaying && Playerctl.hasPlayer)
+                Playerctl.playPause();
+        } else if (command === "next") {
+            Playerctl.next();
+        } else if (command === "prev" || command === "previous") {
+            Playerctl.previous();
+        }
+    }
+
+    function executeNightCommand() {
+        var nq = launcherWindow.nightQuery;
+        if (!nq) return;
+        if (nq.command === "on") {
+            NightLight.enable();
+            launcherWindow.closeMenu();
+        } else if (nq.command === "off") {
+            NightLight.disable();
+            launcherWindow.closeMenu();
+        } else if (nq.command === "toggle") {
+            NightLight.toggle();
+            launcherWindow.closeMenu();
+        } else if (nq.command === "set" && nq.value >= 0) {
+            NightLight.setIntensity(nq.value);
+            if (!NightLight.enabled) NightLight.enable();
+            launcherWindow.closeMenu();
+        }
     }
 
     function buildFilteredList() {
         var allApps = DesktopEntries.applications.values;
         var query = ctrl.searchText.trim();
         var queryLower = query.toLowerCase();
-        
+        var queryLen = queryLower.length;
+
         // Track async search results to force QML to re-evaluate this function
         var _fileSearchDep = ctrl.fileSearchResults;
-        
+        var _recStateDep = ScreenRecord.recording;
+        var _recAudioDep = ScreenRecord.recordAudio;
+
         var results = [];
 
         // --- App results ---
         if (query === "") {
-            // No query: show all apps sorted by frecency, hide blacklisted
+            // No query: top apps by frecency only — full catalog floods the list
             var sortedApps = allApps.filter(app => {
                 if (!app.name)
                     return false;
@@ -107,18 +366,80 @@ PanelWindow {
                 return (a.name || "").localeCompare(b.name || "");
             });
 
-            for (var i = 0; i < sortedApps.length; i++) {
+            var emptyCap = Math.min(sortedApps.length, launcherWindow.maxEmptyApps);
+            for (var i = 0; i < emptyCap; i++) {
                 results.push({ type: "app", entry: sortedApps[i] });
             }
             return results;
         }
 
+        if (launcherWindow.connectivityModeActive)
+            return [];
+
+        if (launcherWindow.musicModeActive)
+            return [];
+
+        if (launcherWindow.nightModeActive)
+            return [];
+
+        if (launcherWindow.clipModeActive)
+            return [];
+
+        if (launcherWindow.sliderModeActive) {
+            var sq = launcherWindow.sliderQuery;
+            var sliderResults = [];
+            if (sq.mode === "vol") {
+                if (sq.mute) {
+                    sliderResults.push({ type: "system_command", actionId: "vol_mute", name: "Mute Volume", description: "Mute system audio", icon: "󰖁" });
+                } else if (sq.value >= 0) {
+                    sliderResults.push({ type: "system_command", actionId: "vol_set", actionValue: sq.value, name: "Set Volume", description: "Set system volume to " + sq.value + "%", icon: "󰕾" });
+                }
+            } else if (sq.mode === "bl" && sq.value >= 0) {
+                sliderResults.push({ type: "system_command", actionId: "bl_set", actionValue: sq.value, name: "Set Backlight", description: "Set screen brightness to " + sq.value + "%", icon: "󰃠" });
+            }
+            return sliderResults;
+        }
+
+        if (launcherWindow.ssModeActive) {
+            var ssCmd = launcherWindow.ssQuery ? launcherWindow.ssQuery.command : null;
+            var ssResults = [];
+            if (!ssCmd || ssCmd === "fullscreen")
+                ssResults.push({ type: "system_command", actionId: "ss_fullscreen", name: "Screenshot Fullscreen", description: "Capture the entire screen", icon: "󰊓" });
+            if (!ssCmd || ssCmd === "area")
+                ssResults.push({ type: "system_command", actionId: "ss_area", name: "Screenshot Area", description: "Select a region to capture", icon: "󰆞" });
+            if (!ssCmd || ssCmd === "window")
+                ssResults.push({ type: "system_command", actionId: "ss_window", name: "Screenshot Window", description: "Capture the focused window", icon: "󰖯" });
+            if (!ssCmd || ssCmd === "menu")
+                ssResults.push({ type: "system_command", actionId: "ss_menu", name: "Screenshot Menu", description: "Open the capture overlay", icon: "󰍜" });
+            return ssResults;
+        }
+
+        if (launcherWindow.recModeActive) {
+            var recCmd = launcherWindow.recQuery ? launcherWindow.recQuery.command : null;
+            var recResults = [];
+            if (ScreenRecord.recording) {
+                if (!recCmd || recCmd === "stop")
+                    recResults.push({ type: "system_command", actionId: "rec_stop", name: "Stop Recording", description: "Finish and save the recording", icon: "󰓛" });
+            } else {
+                if (!recCmd || recCmd === "fullscreen")
+                    recResults.push({ type: "system_command", actionId: "rec_fullscreen", name: "Record Fullscreen", description: "Record the entire screen", icon: "󰊓" });
+                if (!recCmd || recCmd === "area")
+                    recResults.push({ type: "system_command", actionId: "rec_area", name: "Record Area", description: "Select a region to record", icon: "󰆞" });
+            }
+            if (!recCmd || recCmd === "audio")
+                recResults.push({ type: "system_command", actionId: "rec_audio_toggle", name: ScreenRecord.recordAudio ? "Disable Audio" : "Enable Audio", description: ScreenRecord.recordAudio ? "Record without microphone/system audio" : "Include audio in the recording", icon: ScreenRecord.recordAudio ? "󰍬" : "󰍭" });
+            return recResults;
+        }
+
         // Check if the user's search explicitly contains any of the hidden keywords
         var isSearchingHidden = hiddenKeywords.some(keyword => queryLower.includes(keyword));
         var scored = [];
+        var appById = {};
 
         for (var i = 0; i < allApps.length; i++) {
             var entry = allApps[i];
+            if (entry.id)
+                appById[entry.id] = entry;
 
             // Hide apps matching hiddenKeywords unless explicitly searched for
             var nameLower = entry.name ? entry.name.toLowerCase() : "";
@@ -128,34 +449,35 @@ PanelWindow {
                 continue;
             }
 
-            var best = scoreMatch(entry.name, query);
+            var best = scoreMatch(entry.name, queryLower, queryLen);
 
-            // Check generic name (e.g., "Web Browser")
-            if (entry.genericName) {
-                var s = scoreMatch(entry.genericName, query);
-                if (s >= 200)
-                    best = Math.max(best, s - 50);
-            }
-
-            // Check comments
-            if (entry.comment) {
-                var s = scoreMatch(entry.comment, query);
-                if (s >= 200)
-                    best = Math.max(best, s - 100);
-            }
-
-            // Check keywords
-            if (entry.keywords) {
-                for (var j = 0; j < entry.keywords.length; j++) {
-                    var s = scoreMatch(entry.keywords[j], query);
+            // Exact / prefix name hits don't need expensive secondary fields
+            if (best < 800) {
+                if (entry.genericName) {
+                    var s = scoreMatch(entry.genericName, queryLower, queryLen);
                     if (s >= 200)
-                        best = Math.max(best, s - 20); // High weight for exact alias hits
+                        best = Math.max(best, s - 50);
                 }
-            }
 
-            // Check the executable command
-            if (entry.execString && entry.execString.toLowerCase().includes(queryLower)) {
-                best = Math.max(best, 180);
+                if (best < 800 && entry.comment) {
+                    var s = scoreMatch(entry.comment, queryLower, queryLen);
+                    if (s >= 200)
+                        best = Math.max(best, s - 100);
+                }
+
+                if (best < 800 && entry.keywords) {
+                    for (var j = 0; j < entry.keywords.length; j++) {
+                        var s = scoreMatch(entry.keywords[j], queryLower, queryLen);
+                        if (s >= 200)
+                            best = Math.max(best, s - 20);
+                        if (best >= 800)
+                            break;
+                    }
+                }
+
+                if (best < 180 && entry.execString && entry.execString.toLowerCase().includes(queryLower)) {
+                    best = Math.max(best, 180);
+                }
             }
 
             if (best >= 0) {
@@ -167,23 +489,17 @@ PanelWindow {
         }
 
         // ──── Tier 1: Quickkey-boosted results ────
-        // Look up learned abbreviation mappings for this exact query
         var quickkeyMatches = ctrl.getQuickkeyMatches(query);
-        var quickkeyBoostedIds = {};  // track which appIds were boosted
-
-        // Build a lookup from appId → entry for fast access
-        var appById = {};
-        for (var i = 0; i < allApps.length; i++) {
-            if (allApps[i].id) appById[allApps[i].id] = allApps[i];
-        }
-
-        // Get running windows to check for focus targets
+        var quickkeyBoostedIds = {};
+        var appSlotsUsed = 0;
         var runningWindows = ctrl.getRunningWindows();
 
-        // Insert quickkey matches as Tier 1
         for (var qk = 0; qk < quickkeyMatches.length; qk++) {
+            if (appSlotsUsed >= launcherWindow.maxAppResults)
+                break;
+
             var qkId = quickkeyMatches[qk].id;
-            
+
             if (qkId.startsWith("emoji:")) {
                 var emojiChar = qkId.substring(6);
                 quickkeyBoostedIds[qkId] = true;
@@ -199,8 +515,8 @@ PanelWindow {
             if (!qkEntry) continue;
 
             quickkeyBoostedIds[qkId] = true;
+            appSlotsUsed++;
 
-            // Add focus entries for running windows of this app
             for (var w = 0; w < runningWindows.length; w++) {
                 var win = runningWindows[w];
                 if (win.appId && win.appId === qkId) {
@@ -220,7 +536,6 @@ PanelWindow {
         scored.sort((a, b) => {
             if (b.score !== a.score)
                 return b.score - a.score;
-            // Use frecency as tiebreaker
             var freqA = ctrl.appFrequencies[a.entry.id] || 0;
             var freqB = ctrl.appFrequencies[b.entry.id] || 0;
             if (freqB !== freqA)
@@ -229,13 +544,16 @@ PanelWindow {
         });
 
         for (var i = 0; i < scored.length; i++) {
+            if (appSlotsUsed >= launcherWindow.maxAppResults)
+                break;
+
             var appEntry = scored[i].entry;
             var entryId = appEntry.id || "";
 
-            // Skip apps already in Tier 1
             if (quickkeyBoostedIds[entryId]) continue;
 
-            // Check if this app has a running window
+            appSlotsUsed++;
+
             for (var w = 0; w < runningWindows.length; w++) {
                 var win = runningWindows[w];
                 if (win.appId && entryId && win.appId === entryId) {
@@ -252,101 +570,83 @@ PanelWindow {
         }
 
         // --- System Commands ---
-        if (query !== "") {
-            var valStr = "";
-            var num = 0;
-            if (queryLower.startsWith("vol ")) {
-                valStr = queryLower.substring(4).trim();
-                if (valStr === "mute") {
-                    results.push({ type: "system_command", actionId: "vol_mute", name: "Mute Volume", description: "Mute system audio", icon: "󰖁" });
-                } else {
-                    num = parseInt(valStr);
-                    if (!isNaN(num) && num >= 0 && num <= 100) {
-                        results.push({ type: "system_command", actionId: "vol_set", actionValue: num, name: "Set Volume", description: "Set system volume to " + num + "%", icon: "󰕾" });
-                    }
-                }
-            } else if (queryLower.startsWith("bl ")) {
-                num = parseInt(queryLower.substring(3).trim());
+        var valStr = "";
+        var num = 0;
+        if (queryLower.startsWith("vol ")) {
+            valStr = queryLower.substring(4).trim();
+            if (valStr === "mute") {
+                results.push({ type: "system_command", actionId: "vol_mute", name: "Mute Volume", description: "Mute system audio", icon: "󰖁" });
+            } else {
+                num = parseInt(valStr);
                 if (!isNaN(num) && num >= 0 && num <= 100) {
-                    results.push({ type: "system_command", actionId: "bl_set", actionValue: num, name: "Set Backlight", description: "Set screen brightness to " + num + "%", icon: "󰃠" });
-                }
-            } else if (queryLower === "shutdown" || queryLower === "poweroff") {
-                results.push({ type: "system_command", actionId: "shutdown", name: "Shutdown", description: "Turn off the computer", icon: "󰐥" });
-            } else if (queryLower === "reboot" || queryLower === "restart") {
-                results.push({ type: "system_command", actionId: "reboot", name: "Reboot", description: "Restart the computer", icon: "󰜉" });
-            } else if (queryLower === "sleep" || queryLower === "suspend") {
-                results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "󰤓" });
-            } else if (queryLower === "lock" || queryLower === "lockscreen") {
-                results.push({ type: "system_command", actionId: "lock", name: "Lock Screen", description: "Lock the session", icon: "󰌾" });
-            } else if (queryLower === "audio out hdmi") {
-                results.push({ type: "system_command", actionId: "audio_out_hdmi", name: "Audio Out HDMI", description: "Set default audio output to HDMI", icon: "󰡁" });
-            } else if (queryLower.startsWith("bt") || queryLower.startsWith("bluetooth")) {
-                var btDeps = ctrl.bluetoothDevices;
-                if (btDeps) {
-                    for (var b = 0; b < btDeps.length; b++) {
-                        results.push({
-                            type: "system_command", actionId: "bt_connect", actionValue: btDeps[b].id,
-                            name: btDeps[b].name, description: "Bluetooth Device" + (btDeps[b].active ? " (Connected)" : ""), icon: "󰂯"
-                        });
-                    }
-                }
-            } else if (queryLower.startsWith("wifi") || queryLower.startsWith("net")) {
-                var wifiDeps = ctrl.wifiNetworks;
-                if (wifiDeps) {
-                    for (var w = 0; w < wifiDeps.length; w++) {
-                        results.push({
-                            type: "system_command", actionId: "wifi_connect", actionValue: wifiDeps[w].id,
-                            name: wifiDeps[w].name, description: wifiDeps[w].kind + (wifiDeps[w].active ? " (Active)" : ""), icon: "󰖩"
-                        });
-                    }
+                    results.push({ type: "system_command", actionId: "vol_set", actionValue: num, name: "Set Volume", description: "Set system volume to " + num + "%", icon: "󰕾" });
                 }
             }
+        } else if (queryLower.startsWith("bl ")) {
+            num = parseInt(queryLower.substring(3).trim());
+            if (!isNaN(num) && num >= 0 && num <= 100) {
+                results.push({ type: "system_command", actionId: "bl_set", actionValue: num, name: "Set Backlight", description: "Set screen brightness to " + num + "%", icon: "󰃠" });
+            }
+        } else if (queryLower === "shutdown" || queryLower === "poweroff") {
+            results.push({ type: "system_command", actionId: "shutdown", name: "Shutdown", description: "Turn off the computer", icon: "󰐥" });
+        } else if (queryLower === "reboot" || queryLower === "restart") {
+            results.push({ type: "system_command", actionId: "reboot", name: "Reboot", description: "Restart the computer", icon: "󰜉" });
+        } else if (queryLower === "sleep" || queryLower === "suspend") {
+            results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "󰤓" });
+        } else if (queryLower === "lock" || queryLower === "lockscreen") {
+            results.push({ type: "system_command", actionId: "lock", name: "Lock Screen", description: "Lock the session", icon: "󰌾" });
+        } else if (queryLower === "audio out hdmi") {
+            results.push({ type: "system_command", actionId: "audio_out_hdmi", name: "Audio Out HDMI", description: "Set default audio output to HDMI", icon: "󰡁" });
         }
 
-        // --- Music results ---
-        if (query !== "") {
+        // --- Music results (only outside music mode) ---
+        if (!launcherWindow.musicModeActive && queryLen >= 2) {
             var library = BackendDaemon.musicLibrary ? BackendDaemon.musicLibrary.albums : [];
-            var musicScored = [];
-            for (var m = 0; m < library.length; m++) {
-                var album = library[m];
-                var albumScore = Math.max(scoreMatch(album.title, query), scoreMatch(album.artist, query));
-                if (albumScore >= 0) {
-                    musicScored.push({ type: "music_album", album: album, score: albumScore + 10 });
-                }
-                
-                for (var t = 0; t < album.tracks.length; t++) {
-                    var track = album.tracks[t];
-                    var trackScore = scoreMatch(track.title, query);
-                    if (trackScore >= 0) {
-                        musicScored.push({ type: "music_track", album: album, trackIndex: t, track: track, score: trackScore });
+            if (library && library.length > 0) {
+                var musicScored = [];
+                for (var m = 0; m < library.length; m++) {
+                    var album = library[m];
+                    var albumScore = Math.max(
+                        scoreMatch(album.title, queryLower, queryLen),
+                        scoreMatch(album.artist, queryLower, queryLen)
+                    );
+                    if (albumScore >= 0) {
+                        musicScored.push({ type: "music_album", album: album, score: albumScore + 10 });
+                    }
+
+                    var tracks = album.tracks || [];
+                    for (var t = 0; t < tracks.length; t++) {
+                        var track = tracks[t];
+                        var trackScore = scoreMatch(track.title, queryLower, queryLen);
+                        if (trackScore >= 0) {
+                            musicScored.push({ type: "music_track", album: album, trackIndex: t, track: track, score: trackScore });
+                        }
                     }
                 }
-            }
-            musicScored.sort((a, b) => b.score - a.score);
-            var maxMusic = Math.min(musicScored.length, 10);
-            for (var ms = 0; ms < maxMusic; ms++) {
-                results.push(musicScored[ms]);
+                musicScored.sort((a, b) => b.score - a.score);
+                var maxMusic = Math.min(musicScored.length, launcherWindow.maxMusicResults);
+                for (var ms = 0; ms < maxMusic; ms++) {
+                    results.push(musicScored[ms]);
+                }
             }
         }
 
         // --- File search results (from Rust backend) ---
-        if (query !== "" && query.length >= 3) {
+        if (queryLen >= 3) {
             var fileResults = ctrl.fileSearchResults;
-            console.log("QML File Search: Query=" + query + " length=" + (fileResults ? fileResults.length : "null") + " backendQuery=" + ctrl.fileSearchQuery);
             if (fileResults && ctrl.fileSearchQuery.toLowerCase() === queryLower) {
-                var maxFiles = Math.min(fileResults.length, 10);
+                var maxFiles = Math.min(fileResults.length, launcherWindow.maxFileResults);
                 for (var fi = 0; fi < maxFiles; fi++) {
                     results.push({
                         type: "file",
                         file: fileResults[fi]
                     });
                 }
-                console.log("QML File Search: Pushed " + maxFiles + " files.");
             }
         }
 
         // --- Fallback action: Open in WolframAlpha ---
-        if (query !== "" && ctrl.looksLikeMath(query)) {
+        if (ctrl.looksLikeMath(query)) {
             results.push({
                 type: "action",
                 actionId: "wolfram",
@@ -358,7 +658,7 @@ PanelWindow {
         }
 
         // --- Fallback action: Dictionary ---
-        if (query !== "" && query.indexOf(" ") === -1 && (ctrl.dictStatus === "ok" || ctrl.dictStatus === "loading")) {
+        if (query.indexOf(" ") === -1 && (ctrl.dictStatus === "ok" || ctrl.dictStatus === "loading")) {
             results.push({
                 type: "action",
                 actionId: "dictionary",
@@ -369,41 +669,38 @@ PanelWindow {
             });
         }
 
-        // --- Emoji results (only when actively searching) ---
-        if (query !== "") {
+        // --- Emoji results (skip 1-char queries — they match nearly everything) ---
+        if (queryLen >= 2) {
             var emojiResults = ctrl.filterEmojis(query);
-            
-            // Sort by frecency score
+
             emojiResults.sort((a, b) => {
                 var freqA = ctrl.getAppFrecency("emoji:" + a.emoji);
                 var freqB = ctrl.getAppFrecency("emoji:" + b.emoji);
                 return freqB - freqA;
             });
 
-            var maxEmojis = Math.min(emojiResults.length, 20);
-            for (var i = 0; i < maxEmojis; i++) {
-                var eId = "emoji:" + emojiResults[i].emoji;
+            var maxEmojis = Math.min(emojiResults.length, launcherWindow.maxEmojiResults);
+            for (var ei = 0; ei < maxEmojis; ei++) {
+                var eId = "emoji:" + emojiResults[ei].emoji;
                 if (!quickkeyBoostedIds[eId]) {
                     results.push({
                         type: "emoji",
-                        emoji: emojiResults[i].emoji,
-                        display: emojiResults[i].display
+                        emoji: emojiResults[ei].emoji,
+                        display: emojiResults[ei].display
                     });
                 }
             }
         }
 
         // --- Fallback action: Search the web ---
-        if (query !== "") {
-            results.push({
-                type: "action",
-                actionId: "websearch",
-                name: "Search the web",
-                description: "\"" + query + "\" — DuckDuckGo",
-                icon: "helium",
-                iconFamily: "__icon_theme__"
-            });
-        }
+        results.push({
+            type: "action",
+            actionId: "websearch",
+            name: "Search the web",
+            description: "\"" + query + "\" — DuckDuckGo",
+            icon: "helium",
+            iconFamily: "__icon_theme__"
+        });
 
         return results;
     }
@@ -412,11 +709,13 @@ PanelWindow {
         id: ctrl
 
         onOpenMenuRequested: {
-            if (launcherWindow.visible) {
+            if (launcherWindow.menuOpen) {
                 closeMenu();
             } else {
                 ctrl.clearStates();
-                launcherWindow.visible = true;
+                closeAnim.stop();
+                launcherWindow.menuOpen = true;
+                openAnim.start();
             }
         }
 
@@ -424,25 +723,29 @@ PanelWindow {
     }
 
     function closeMenu() {
-        launcherWindow.visible = false;
+        if (contentLoader.item)
+            contentLoader.item.resetSpecialViewState();
+        bluetoothConnectedNotifTimer.stop();
+        openAnim.stop();
+        LauncherState.open = false;
+        closeAnim.start();
         ctrl.commitRecents();
     }
 
     LazyLoader {
         id: contentLoader
 
-        activeAsync: launcherWindow.visible
+        activeAsync: launcherWindow.menuOpen
 
         component: Component {
             Item {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                width: 640
+                width: 640 + 48
                 height: 609
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 220
+                x: 0
+                anchors.verticalCenter: parent.verticalCenter
 
                 function syncFilePreviewForCurrentItem() {
                     if (launcherWindow.specialViewActive)
@@ -458,14 +761,206 @@ PanelWindow {
                     }
                 }
 
+                function activeConnectivityView() {
+                    if (launcherWindow.btModeActive)
+                        return btView;
+                    if (launcherWindow.wifiModeActive)
+                        return wifiView;
+                    return null;
+                }
+
+                function activeSpecialView() {
+                    if (launcherWindow.clipModeActive)
+                        return clipboardView;
+                    if (launcherWindow.musicModeActive)
+                        return musicView;
+                    return activeConnectivityView();
+                }
+
+                function refreshClipboard() {
+                    clipboardView.refresh();
+                }
+
+                function cycleSpecialSelection(forward) {
+                    var view = activeSpecialView();
+                    if (!view)
+                        return;
+                    if (forward)
+                        view.incrementSelection();
+                    else
+                        view.decrementSelection();
+                    scrollSpecialToSelection();
+                }
+
+                function scrollSpecialToSelection() {
+                    if (launcherWindow.musicModeActive) {
+                        var maxY = Math.max(0, musicScroll.contentHeight - musicScroll.height);
+                        musicScroll.contentY = Math.max(0, Math.min(musicView.selectedScrollY - musicScroll.height * 0.25, maxY));
+                        return;
+                    }
+                    scrollConnectivityToSelection();
+                }
+
+                function activateSpecialSelection() {
+                    if (launcherWindow.clipModeActive)
+                        return clipboardView.activateSelected();
+                    if (launcherWindow.musicModeActive)
+                        return activateMusicSelection();
+                    return activateConnectivitySelection();
+                }
+
+                function activateMusicSelection() {
+                    var mq = launcherWindow.musicQuery;
+                    if (!mq)
+                        return false;
+                    if (mq.command) {
+                        launcherWindow.executeMusicCommand(mq.command);
+                        return true;
+                    }
+                    if (mq.filter !== "")
+                        return musicView.activateTopMatch();
+                    return musicView.activateSelected();
+                }
+
+                function cycleConnectivitySelection(forward) {
+                    var view = activeConnectivityView();
+                    if (!view)
+                        return;
+                    if (forward)
+                        view.incrementSelection();
+                    else
+                        view.decrementSelection();
+                    scrollConnectivityToSelection();
+                }
+
+                function scrollConnectivityToSelection() {
+                    // Views handle their own scroll position internally
+                }
+
+                function activateConnectivitySelection() {
+                    var view = activeConnectivityView();
+                    if (!view)
+                        return false;
+                    if (!view.activateSelected())
+                        return false;
+                    // Bluetooth should close when the device reports `connected`;
+                    // Wi-Fi keeps the fixed close timer.
+                    if (launcherWindow.wifiModeActive)
+                        connectivityCloseTimer.restart();
+                    return true;
+                }
+
+                function resetSpecialViewState() {
+                    connectivityCloseTimer.stop();
+                    btView.resetConnecting();
+                    wifiView.resetConnecting();
+                }
+
+                function resetConnectivityState() {
+                    resetSpecialViewState();
+                }
+
+                Timer {
+                    id: connectivityCloseTimer
+                    interval: 850
+                    onTriggered: launcherWindow.closeMenu()
+                }
+
+                function handleSpecialNavigationKey(event) {
+                    if (launcherWindow.clipModeActive) {
+                        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            var clipForward = !((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab);
+                            if (clipForward)
+                                clipboardView.incrementSelection();
+                            else
+                                clipboardView.decrementSelection();
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Down) {
+                            clipboardView.incrementSelection();
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Up) {
+                            clipboardView.decrementSelection();
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                            clipboardView.activateSelected();
+                            event.accepted = true;
+                            return true;
+                        }
+                        return false;
+                    }
+                    if (launcherWindow.musicModeActive) {
+                        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            var forward = !((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab);
+                            cycleSpecialSelection(forward);
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Down) {
+                            cycleSpecialSelection(true);
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Up) {
+                            cycleSpecialSelection(false);
+                            event.accepted = true;
+                            return true;
+                        }
+                        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                            activateMusicSelection();
+                            event.accepted = true;
+                            return true;
+                        }
+                        return false;
+                    }
+                    return handleConnectivityNavigationKey(event);
+                }
+
+                function handleConnectivityNavigationKey(event) {
+                    if (!launcherWindow.connectivityModeActive)
+                        return false;
+                    if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                        var forward = !((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab);
+                        cycleConnectivitySelection(forward);
+                        event.accepted = true;
+                        return true;
+                    }
+                    if (event.key === Qt.Key_Down) {
+                        cycleConnectivitySelection(true);
+                        event.accepted = true;
+                        return true;
+                    }
+                    if (event.key === Qt.Key_Up) {
+                        cycleConnectivitySelection(false);
+                        event.accepted = true;
+                        return true;
+                    }
+                    if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                        activateConnectivitySelection();
+                        event.accepted = true;
+                        return true;
+                    }
+                    return false;
+                }
+
                 Component.onCompleted: {
                     searchField.forceActiveFocus();
                 }
 
+                // Shadow tracks the revealed area, offset past the dock so the
+                // launcher feels connected to the bar on the left edge.
                 Rectangle {
                     id: shadowCaster
-                    anchors.fill: mainUi
-                    anchors.margins: 2
+                    x: 44
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 4
+                    width: Math.max(0, (688 - 44) * launcherWindow.openProgress)
                     radius: 26
                     color: "black"
                     visible: false
@@ -475,30 +970,51 @@ PanelWindow {
                     anchors.fill: shadowCaster
                     source: shadowCaster
                     shadowEnabled: true
-                    shadowBlur: 1.5
-                    shadowColor: "#60000000"
-                    shadowVerticalOffset: 16
+                    shadowBlur: 1.0
+                    shadowColor: "#40000000"
+                    shadowVerticalOffset: 8
+                    shadowHorizontalOffset: 4
+                    opacity: launcherWindow.openProgress
                 }
 
-                Rectangle {
+                // Reveal mask: flat left edge, rounded right leading edge
+                Item {
                     id: mainUiMask
                     anchors.fill: mainUi
-                    radius: 28
-                    color: "black"
                     visible: false
                     layer.enabled: true
                     layer.smooth: true
+
+                    // Rounded reveal area that grows from left
+                    Rectangle {
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        x: 0
+                        width: Math.max(0, parent.width * launcherWindow.openProgress)
+                        radius: 28
+                        color: "black"
+                    }
+                    // Flat left edge filler (covers the left rounded corners)
+                    Rectangle {
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        x: 0
+                        width: Math.min(48, Math.max(0, parent.width * launcherWindow.openProgress))
+                        color: "black"
+                    }
                 }
 
                 Rectangle {
                     id: mainUi
-                    width: 640
-                    
+                    width: 688
+
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
-                    color: Theme.surface_container
+                    color: Theme.surface
                     radius: 28
+                    border.width: 1
+                    border.color: Theme.surface_container_high
                     focus: true
 
                     // Swallow clicks on the card so it doesn't dismiss
@@ -522,18 +1038,25 @@ PanelWindow {
                         anchors.top: parent.top
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        height: 180
+                        height: 200
                         clip: true
 
-                        property real bannerBlend: launcherWindow.weatherModeActive ? 1 : 0
+                        property real bannerBlend: (launcherWindow.weatherModeActive || launcherWindow.colorPickerModeActive || launcherWindow.nightModeActive) ? 1 : 0
+                        property real weatherBlend: launcherWindow.weatherModeActive ? 1 : 0
+                        property real colorBlend: launcherWindow.colorPickerModeActive ? 1 : 0
+                        property real nightBlend: launcherWindow.nightModeActive ? 1 : 0
 
-                        Behavior on bannerBlend {
-                            NumberAnimation { duration: 340; easing.type: Easing.InOutCubic }
-                        }
+                        Behavior on bannerBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
+                        Behavior on weatherBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
+                        Behavior on colorBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
+                        Behavior on nightBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
 
                         Connections {
                             target: launcherWindow
                             function onWeatherModeActiveChanged() {
+                                bannerShimmer.restart();
+                            }
+                            function onNightModeActiveChanged() {
                                 bannerShimmer.restart();
                             }
                         }
@@ -566,21 +1089,21 @@ PanelWindow {
 
                                 SequentialAnimation on x {
                                     loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                     NumberAnimation { to: 180; duration: 16000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: -60; duration: 18000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: -20; duration: 15000; easing.type: Easing.InOutSine }
                                 }
                                 SequentialAnimation on y {
                                     loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                     NumberAnimation { to: -100; duration: 17000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 40; duration: 16000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: -50; duration: 16000; easing.type: Easing.InOutSine }
                                 }
                                 NumberAnimation on rotation {
                                     from: 0; to: 360; duration: 30000; loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                 }
                             }
 
@@ -596,21 +1119,21 @@ PanelWindow {
 
                                 SequentialAnimation on x {
                                     loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                     NumberAnimation { to: 150; duration: 18000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 480; duration: 19000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: 350; duration: 17000; easing.type: Easing.InOutSine }
                                 }
                                 SequentialAnimation on y {
                                     loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                     NumberAnimation { to: 60; duration: 16000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: -120; duration: 18000; easing.type: Easing.InOutSine }
                                     NumberAnimation { to: -40; duration: 16000; easing.type: Easing.InOutSine }
                                 }
                                 NumberAnimation on rotation {
                                     from: 360; to: 0; duration: 35000; loops: Animation.Infinite
-                                    paused: !launcherWindow.visible || launcherWindow.weatherModeActive
+                                    paused: !launcherWindow.menuOpen || launcherWindow.weatherModeActive
                                 }
                             }
                         }
@@ -619,8 +1142,8 @@ PanelWindow {
                         Item {
                             id: weatherBannerLayer
                             anchors.fill: parent
-                            opacity: edgeBanner.bannerBlend
-                            scale: 1.04 - 0.04 * edgeBanner.bannerBlend
+                            opacity: edgeBanner.weatherBlend
+                            scale: 1.04 - 0.04 * edgeBanner.weatherBlend
                             transformOrigin: Item.Center
 
                             Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
@@ -647,7 +1170,7 @@ PanelWindow {
                                 anchors.fill: parent
                                 weatherCode: launcherWeatherData._code
                                 temperature: launcherWeatherData._temp
-                                visible: edgeBanner.bannerBlend > 0.02
+                                visible: edgeBanner.weatherBlend > 0.02
                             }
 
                             Rectangle {
@@ -657,6 +1180,91 @@ PanelWindow {
                                     GradientStop { position: 0.7; color: "transparent" }
                                     GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.18) }
                                 }
+                            }
+                        }
+
+                        // --- Color Picker background ---
+                        Item {
+                            id: colorPickerBannerLayer
+                            anchors.fill: parent
+                            opacity: edgeBanner.colorBlend
+                            scale: 1.04 - 0.04 * edgeBanner.colorBlend
+                            transformOrigin: Item.Center
+                            visible: opacity > 0.02
+
+                            Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: colorPickerView.selectedColor
+                            }
+                        }
+
+                        // --- Night Light background ---
+                        Item {
+                            id: nightBannerLayer
+                            anchors.fill: parent
+                            opacity: edgeBanner.nightBlend
+                            scale: 1.04 - 0.04 * edgeBanner.nightBlend
+                            transformOrigin: Item.Center
+                            visible: opacity > 0.02
+
+                            Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 380; easing.type: Easing.OutCubic } }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: "#1a1040" }
+                                    GradientStop { position: 0.4; color: "#2d1b69" }
+                                    GradientStop { position: 0.7; color: "#4a1942" }
+                                    GradientStop { position: 1.0; color: "#e65100" }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 180
+                                height: 180
+                                radius: 90
+                                color: "#ffb74d"
+                                opacity: 0.12
+                                x: parent.width - 140
+                                y: -30
+
+                                SequentialAnimation on opacity {
+                                    loops: Animation.Infinite
+                                    paused: !launcherWindow.menuOpen || !launcherWindow.nightModeActive
+                                    NumberAnimation { to: 0.20; duration: 3000; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 0.08; duration: 3000; easing.type: Easing.InOutSine }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 120
+                                height: 120
+                                radius: 60
+                                color: "#ff8f00"
+                                opacity: 0.10
+                                x: 60
+                                y: 40
+
+                                SequentialAnimation on opacity {
+                                    loops: Animation.Infinite
+                                    paused: !launcherWindow.menuOpen || !launcherWindow.nightModeActive
+                                    NumberAnimation { to: 0.18; duration: 4000; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 0.06; duration: 3500; easing.type: Easing.InOutSine }
+                                }
+                            }
+
+                            Text {
+                                anchors.right: parent.right
+                                anchors.rightMargin: 40
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.verticalCenterOffset: -10
+                                text: "󰖔"
+                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 64 }
+                                color: Qt.rgba(1, 0.72, 0.3, 0.35)
                             }
                         }
 
@@ -706,11 +1314,12 @@ PanelWindow {
                         LauncherWeatherHeader {
                             anchors.fill: parent
                             anchors.margins: 24
+                            anchors.leftMargin: 72
                             anchors.bottomMargin: 76
                             z: 2
                             weather: launcherWeatherData
-                            headerReveal: edgeBanner.bannerBlend
-                            visible: edgeBanner.bannerBlend > 0.02
+                            headerReveal: edgeBanner.weatherBlend
+                            visible: edgeBanner.weatherBlend > 0.02
                             enabled: false
                         }
                     }
@@ -726,6 +1335,8 @@ PanelWindow {
                             searchField.forceActiveFocus();
                             event.accepted = true;
                         } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                            if (lazyContentRoot.handleSpecialNavigationKey(event))
+                                return;
                             if (launcherWindow.specialViewActive) {
                                 event.accepted = true;
                                 return;
@@ -743,6 +1354,11 @@ PanelWindow {
                                     listView.incrementCurrentIndex();
                                 }
                             }
+                            event.accepted = true;
+                        } else if (lazyContentRoot.handleSpecialNavigationKey(event)) {
+                            return;
+                        } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.connectivityModeActive) {
+                            lazyContentRoot.activateConnectivitySelection();
                             event.accepted = true;
                         } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_J || event.key === Qt.Key_Down)) {
                             listView.incrementCurrentIndex();
@@ -769,7 +1385,7 @@ PanelWindow {
                         height: 64
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 32
+                        anchors.leftMargin: 48 + 32
                         anchors.rightMargin: 32
 
                         anchors.verticalCenter: edgeBanner.bottom
@@ -787,6 +1403,8 @@ PanelWindow {
 
                         TextField {
                             id: searchField
+                            // Prevent `onAccepted` from firing when we handle Return in `Keys.onReturnPressed`.
+                            property bool suppressAcceptedNext: false
                             anchors.fill: parent
                             leftPadding: 60
                             rightPadding: 24
@@ -802,6 +1420,57 @@ PanelWindow {
 
                             placeholderText: "Search"
                             placeholderTextColor: Theme.on_surface_variant
+
+                            onAccepted: {
+                                if (suppressAcceptedNext) {
+                                    suppressAcceptedNext = false;
+                                    return;
+                                }
+                                if (launcherWindow.clipModeActive) {
+                                    clipboardView.activateSelected();
+                                } else if (launcherWindow.nightModeActive) {
+                                    launcherWindow.executeNightCommand();
+                                } else if (launcherWindow.musicModeActive) {
+                                    lazyContentRoot.activateMusicSelection();
+                                } else if (launcherWindow.connectivityModeActive) {
+                                    lazyContentRoot.activateConnectivitySelection();
+                                } else if (launcherWindow.colorPickerModeActive) {
+                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                } else if (!launcherWindow.specialViewActive) {
+                                    if (listView.currentItem)
+                                        listView.currentItem.activate(false);
+                                    else if (ctrl.calcResult !== "")
+                                        ctrl.copyResult();
+                                }
+                            }
+
+                            Keys.onReturnPressed: event => {
+                                // Ensure we don't also run `onAccepted` for the same keypress.
+                                suppressAcceptedNext = true;
+                                if (launcherWindow.clipModeActive) {
+                                    clipboardView.activateSelected();
+                                    event.accepted = true;
+                                } else if (launcherWindow.nightModeActive) {
+                                    launcherWindow.executeNightCommand();
+                                    event.accepted = true;
+                                } else if (launcherWindow.musicModeActive) {
+                                    lazyContentRoot.activateMusicSelection();
+                                    event.accepted = true;
+                                } else if (launcherWindow.connectivityModeActive) {
+                                    lazyContentRoot.activateConnectivitySelection();
+                                    event.accepted = true;
+                                } else if (launcherWindow.colorPickerModeActive) {
+                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    event.accepted = true;
+                                } else if (!launcherWindow.specialViewActive) {
+                                    if (listView.currentItem) {
+                                        listView.currentItem.activate(false);
+                                    } else if (ctrl.calcResult !== "") {
+                                        ctrl.copyResult();
+                                    }
+                                    event.accepted = true;
+                                }
+                            }
 
                             background: Item {
                                 Text {
@@ -832,6 +1501,21 @@ PanelWindow {
                                 } else if (launcherWindow.colorPickerModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.connectivityModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.musicModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.sliderModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.nightModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.clipModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
                                 } else {
                                     Qt.callLater(syncFilePreviewForCurrentItem);
                                 }
@@ -841,7 +1525,19 @@ PanelWindow {
                                 if (event.key === Qt.Key_Escape) {
                                     mainUi.forceActiveFocus();
                                     event.accepted = true;
+                                } else if (launcherWindow.nightModeActive && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                                    var step = event.key === Qt.Key_Right ? 5 : -5;
+                                    NightLight.setIntensity(NightLight.intensity + step);
+                                    if (!NightLight.enabled) NightLight.enable();
+                                    event.accepted = true;
+                                } else if (launcherWindow.sliderModeActive && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                                    var delta = event.key === Qt.Key_Right ? 0.05 : -0.05;
+                                    if (launcherWindow.volSliderActive) volSliderWidget.nudge(delta);
+                                    else if (launcherWindow.blSliderActive) blSliderWidget.nudge(delta);
+                                    event.accepted = true;
                                 } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                                    if (lazyContentRoot.handleSpecialNavigationKey(event))
+                                        return;
                                     if (launcherWindow.specialViewActive) {
                                         event.accepted = true;
                                         return;
@@ -860,6 +1556,17 @@ PanelWindow {
                                         }
                                     }
                                     event.accepted = true;
+                                } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.nightModeActive) {
+                                    launcherWindow.executeNightCommand();
+                                    event.accepted = true;
+                                } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.musicModeActive) {
+                                    lazyContentRoot.activateMusicSelection();
+                                    event.accepted = true;
+                                } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.connectivityModeActive) {
+                                    lazyContentRoot.activateConnectivitySelection();
+                                    event.accepted = true;
+                                } else if (lazyContentRoot.handleSpecialNavigationKey(event)) {
+                                    return;
                                 } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     if (listView.currentItem) {
                                         listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
@@ -884,12 +1591,12 @@ PanelWindow {
                     // --- Calculator Result Card ---
                     Item {
                         id: calcCard
-                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive
+                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive
                         anchors.top: searchArea.bottom
                         anchors.topMargin: 12
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 32
+                        anchors.leftMargin: 48 + 32
                         anchors.rightMargin: 32
                         height: visible ? calcCardContent.height : 0
                         clip: true
@@ -1011,6 +1718,7 @@ PanelWindow {
                         anchors.topMargin: launcherWindow.specialViewActive ? 0 : 16
                         Behavior on anchors.topMargin { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                         anchors.left: parent.left
+                        anchors.leftMargin: 48
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         clip: true
@@ -1025,9 +1733,94 @@ PanelWindow {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
+                            Column {
+                                id: sliderWidgetArea
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                height: sliderWidgetArea.visible ? implicitHeight : 0
+                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive
+                                spacing: 8
+                                topPadding: 8
+                                bottomPadding: 4
+
+                                Behavior on height {
+                                    NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                                }
+
+                                LauncherSliderWidget {
+                                    id: volSliderWidget
+                                    width: parent.width
+                                    active: launcherWindow.volSliderActive
+                                    label: "Volume"
+                                    accent: Theme.primary
+                                    value: Math.min(1, launcherWindow.pipewireSink?.audio?.volume ?? 0)
+                                    icon: {
+                                        if (launcherWindow.pipewireSink?.audio?.muted ?? true)
+                                            return "󰖁";
+                                        if (value >= 0.6)
+                                            return "󰕾";
+                                        if (value >= 0.3)
+                                            return "󰖀";
+                                        return "󰕿";
+                                    }
+                                    onMoved: v => {
+                                        if (launcherWindow.pipewireSink?.audio) {
+                                            launcherWindow.pipewireSink.audio.muted = false;
+                                            launcherWindow.pipewireSink.audio.volume = v;
+                                        }
+                                    }
+                                }
+
+                                LauncherSliderWidget {
+                                    id: blSliderWidget
+                                    width: parent.width
+                                    active: launcherWindow.blSliderActive
+                                    label: "Brightness"
+                                    accent: Theme.tertiary
+                                    value: Brightness.value
+                                    icon: {
+                                        if (value >= 0.7) return "󰃠";
+                                        if (value >= 0.3) return "󰃝";
+                                        return "󰃞";
+                                    }
+                                    onMoved: v => Brightness.setPercent(v * 100)
+                                }
+
+                                LauncherScreenshotWidget {
+                                    id: ssWidget
+                                    width: parent.width
+                                    active: launcherWindow.ssModeActive
+                                    onAction: id => {
+                                        if (id === "fullscreen")
+                                            ctrl.executeSystemCommand("ss_fullscreen");
+                                        else if (id === "area")
+                                            ctrl.executeSystemCommand("ss_area");
+                                        else if (id === "window")
+                                            ctrl.executeSystemCommand("ss_window");
+                                        else if (id === "menu")
+                                            ctrl.executeSystemCommand("ss_menu");
+                                    }
+                                }
+
+                                LauncherRecordWidget {
+                                    id: recWidget
+                                    width: parent.width
+                                    active: launcherWindow.recModeActive
+                                    onAction: id => {
+                                        if (id === "fullscreen")
+                                            ctrl.executeSystemCommand("rec_fullscreen");
+                                        else if (id === "area")
+                                            ctrl.executeSystemCommand("rec_area");
+                                        else if (id === "stop")
+                                            ctrl.executeSystemCommand("rec_stop");
+                                    }
+                                }
+                            }
+
                             Item {
                                 id: listContainer
-                                anchors.top: parent.top
+                                anchors.top: sliderWidgetArea.visible ? sliderWidgetArea.bottom : parent.top
                                 anchors.bottom: footer.top
                                 anchors.left: parent.left
                                 width: parent.width * (1 - 0.48 * launcherWindow.fileSplitBlend)
@@ -1040,8 +1833,12 @@ PanelWindow {
                                     topMargin: 12
                                     bottomMargin: 24
                                     spacing: 4
+                                    clip: true
 
-                                    highlightMoveDuration: 120
+                                    // Recycle heavy delegates across keystroke model swaps
+                                    reuseItems: true
+                                    cacheBuffer: 160
+                                    highlightMoveDuration: 80
                                     highlightFollowsCurrentItem: true
                                     delegate: LauncherDelegate {}
 
@@ -1069,7 +1866,7 @@ PanelWindow {
                                         }
                                         GradientStop {
                                             position: 1.0
-                                            color: Theme.surface_container
+                                            color: Theme.surface
                                         }
                                     }
                                 }
@@ -1136,10 +1933,158 @@ PanelWindow {
                                 ctrl.copyColorText(text);
                             }
                         }
+
+                        Flickable {
+                            id: musicScroll
+                            z: launcherWindow.musicModeActive ? 2 : 0
+                            enabled: launcherWindow.musicModeActive
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            contentWidth: width
+                            contentHeight: musicView.height
+                            opacity: launcherWindow.musicModeActive ? 1 : 0
+                            visible: opacity > 0.02
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                            }
+
+                            LauncherMusicView {
+                                id: musicView
+                                width: musicScroll.width
+                                height: musicScroll.height
+                                filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
+                                revealProgress: launcherWindow.musicModeActive ? 1 : 0
+
+                                onSelectedIndexChanged: {
+                                    if (launcherWindow.musicModeActive)
+                                        lazyContentRoot.scrollSpecialToSelection();
+                                }
+                            }
+                        }
+
+                        Item {
+                            id: connectivityContainer
+                            z: launcherWindow.connectivityModeActive ? 2 : 0
+                            enabled: launcherWindow.connectivityModeActive
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+                            opacity: launcherWindow.connectivityModeActive ? 1 : 0
+                            visible: opacity > 0.02
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                            }
+
+                            LauncherBluetoothView {
+                                id: btView
+                                anchors.fill: parent
+                                visible: launcherWindow.btModeActive
+                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                revealProgress: launcherWindow.btModeActive ? 1 : 0
+                                onConnectionSucceeded: function(deviceLabel) {
+                                    bluetoothConnectedDeviceLabel = deviceLabel;
+                                    launcherWindow.closeMenu();
+                                    bluetoothConnectedNotifTimer.restart();
+                                }
+                            }
+
+                            LauncherWifiView {
+                                id: wifiView
+                                anchors.fill: parent
+                                visible: launcherWindow.wifiModeActive
+                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                revealProgress: launcherWindow.wifiModeActive ? 1 : 0
+
+                                onRefocusSearchRequested: searchField.forceActiveFocus()
+                                onConnectionAttemptFailed: lazyContentRoot.resetConnectivityState()
+                            }
+                        }
+
+                        Item {
+                            id: nightLightContainer
+                            z: launcherWindow.nightModeActive ? 2 : 0
+                            enabled: launcherWindow.nightModeActive
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+                            opacity: launcherWindow.nightModeActive ? 1 : 0
+                            visible: opacity > 0.02
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                            }
+
+                            LauncherNightLightView {
+                                id: nightLightView
+                                anchors.fill: parent
+                                revealProgress: launcherWindow.nightModeActive ? 1 : 0
+                            }
+                        }
+
+                        Item {
+                            id: clipboardContainer
+                            z: launcherWindow.clipModeActive ? 2 : 0
+                            enabled: launcherWindow.clipModeActive
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+                            opacity: launcherWindow.clipModeActive ? 1 : 0
+                            visible: opacity > 0.02
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                            }
+
+                            LauncherClipboardView {
+                                id: clipboardView
+                                anchors.fill: parent
+                                filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
+                                revealProgress: launcherWindow.clipModeActive ? 1 : 0
+
+                                onCloseRequested: launcherWindow.closeMenu()
+                            }
+                        }
+
+                        Connections {
+                            target: launcherWindow
+                            function onConnectivityModeActiveChanged() {
+                                if (launcherWindow.connectivityModeActive)
+                                    Qt.callLater(lazyContentRoot.scrollConnectivityToSelection);
+                            }
+                            function onMusicModeActiveChanged() {
+                                if (launcherWindow.musicModeActive)
+                                    Qt.callLater(lazyContentRoot.scrollSpecialToSelection);
+                            }
+                        }
                     }
                     // ──── Separator ────
                     Rectangle {
-                        x: listContainer.width
+                        x: 48 + listContainer.width
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
                         width: 1
@@ -1170,7 +2115,7 @@ PanelWindow {
                         anchors.right: parent.right
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
-                        width: parent.width - listContainer.width
+                        width: parent.width - 48 - listContainer.width
                         clip: true
 
                         transform: [
@@ -1277,7 +2222,7 @@ PanelWindow {
                             height: 40
                             gradient: Gradient {
                                 GradientStop { position: 0.0; color: "transparent" }
-                                GradientStop { position: 1.0; color: Theme.surface_container }
+                                GradientStop { position: 1.0; color: Theme.surface }
                             }
                         }
 

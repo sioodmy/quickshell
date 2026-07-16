@@ -30,11 +30,9 @@ PanelWindow {
 
     onShownChanged: {
         if (shown) {
-            clipSection.refresh();
             panel.forceActiveFocus();
         } else {
             notifSection.showAll = false;
-            clipSection.showAll = false;
         }
     }
 
@@ -141,9 +139,9 @@ PanelWindow {
                         property int currentTab: 0
 
                         Repeater {
-                            model: ["󰒓", "󰂚", "󰅌", "󰝚"]
+                            model: ["󰒓", "󰂚"]
                             delegate: Rectangle {
-                                width: (tabBar.width - (tabBar.spacing * 3)) / 4
+                                width: (tabBar.width - tabBar.spacing) / 2
                                 height: 40
                                 radius: 20
                                 color: tabBar.currentTab === index ? Theme.primary : "transparent"
@@ -386,21 +384,6 @@ PanelWindow {
                     id: notifSection
                     width: parent.width
                     visible: tabBar.currentTab === 1
-                }
-
-                // --- Clipboard Tab ---
-                ClipboardSection {
-                    id: clipSection
-                    width: parent.width
-                    visible: tabBar.currentTab === 2
-                }
-
-                // --- Music Tab ---
-                MusicSection {
-                    id: musicSection
-                    width: parent.width
-                    visible: tabBar.currentTab === 3
-                    height: visible ? (flick.height - 44 - 18) : 0
                 }
 
             }

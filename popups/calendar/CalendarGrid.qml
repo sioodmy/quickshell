@@ -5,6 +5,9 @@ import qs.services
 Item {
     id: root
 
+    readonly property int calendarColumnWidth: 304
+    readonly property int swipeDistance: calendarColumnWidth
+
     property date currentDate: new Date()
     property date liveTime: new Date()
     property int displayMonth: currentDate.getMonth()
@@ -17,6 +20,9 @@ Item {
     property bool isMonthYearView: false
 
     property bool isWindowVisible: true
+    property bool clockSettled: true
+
+    property alias agendaTimeLabel: agendaPane.timeLabel
 
     property int activeCellIndex: {
         if (displayMonth === selectedMonth && displayYear === selectedYear) {
@@ -35,11 +41,8 @@ Item {
 
     signal requestClose
 
-    // Wheel/Scroll Logic removed per user request
-
     focus: true
 
-    // Timers & Init
     Timer {
         interval: 1000
         running: root.isWindowVisible
@@ -65,7 +68,6 @@ Item {
         }
     }
 
-    // Core Logic Functions
     function generateCalendar() {
         calendarModel.clear();
         let firstDay = (new Date(displayYear, displayMonth, 1).getDay() + 6) % 7;
@@ -149,7 +151,6 @@ Item {
         }
     }
 
-    // Keyboard Logic
     Keys.onPressed: event => {
         let isShift = event.modifiers & Qt.ShiftModifier;
         if (isMonthYearView) {
@@ -225,7 +226,6 @@ Item {
         }
     }
 
-    // Animations
     SequentialAnimation {
         id: swipeAnim
         property int direction: 1
@@ -233,7 +233,7 @@ Item {
         NumberAnimation {
             target: swipeTransform
             property: "x"
-            to: swipeAnim.direction * -382
+            to: swipeAnim.direction * -root.swipeDistance
             duration: 120
             easing.type: Easing.InSine
         }
@@ -249,7 +249,7 @@ Item {
                 }
                 syncSelection();
                 generateCalendar();
-                swipeTransform.x = swipeAnim.direction * 382;
+                swipeTransform.x = swipeAnim.direction * root.swipeDistance;
             }
         }
         NumberAnimation {
@@ -273,20 +273,16 @@ Item {
         easing.overshoot: 1.05
     }
 
-    // Data Models
     ListModel {
         id: calendarModel
     }
 
-    // Layout
     Row {
         anchors.fill: parent
-        anchors.margins: 28
-        spacing: 28
+        spacing: 16
 
-        // Left side: Calendar days
         Item {
-            width: 382
+            width: root.calendarColumnWidth
             height: parent.height
 
             CalendarHeader {
@@ -305,10 +301,10 @@ Item {
 
             Item {
                 id: viewsContainer
-                width: parent.width + 20
-                height: 380
+                width: parent.width + 12
+                height: parent.height - headerItem.height - 16
                 anchors.top: headerItem.bottom
-                anchors.topMargin: 24
+                anchors.topMargin: 16
                 clip: true
 
                 DaysView {
@@ -393,9 +389,9 @@ Item {
             }
         }
 
-        // Right side: Agenda panel
         AgendaPane {
-            width: parent.width - 382 - parent.spacing
+            id: agendaPane
+            width: parent.width - root.calendarColumnWidth - parent.spacing
             liveTime: root.liveTime
             selectedDay: root.selectedDay
             selectedMonth: root.selectedMonth
@@ -403,6 +399,7 @@ Item {
             height: parent.height
 
             isWindowVisible: root.isWindowVisible
+            clockSettled: root.clockSettled
         }
     }
 }

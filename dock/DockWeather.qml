@@ -168,7 +168,7 @@ Item {
         id: visualPill
         anchors.centerIn: parent
 
-        implicitWidth: 40
+        implicitWidth: 28
         implicitHeight: weatherCol.implicitHeight + 16
         radius: width / 2
 
