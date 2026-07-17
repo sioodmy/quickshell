@@ -9,6 +9,14 @@ Singleton {
 
     property bool enabled: false
 
+    function enable() {
+        enabled = true;
+    }
+
+    function disable() {
+        enabled = false;
+    }
+
     function toggle() {
         enabled = !enabled;
     }

@@ -29,6 +29,9 @@ Item {
 
     property bool isHovered: hover.hovered
 
+    readonly property int slotSize: Math.min(width, height)
+    readonly property int effectiveIconSize: slotSize > 0 ? Math.round(slotSize * 0.92) : 22
+
     width: 32
     height: 32
 
@@ -36,16 +39,18 @@ Item {
     Rectangle {
         id: iconBg
         anchors.centerIn: parent
-        width: root.width
-        height: root.width
+        width: root.slotSize
+        height: root.slotSize
         radius: width / 2
+        transformOrigin: Item.Center
         
         // Transparent by default, highlight on hover
         color: "transparent"
         
-        scale: leftTap.pressed ? 0.88 : (hover.hovered ? 1.08 : (root.isAppFocused ? 1.05 : (root.isRunning ? 0.9 : 1.0)))
+        // Keep scale modest — OutBack overshoot was letting icons spill past workspace pills
+        scale: leftTap.pressed ? 0.88 : (hover.hovered ? 1.06 : (root.isAppFocused ? 1.03 : (root.isRunning ? 0.9 : 1.0)))
         Behavior on scale {
-            NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.5 }
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
         }
 
         // Hover overlay
@@ -73,10 +78,11 @@ Item {
         Image {
             id: appIconImage
             anchors.centerIn: parent
-            width: 22
-            height: 22
+            width: root.effectiveIconSize
+            height: root.effectiveIconSize
             visible: !root.isLauncher && !root.isSidebarToggle
             fillMode: Image.PreserveAspectFit
+            mipmap: true
 
             property var tryIcons: {
                 var icon = root.appIcon;
@@ -109,7 +115,7 @@ Item {
             text: root.appName.length > 0 ? root.appName.charAt(0).toUpperCase() : "?"
             font {
                 family: "Google Sans"
-                pixelSize: 15
+                pixelSize: Math.max(11, Math.round(root.effectiveIconSize * 0.68))
                 weight: Font.Bold
             }
             color: Theme.on_surface

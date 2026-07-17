@@ -39,6 +39,9 @@ PanelWindow {
     readonly property var nightQuery: parseNightQuery(ctrl.searchText.trim())
     readonly property bool nightModeActive: nightQuery !== null
 
+    readonly property var dndQuery: parseDndQuery(ctrl.searchText.trim())
+    readonly property bool dndModeActive: dndQuery !== null
+
     readonly property var clipQuery: parseClipQuery(ctrl.searchText.trim())
     readonly property bool clipModeActive: clipQuery !== null
 
@@ -250,6 +253,22 @@ PanelWindow {
         return { command: null, value: -1 };
     }
 
+    function parseDndQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "dnd" && !q.startsWith("dnd "))
+            return null;
+        var rest = q === "dnd" ? "" : q.substring(4).trim();
+        if (rest === "")
+            return { command: null };
+        if (rest === "on" || rest === "enable")
+            return { command: "on" };
+        if (rest === "off" || rest === "disable")
+            return { command: "off" };
+        if (rest === "toggle")
+            return { command: "toggle" };
+        return { command: null };
+    }
+
     function parseClipQuery(query) {
         var q = query.trim().toLowerCase();
         if (q !== "clip" && !q.startsWith("clip "))
@@ -337,6 +356,21 @@ PanelWindow {
         }
     }
 
+    function executeDndCommand() {
+        var dq = launcherWindow.dndQuery;
+        if (!dq || !dq.command) return;
+        if (dq.command === "on") {
+            DoNotDisturb.enable();
+            launcherWindow.closeMenu();
+        } else if (dq.command === "off") {
+            DoNotDisturb.disable();
+            launcherWindow.closeMenu();
+        } else if (dq.command === "toggle") {
+            DoNotDisturb.toggle();
+            launcherWindow.closeMenu();
+        }
+    }
+
     function buildFilteredList() {
         var allApps = DesktopEntries.applications.values;
         var query = ctrl.searchText.trim();
@@ -347,6 +381,7 @@ PanelWindow {
         var _fileSearchDep = ctrl.fileSearchResults;
         var _recStateDep = ScreenRecord.recording;
         var _recAudioDep = ScreenRecord.recordAudio;
+        var _dndDep = DoNotDisturb.enabled;
 
         var results = [];
 
@@ -384,6 +419,24 @@ PanelWindow {
 
         if (launcherWindow.clipModeActive)
             return [];
+
+        if (launcherWindow.dndModeActive) {
+            var dq = launcherWindow.dndQuery;
+            var dndResults = [];
+            if (!dq.command || dq.command === "on")
+                dndResults.push({ type: "system_command", actionId: "dnd_on", name: "Enable Do Not Disturb", description: "Silence notification popups", icon: "󰂛" });
+            if (!dq.command || dq.command === "off")
+                dndResults.push({ type: "system_command", actionId: "dnd_off", name: "Disable Do Not Disturb", description: "Show notification popups again", icon: "󰂚" });
+            if (dq.command === "toggle")
+                dndResults.push({
+                    type: "system_command",
+                    actionId: "dnd_toggle",
+                    name: DoNotDisturb.enabled ? "Disable Do Not Disturb" : "Enable Do Not Disturb",
+                    description: "Toggle notification popups",
+                    icon: DoNotDisturb.enabled ? "󰂛" : "󰂚"
+                });
+            return dndResults;
+        }
 
         if (launcherWindow.sliderModeActive) {
             var sq = launcherWindow.sliderQuery;
@@ -1430,6 +1483,8 @@ PanelWindow {
                                     clipboardView.activateSelected();
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
+                                } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
+                                    launcherWindow.executeDndCommand();
                                 } else if (launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
                                 } else if (launcherWindow.connectivityModeActive) {
@@ -1452,6 +1507,9 @@ PanelWindow {
                                     event.accepted = true;
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
+                                    event.accepted = true;
+                                } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
+                                    launcherWindow.executeDndCommand();
                                     event.accepted = true;
                                 } else if (launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
@@ -1510,6 +1568,9 @@ PanelWindow {
                                 } else if (launcherWindow.sliderModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.dndModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
@@ -1559,6 +1620,9 @@ PanelWindow {
                                 } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
                                     event.accepted = true;
+                                } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
+                                    launcherWindow.executeDndCommand();
+                                    event.accepted = true;
                                 } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
                                     event.accepted = true;
@@ -1591,7 +1655,7 @@ PanelWindow {
                     // --- Calculator Result Card ---
                     Item {
                         id: calcCard
-                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive
+                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive
                         anchors.top: searchArea.bottom
                         anchors.topMargin: 12
                         anchors.left: parent.left
@@ -1739,7 +1803,7 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 height: sliderWidgetArea.visible ? implicitHeight : 0
-                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive
+                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive
                                 spacing: 8
                                 topPadding: 8
                                 bottomPadding: 4
@@ -1815,6 +1879,12 @@ PanelWindow {
                                         else if (id === "stop")
                                             ctrl.executeSystemCommand("rec_stop");
                                     }
+                                }
+
+                                LauncherDndWidget {
+                                    id: dndWidget
+                                    width: parent.width
+                                    active: launcherWindow.dndModeActive
                                 }
                             }
 

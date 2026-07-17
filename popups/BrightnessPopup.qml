@@ -1,9 +1,9 @@
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Io
 import QtQuick
 import QtQuick.Effects
 import "../theme"
+import qs.services
 
 Variants {
     id: root
@@ -34,33 +34,7 @@ Variants {
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-        property real brightnessLevel: 0.0
-
-        Process {
-            command: ["sh", "-c", "stdbuf -oL udevadm monitor --subsystem-match=backlight --udev"]
-            running: true
-            stdout: SplitParser {
-                onRead: updateBrightness.running = true
-            }
-        }
-
-        Process {
-            id: updateBrightness
-            command: ["brightnessctl", "-m"]
-            running: true
-            stdout: StdioCollector {
-                onStreamFinished: {
-                    let text = this.text.trim();
-                    if (!text) return;
-                    // brightnessctl -m => "backlight,<name>,<cur>,<max>,<percent>%"
-                    let parts = text.split(",");
-                    if (parts.length < 5) return;
-                    let percentStr = parts[4].trim().replace("%", "");
-                    let val = parseFloat(percentStr);
-                    if (!isNaN(val)) brightnessOsdPopup.brightnessLevel = val / 100.0;
-                }
-            }
-        }
+        readonly property real brightnessLevel: Brightness.value
 
         onBrightnessLevelChanged: {
             triggerOsd();

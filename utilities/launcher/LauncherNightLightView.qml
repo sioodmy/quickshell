@@ -56,8 +56,8 @@ Item {
                         onTextChanged: iconBounce.restart()
                         SequentialAnimation {
                             id: iconBounce
-                            NumberAnimation { target: parent; property: "scale"; to: 1.3; duration: 100; easing.type: Easing.OutQuad }
-                            NumberAnimation { target: parent; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBounce }
+                            NumberAnimation { target: parent; property: "scale"; to: 1.05; duration: 100; easing.type: Easing.OutCubic }
+                            NumberAnimation { target: parent; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
                         }
 
                         Behavior on color { ColorAnimation { duration: 200 } }

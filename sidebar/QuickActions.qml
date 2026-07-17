@@ -224,21 +224,12 @@ Item {
                     spacing: 0
 
                     ActionButton {
-                        width: parent.width / 2
+                        width: parent.width
                         height: parent.height
                         icon: "󰌾"
                         label: "Lock"
                         iconColor: Theme.primary
                         onClicked: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] })
-                    }
-
-                    ActionButton {
-                        width: parent.width / 2
-                        height: parent.height
-                        icon: DoNotDisturb.enabled ? "󰂛" : "󰂚"
-                        label: "DND"
-                        active: DoNotDisturb.enabled
-                        onClicked: DoNotDisturb.toggle()
                     }
                 }
             }

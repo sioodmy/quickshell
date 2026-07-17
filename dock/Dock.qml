@@ -281,38 +281,40 @@ Variants {
                     clip: true
 
                     property int innerPadding: 6
+                    property int contentWidth: width - innerPadding
+                    // Leave margin inside the pill so scaled icons never touch the edges
+                    property int appSlotSize: 20
                     property int workspaceGap: 6
                     property int maxVisibleAppsPerWorkspace: 4
 
-                    // Sliding Highlight
+                    // Sliding Highlight — never shorter than the active workspace while animating,
+                    // so newly added icons can't sit outside the bubble.
                     Rectangle {
                         id: slidingHighlight
 
                         property real targetY: dockContent.currentActiveWs ? dockContent.currentActiveWs.mapToItem(centerSection, 0, 0).y : centerSection.innerPadding
                         property real targetHeight: dockContent.currentActiveWs ? dockContent.currentActiveWs.height : 0
 
+                        property real animHeight: targetHeight
+
                         y: targetY
                         width: parent.width
-                        height: targetHeight
+                        height: Math.max(targetHeight, animHeight)
                         radius: width / 2
                         anchors.horizontalCenter: parent.horizontalCenter
 
                         color: Theme.secondary_container
                         opacity: dockContent.currentActiveWs ? 1.0 : 0.0
 
-                        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
-                        Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+                        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                        Behavior on animHeight { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                     }
 
                     Column {
                         id: workspaceColumn
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: centerSection.innerPadding / 2
-                        anchors.rightMargin: centerSection.innerPadding / 2
-                        width: parent.width
+                        anchors.centerIn: parent
+                        width: centerSection.contentWidth
                         spacing: centerSection.workspaceGap
 
                         Repeater {
@@ -321,8 +323,7 @@ Variants {
 
                             delegate: Item {
                                 id: wsItem
-                                width: parent ? parent.width : 28
-                                anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
+                                width: workspaceColumn.width
                                 height: hasApps ? (wsAppColumn.implicitHeight + overflowBadge.height + 14) : width
 
                                 property bool isFocused: model.isFocused
@@ -371,41 +372,46 @@ Variants {
 
                                 Column {
                                     id: wsAppColumn
+                                    width: parent.width
                                     anchors.top: parent.top
                                     anchors.topMargin: 7
-                                    anchors.horizontalCenter: parent.horizontalCenter
                                     spacing: wsItem.wsApps.length > 3 ? 2 : 4
 
                                     Repeater {
                                         model: wsItem.visibleAppCount
-                                        DockItem {
-                                            id: runningItem
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            width: wsItem.width
-                                            height: wsItem.width
-                                            itemData: wsItem.wsApps[index]
-                                            onDragStarted: {
-                                                dockContent.draggingApp = runningItem;
-                                                var wsWins = runningItem.itemData.windows.filter(function(w) { return w.workspaceId === wsItem.wsId; });
-                                                dockContent.draggingWinId = wsWins.length > 0 ? wsWins[0].id : "";
-                                                var global = runningItem.mapToItem(dockContent, 0, 0);
-                                                dockContent.dragX = global.x + runningItem.width / 2;
-                                                dockContent.dragY = global.y + runningItem.height / 2;
-                                                dockContent.anyHovered = false;
-                                                tooltipTimeoutTimer.stop();
-                                            }
-                                            onDragUpdated: function(globalX, globalY) { dockContent.dragX = globalX; dockContent.dragY = globalY; }
-                                            onDragEnded: function(globalX, globalY) {
-                                                for (var i = 0; i < wsRepeater.count; i++) {
-                                                    var wItem = wsRepeater.itemAt(i);
-                                                    if (!wItem) continue;
-                                                    var wGlobal = wItem.mapToItem(dockContent, 0, 0);
-                                                    if (dockContent.dragY >= wGlobal.y && dockContent.dragY <= wGlobal.y + wItem.height) {
-                                                        if (wItem.wsId !== wsItem.wsId) Quickshell.execDetached({ command: ["niri", "msg", "action", "move-window-to-workspace", wItem.wsId.toString(), "--window-id", dockContent.draggingWinId.toString()] });
-                                                        break;
-                                                    }
+                                        Item {
+                                            width: wsAppColumn.width
+                                            height: centerSection.appSlotSize
+
+                                            DockItem {
+                                                id: runningItem
+                                                anchors.centerIn: parent
+                                                width: centerSection.appSlotSize
+                                                height: centerSection.appSlotSize
+                                                itemData: wsItem.wsApps[index]
+                                                onDragStarted: {
+                                                    dockContent.draggingApp = runningItem;
+                                                    var wsWins = runningItem.itemData.windows.filter(function(w) { return w.workspaceId === wsItem.wsId; });
+                                                    dockContent.draggingWinId = wsWins.length > 0 ? wsWins[0].id : "";
+                                                    var global = runningItem.mapToItem(dockContent, 0, 0);
+                                                    dockContent.dragX = global.x + runningItem.width / 2;
+                                                    dockContent.dragY = global.y + runningItem.height / 2;
+                                                    dockContent.anyHovered = false;
+                                                    tooltipTimeoutTimer.stop();
                                                 }
-                                                dockContent.draggingApp = null;
+                                                onDragUpdated: function(globalX, globalY) { dockContent.dragX = globalX; dockContent.dragY = globalY; }
+                                                onDragEnded: function(globalX, globalY) {
+                                                    for (var i = 0; i < wsRepeater.count; i++) {
+                                                        var wItem = wsRepeater.itemAt(i);
+                                                        if (!wItem) continue;
+                                                        var wGlobal = wItem.mapToItem(dockContent, 0, 0);
+                                                        if (dockContent.dragY >= wGlobal.y && dockContent.dragY <= wGlobal.y + wItem.height) {
+                                                            if (wItem.wsId !== wsItem.wsId) Quickshell.execDetached({ command: ["niri", "msg", "action", "move-window-to-workspace", wItem.wsId.toString(), "--window-id", dockContent.draggingWinId.toString()] });
+                                                            break;
+                                                        }
+                                                    }
+                                                    dockContent.draggingApp = null;
+                                                }
                                             }
                                         }
                                     }

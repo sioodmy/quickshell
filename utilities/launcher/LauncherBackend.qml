@@ -462,7 +462,7 @@ Item {
         } else if (actionId === "vol_set") {
             Process.run("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)]);
         } else if (actionId === "bl_set") {
-            Process.run("brightnessctl", ["set", `${value}%`]);
+            Brightness.setPercent(value);
         } else if (actionId === "shutdown") {
             Process.run("systemctl", ["poweroff"]);
         } else if (actionId === "reboot") {
@@ -503,6 +503,12 @@ Item {
         } else if (actionId === "rec_audio_toggle") {
             ScreenRecord.toggleAudio();
             return;
+        } else if (actionId === "dnd_on") {
+            DoNotDisturb.enable();
+        } else if (actionId === "dnd_off") {
+            DoNotDisturb.disable();
+        } else if (actionId === "dnd_toggle") {
+            DoNotDisturb.toggle();
         }
         backend.closeMenuRequested();
     }
