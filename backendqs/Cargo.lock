@@ -374,6 +374,7 @@ dependencies = [
  "lofty",
  "notify",
  "nucleo-matcher",
+ "rayon",
  "regex",
  "reqwest",
  "rodio",

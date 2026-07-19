@@ -1,21 +1,27 @@
 use serde::Serialize;
-use std::collections::HashMap;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use ignore::WalkBuilder;
 use notify::{Watcher, RecursiveMode, EventKind};
+use nucleo_matcher::Utf32String;
 
 const MAX_RESULTS: usize = 15;
 const MAX_INDEX_ENTRIES: usize = 200_000;
 const MAX_PREVIEW_BYTES: usize = 8192;
 const MAX_PREVIEW_LINES: usize = 60;
 const MAX_DEPTH: usize = 8;
+/// Abort a superseded search after this many entries.
+const CANCEL_CHECK_INTERVAL: usize = 4096;
 
 #[derive(Clone)]
 pub struct FileEntry {
     pub name: String,
-    pub name_lower: String,
+    /// Presegmented basename for nucleo (avoids UTF-32 work per query).
+    pub name_utf32: Utf32String,
     pub path: String,
     pub dir: String,
     pub size: u64,
@@ -87,10 +93,10 @@ fn make_entry(path: &Path, home_path: &Path) -> Option<FileEntry> {
 
     let mime_cat = categorize_ext(&ext);
     if mime_cat == "audio" { return None; }
-    let name_lower = name.to_lowercase();
+    let name_utf32 = Utf32String::from(name.as_str());
 
     Some(FileEntry {
-        name, name_lower, path: path_str, dir, size, modified, mime_cat, ext
+        name, name_utf32, path: path_str, dir, size, modified, mime_cat, ext
     })
 }
 
@@ -192,39 +198,83 @@ fn start_watcher(index: FileIndex, dirs: Vec<PathBuf>, home_path: PathBuf) {
     });
 }
 
-pub async fn search(index: &FileIndex, q: &str, frecency: Option<HashMap<String, f64>>) -> Vec<FileResult> {
+/// Fuzzy-search the index. Returns `None` if this request was superseded by a newer query.
+pub async fn search(
+    index: &FileIndex,
+    q: &str,
+    frecency: Option<Arc<HashMap<String, f64>>>,
+    generation: u64,
+    current_generation: Arc<AtomicU64>,
+) -> Option<Vec<FileResult>> {
     let q_trimmed = q.trim().to_string();
-    if q_trimmed.len() < 2 { return vec![]; }
-    
+    if q_trimmed.len() < 2 {
+        return Some(vec![]);
+    }
+    if current_generation.load(Ordering::Relaxed) != generation {
+        return None;
+    }
+
     let index = index.clone();
-    
+
     tokio::task::spawn_blocking(move || {
+        if current_generation.load(Ordering::Relaxed) != generation {
+            return None;
+        }
+
         let data = index.read().unwrap();
-        if data.list.is_empty() { return vec![]; }
-        
-        use nucleo_matcher::{pattern::{Pattern, CaseMatching, Normalization}, Matcher};
+        if data.list.is_empty() {
+            return Some(vec![]);
+        }
+
+        use nucleo_matcher::{
+            pattern::{CaseMatching, Normalization, Pattern},
+            Matcher,
+        };
         let mut matcher = Matcher::default();
         let pattern = Pattern::parse(&q_trimmed, CaseMatching::Ignore, Normalization::Smart);
-        
-        let mut scored_results = Vec::with_capacity(MAX_RESULTS * 2);
-        let mut buf = Vec::new();
-        
-        for entry in &data.list {
-            let haystack = nucleo_matcher::Utf32Str::new(&entry.path, &mut buf);
-            if let Some(mut score) = pattern.score(haystack, &mut matcher) {
-                if let Some(ref frec) = frecency {
-                    if let Some(boost) = frec.get(&entry.path) {
-                        score += (boost * 200.0) as u32;
-                    }
+
+        // Min-heap of the top-K scores: peek is the smallest score currently kept.
+        let mut heap: BinaryHeap<Reverse<(u32, usize)>> =
+            BinaryHeap::with_capacity(MAX_RESULTS);
+
+        for (i, entry) in data.list.iter().enumerate() {
+            if i % CANCEL_CHECK_INTERVAL == 0
+                && current_generation.load(Ordering::Relaxed) != generation
+            {
+                return None;
+            }
+
+            let haystack = entry.name_utf32.slice(..);
+            let Some(mut score) = pattern.score(haystack, &mut matcher) else {
+                continue;
+            };
+
+            if let Some(ref frec) = frecency {
+                if let Some(boost) = frec.get(&entry.path) {
+                    score = score.saturating_add((boost * 200.0) as u32);
                 }
-                scored_results.push((score, entry));
+            }
+
+            if heap.len() < MAX_RESULTS {
+                heap.push(Reverse((score, i)));
+            } else if let Some(Reverse((min_score, _))) = heap.peek() {
+                if score > *min_score {
+                    heap.pop();
+                    heap.push(Reverse((score, i)));
+                }
             }
         }
-        
-        scored_results.sort_by(|a, b| b.0.cmp(&a.0));
-        
-        let mut results = Vec::new();
-        for (score, e) in scored_results.into_iter().take(MAX_RESULTS) {
+
+        if current_generation.load(Ordering::Relaxed) != generation {
+            return None;
+        }
+
+        let mut top: Vec<(u32, usize)> = heap.into_iter().map(|Reverse(pair)| pair).collect();
+        top.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+
+        let mut results = Vec::with_capacity(top.len());
+        for (score, idx) in top {
+            let e = &data.list[idx];
             results.push(FileResult {
                 name: e.name.clone(),
                 path: e.path.clone(),
@@ -236,8 +286,11 @@ pub async fn search(index: &FileIndex, q: &str, frecency: Option<HashMap<String,
                 score: score as i32,
             });
         }
-        results
-    }).await.unwrap_or_default()
+        Some(results)
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 

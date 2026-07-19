@@ -17,9 +17,33 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use reqwest::Client;
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use notify::{Watcher, RecursiveMode, Event};
 use tokio::sync::mpsc as tmpsc;
+
+/// In-memory frecency with scores cached so file search never recomputes / hits the FS.
+struct FrecencyState {
+    data: frecency::FrecencyData,
+    scores: frecency::FrecencyScores,
+    /// Shared with in-flight file searches; cheap to clone.
+    app_scores: Arc<HashMap<String, f64>>,
+}
+
+impl FrecencyState {
+    fn new(data: frecency::FrecencyData) -> Self {
+        let scores = frecency::get_scores(&data);
+        let app_scores = Arc::new(scores.apps.clone());
+        Self { data, scores, app_scores }
+    }
+
+    fn refresh_scores(&mut self) {
+        self.scores = frecency::get_scores(&self.data);
+        self.app_scores = Arc::new(self.scores.apps.clone());
+    }
+}
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -250,14 +274,18 @@ async fn main() -> Result<()> {
                 }
             }
 
-            // Setup Frecency state
-            let frecency_state = std::sync::Arc::new(std::sync::Mutex::new(frecency::load_or_migrate()));
+            // Setup Frecency state (scores cached; refreshed only on load/record)
+            let frecency_state = Arc::new(std::sync::Mutex::new(FrecencyState::new(
+                frecency::load_or_migrate(),
+            )));
             // Initial frecency load event
             {
-                let data = frecency_state.lock().unwrap();
-                let _ = tx_event.send(DaemonEvent::FrecencyUpdate {
-                    scores: frecency::get_scores(&data)
-                }).await;
+                let state = frecency_state.lock().unwrap();
+                let _ = tx_event
+                    .send(DaemonEvent::FrecencyUpdate {
+                        scores: state.scores.clone(),
+                    })
+                    .await;
             }
 
             // Clipboard history state + a single-permit gate so at most one
@@ -273,6 +301,9 @@ async fn main() -> Result<()> {
                     filesearch::build_index(idx).await;
                 });
             }
+
+            // Monotonic generation so stale file_search tasks can abort.
+            let file_search_generation = Arc::new(AtomicU64::new(0));
 
             // Stdin reading loop
             let stdin = io::stdin();
@@ -302,8 +333,17 @@ async fn main() -> Result<()> {
                 let notes_dir = notes_dir.clone();
                 let frecency_state = frecency_state.clone();
                 let file_index = file_index.clone();
+                let file_search_generation = file_search_generation.clone();
                 let cliphist_state = cliphist_state.clone();
                 let ocr_sem = ocr_sem.clone();
+
+                // Invalidate older searches synchronously so spawn order cannot race.
+                let assigned_search_gen = match &req {
+                    DaemonRequest::FileSearch { .. } => {
+                        Some(file_search_generation.fetch_add(1, Ordering::Relaxed) + 1)
+                    }
+                    _ => None,
+                };
 
                 tokio::spawn(async move {
                     match req {
@@ -442,28 +482,45 @@ async fn main() -> Result<()> {
                         }
                         DaemonRequest::FrecencyLoad => {
                             let scores = {
-                                let data = frecency_state.lock().unwrap();
-                                frecency::get_scores(&data)
+                                let mut state = frecency_state.lock().unwrap();
+                                // Recompute once on explicit load so scores stay fresh.
+                                state.refresh_scores();
+                                state.scores.clone()
                             };
                             let _ = tx.send(DaemonEvent::FrecencyUpdate { scores }).await;
                         }
                         DaemonRequest::FrecencyRecord { id, query } => {
                             let scores = {
-                                let mut data = frecency_state.lock().unwrap();
-                                frecency::record_launch(&mut data, &id, query.as_deref());
-                                frecency::prune_stale_data(&mut data);
-                                frecency::save(&data);
-                                frecency::get_scores(&data)
+                                let mut state = frecency_state.lock().unwrap();
+                                frecency::record_launch(&mut state.data, &id, query.as_deref());
+                                frecency::prune_stale_data(&mut state.data);
+                                frecency::save(&state.data);
+                                state.refresh_scores();
+                                state.scores.clone()
                             };
                             let _ = tx.send(DaemonEvent::FrecencyUpdate { scores }).await;
                         }
                         DaemonRequest::FileSearch { query } => {
+                            let generation = assigned_search_gen.expect("file search gen assigned");
                             let frecency_apps = {
-                                let data = frecency_state.lock().unwrap();
-                                frecency::get_scores(&data).apps
+                                let state = frecency_state.lock().unwrap();
+                                Arc::clone(&state.app_scores)
                             };
-                            let results = filesearch::search(&file_index, &query, Some(frecency_apps)).await;
-                            let _ = tx.send(DaemonEvent::FileSearchResult { query, results }).await;
+                            if let Some(results) = filesearch::search(
+                                &file_index,
+                                &query,
+                                Some(frecency_apps),
+                                generation,
+                                Arc::clone(&file_search_generation),
+                            )
+                            .await
+                            {
+                                if file_search_generation.load(Ordering::Relaxed) == generation {
+                                    let _ = tx
+                                        .send(DaemonEvent::FileSearchResult { query, results })
+                                        .await;
+                                }
+                            }
                         }
                         DaemonRequest::FilePreview { path } => {
                             let result = tokio::task::spawn_blocking(move || {
