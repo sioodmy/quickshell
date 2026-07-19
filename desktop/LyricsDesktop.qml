@@ -30,7 +30,7 @@ Variants {
         
         implicitHeight: 200
         color: "transparent"
-        visible: !Lyrics.showOverlay && Lyrics.parsedLyrics.length > 0
+        visible: Lyrics.parsedLyrics.length > 0
         
         // Inner Content
         Item {

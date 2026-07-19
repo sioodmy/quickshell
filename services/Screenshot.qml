@@ -53,7 +53,6 @@ Singleton {
     }
 
     function take_menu() {
-        ControlCenter.hide();
         imagePath = "";
         active = false;
         ocring = false;

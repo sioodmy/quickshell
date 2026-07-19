@@ -1,9 +1,5 @@
 import QtQuick
-import QtQuick.Effects
-import Quickshell
-import Quickshell.Widgets
 import "../theme"
-import qs.services
 
 /**
  * Simplified vertical bar dock item.
@@ -13,15 +9,10 @@ Item {
     id: root
 
     property var itemData: ({})
-    property bool isLauncher: false
-    property bool isSidebarToggle: false
 
     readonly property string desktopId: itemData.desktopId || ""
-    readonly property string appName: isLauncher ? "Launcher" : (isSidebarToggle ? "Sidebar" : (itemData.name || desktopId))
-    readonly property string appIcon: isLauncher || isSidebarToggle ? "" : (itemData.icon || "")
-    readonly property bool isRunning: isLauncher || isSidebarToggle ? false : (itemData.running || false)
-    readonly property bool isPinned: isLauncher || isSidebarToggle ? true : (itemData.pinned || false)
-    readonly property bool isAppFocused: !isLauncher && !isSidebarToggle && (itemData.windows ? itemData.windows.some(function(w) { return w.isFocused; }) : false)
+    readonly property string appName: itemData.name || desktopId
+    readonly property string appIcon: itemData.icon || ""
 
     // Signals for parent
     signal hoverChanged(bool hovered)
@@ -30,7 +21,7 @@ Item {
     property bool isHovered: hover.hovered
 
     readonly property int slotSize: Math.min(width, height)
-    readonly property int effectiveIconSize: slotSize > 0 ? Math.round(slotSize * 0.92) : 22
+    readonly property int effectiveIconSize: slotSize > 0 ? Math.round(slotSize * 0.95) : 22
 
     width: 32
     height: 32
@@ -47,10 +38,10 @@ Item {
         // Transparent by default, highlight on hover
         color: "transparent"
         
-        // Keep scale modest — OutBack overshoot was letting icons spill past workspace pills
-        scale: leftTap.pressed ? 0.88 : (hover.hovered ? 1.06 : (root.isAppFocused ? 1.03 : (root.isRunning ? 0.9 : 1.0)))
+        // Stay inside the slot — hover/press only, never grow past the layout box
+        scale: leftTap.pressed ? 0.9 : (hover.hovered ? 1.03 : 1.0)
         Behavior on scale {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
         }
 
         // Hover overlay
@@ -62,25 +53,12 @@ Item {
             Behavior on color { ColorAnimation { duration: 150 } }
         }
 
-        // Launcher / Sidebar icon
-        Text {
-            anchors.centerIn: parent
-            visible: root.isLauncher || root.isSidebarToggle
-            text: root.isLauncher ? "" : "󰍜" // Search icon for launcher, sidebar icon for sidebar
-            font {
-                family: "JetBrainsMono Nerd Font"
-                pixelSize: 16
-            }
-            color: Theme.on_surface
-        }
-
         // App icon
         Image {
             id: appIconImage
             anchors.centerIn: parent
             width: root.effectiveIconSize
             height: root.effectiveIconSize
-            visible: !root.isLauncher && !root.isSidebarToggle
             fillMode: Image.PreserveAspectFit
             mipmap: true
 
@@ -93,7 +71,6 @@ Item {
             property int tryIndex: 0
 
             source: {
-                if (root.isLauncher || root.isSidebarToggle) return "";
                 var icon = tryIcons[0];
                 if (icon.startsWith("/")) return "file://" + icon;
                 return "image://icon/" + icon;
@@ -111,7 +88,7 @@ Item {
         // Fallback text icon
         Text {
             anchors.centerIn: parent
-            visible: !root.isLauncher && !root.isSidebarToggle && appIconImage.status === Image.Error
+            visible: appIconImage.status === Image.Error
             text: root.appName.length > 0 ? root.appName.charAt(0).toUpperCase() : "?"
             font {
                 family: "Google Sans"
@@ -132,23 +109,13 @@ Item {
     TapHandler {
         id: leftTap
         acceptedButtons: Qt.LeftButton
-        onTapped: {
-            if (root.isLauncher) {
-                Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "appLauncher", "toggle"] });
-            } else if (root.isSidebarToggle) {
-                Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "sidebar", "toggle"] });
-            } else {
-                DockBackend.activateApp(root.desktopId);
-            }
-        }
+        onTapped: DockBackend.activateApp(root.desktopId)
     }
 
     TapHandler {
         id: rightTap
         acceptedButtons: Qt.RightButton
-        onTapped: {
-            if (!root.isLauncher && !root.isSidebarToggle) root.contextMenuRequested();
-        }
+        onTapped: root.contextMenuRequested()
     }
 
     signal dragStarted()
@@ -158,7 +125,6 @@ Item {
     DragHandler {
         id: dragHandler
         target: null
-        enabled: !root.isLauncher && !root.isSidebarToggle
         
         onActiveChanged: {
             if (active) {

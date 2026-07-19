@@ -289,7 +289,6 @@ Singleton {
     function startFullscreen() {
         if (root.recording)
             return;
-        ControlCenter.hide();
         Screenshot.overlayActive = false;
         fullscreenDelay.restart();
     }
@@ -303,7 +302,6 @@ Singleton {
     function startArea() {
         if (root.recording)
             return;
-        ControlCenter.hide();
         Screenshot.overlayActive = false;
         areaDelay.restart();
     }

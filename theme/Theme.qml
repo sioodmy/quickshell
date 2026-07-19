@@ -9,8 +9,6 @@ FileView {
     watchChanges: true
     onFileChanged: reload()
 
-    property string wallpaper: "file://" + colors.wallpaper_path
-
     // --- ALIASES ---
     property alias primary: colors.primary
     property alias on_primary: colors.on_primary
@@ -28,7 +26,6 @@ FileView {
     property alias on_tertiary_container: colors.on_tertiary_container
 
     property alias background: colors.background
-    property alias on_background: colors.on_background
     property alias surface: colors.surface
     property alias on_surface: colors.on_surface
 
@@ -37,7 +34,6 @@ FileView {
     property alias inverse_surface: colors.inverse_surface
     property alias inverse_on_surface: colors.inverse_on_surface
 
-    property alias surface_container_lowest: colors.surface_container_lowest
     property alias surface_container_low: colors.surface_container_low
     property alias surface_container: colors.surface_container
     property alias surface_container_high: colors.surface_container_high
@@ -45,8 +41,6 @@ FileView {
 
     property alias outline: colors.outline
     property alias outline_variant: colors.outline_variant
-    property alias shadow: colors.shadow
-    property alias scrim: colors.scrim
 
     property alias critical: colors.critical
     property alias on_critical: colors.on_critical

@@ -2,38 +2,14 @@ import QtQuick
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import qs.theme
-import qs.services
 
 Rectangle {
     id: root
     
-    signal requestTooltip(string text, real globalY)
-    signal hideTooltip()
-    
     implicitWidth: 28
     implicitHeight: layout.implicitHeight + 20
     radius: width / 2
-
-    color: ccTap.pressed
-        ? Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12))
-        : (ccHover.hovered
-            ? Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06))
-            : Theme.surface_container)
-
-    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-    
-    scale: ccTap.pressed ? 0.95 : 1.0
-    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-    HoverHandler {
-        id: ccHover
-    }
-
-    TapHandler {
-        id: ccTap
-        onTapped: ControlCenter.toggle()
-        cursorShape: Qt.PointingHandCursor
-    }
+    color: Theme.surface_container
 
     // --- Audio State Management ---
     readonly property var activeSink: Pipewire.defaultAudioSink
@@ -54,17 +30,6 @@ Rectangle {
             width: netIcon.width; height: netIcon.height
             anchors.horizontalCenter: parent.horizontalCenter
             DockNetwork { id: netIcon; anchors.centerIn: parent }
-            HoverHandler {
-                onHoveredChanged: {
-                    if (hovered) {
-                        var nw = netIcon.activeNetwork;
-                        var txt = nw ? (nw.ssid || "Connected") : "Disconnected";
-                        root.requestTooltip("Wi-Fi: " + txt, mapToItem(null, 0, 0).y);
-                    } else {
-                        root.hideTooltip();
-                    }
-                }
-            }
         }
         
         // --- Bluetooth ---
@@ -72,17 +37,6 @@ Rectangle {
             width: btIcon.width; height: btIcon.height
             anchors.horizontalCenter: parent.horizontalCenter
             DockBluetooth { id: btIcon; anchors.centerIn: parent }
-            HoverHandler {
-                onHoveredChanged: {
-                    if (hovered) {
-                        var isEnabled = btIcon.adapter && btIcon.adapter.enabled;
-                        var txt = !isEnabled ? "Off" : (btIcon.connectedDevices.length > 0 ? btIcon.connectedDevices[0].name : "Disconnected");
-                        root.requestTooltip("Bluetooth: " + txt, mapToItem(null, 0, 0).y);
-                    } else {
-                        root.hideTooltip();
-                    }
-                }
-            }
         }
 
         // --- Audio ---
@@ -121,17 +75,6 @@ Rectangle {
                     ctx.lineCap = "round";
                     ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
                     ctx.stroke();
-                }
-            }
-
-            HoverHandler {
-                onHoveredChanged: {
-                    if (hovered) {
-                        var txt = root.activeSink?.audio ? Math.round(root.volumeLevel * 100) + "%" : "--%";
-                        root.requestTooltip("Volume: " + txt, audioIcon.mapToItem(null, 0, 0).y);
-                    } else {
-                        root.hideTooltip();
-                    }
                 }
             }
         }
@@ -210,16 +153,6 @@ Rectangle {
                 font.family: "JetBrainsMono Nerd Font"
                 font.pixelSize: 7
                 color: Theme.on_surface
-            }
-
-            HoverHandler {
-                onHoveredChanged: {
-                    if (hovered) {
-                        root.requestTooltip("Battery: " + Math.round(batteryIconItem.capacity) + "%", batteryIconItem.mapToItem(null, 0, 0).y);
-                    } else {
-                        root.hideTooltip();
-                    }
-                }
             }
         }
     }

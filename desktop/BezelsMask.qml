@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import Quickshell
 import Quickshell.Wayland
 
-import qs.services
 import QtQuick
 import QtQuick.Effects
 import "../theme"
@@ -93,22 +92,8 @@ Variants {
                     Rectangle {
                         id: clippingRect
                         anchors.fill: parent
-
-                        // Margins
-                        anchors {
-                            leftMargin: Layout.sideBarWidth
-                            rightMargin: 0
-                            topMargin: Layout.topBarHeight
-                            bottomMargin: Layout.bottomBarHeight
-                        }
-
                         radius: Layout.cornerRadius
                     }
-
-                    // Cut out the bars themselves so the bezel doesn't draw over them and block clicks!
-                    Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: Layout.sideBarWidth }
-                    Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: Layout.topBarHeight }
-                    Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right; height: Layout.bottomBarHeight }
                 }
             }
         }

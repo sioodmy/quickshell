@@ -8,7 +8,7 @@ Item {
     id: root
 
     implicitWidth: 28
-    implicitHeight: timeCol.implicitHeight + 16
+    implicitHeight: timeCol.implicitHeight + 24
 
     SystemClock {
         id: clock

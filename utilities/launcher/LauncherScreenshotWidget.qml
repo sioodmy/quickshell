@@ -1,6 +1,5 @@
 import QtQuick
 import "../../theme"
-import qs.services
 
 Item {
     id: root

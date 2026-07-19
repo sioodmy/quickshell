@@ -42,6 +42,9 @@ PanelWindow {
     readonly property var dndQuery: parseDndQuery(ctrl.searchText.trim())
     readonly property bool dndModeActive: dndQuery !== null
 
+    readonly property var pomQuery: parsePomQuery(ctrl.searchText.trim())
+    readonly property bool pomModeActive: pomQuery !== null
+
     readonly property var clipQuery: parseClipQuery(ctrl.searchText.trim())
     readonly property bool clipModeActive: clipQuery !== null
 
@@ -269,6 +272,50 @@ PanelWindow {
         return { command: null };
     }
 
+    function parsePomQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "pom" && q !== "pomodoro" && !q.startsWith("pom ") && !q.startsWith("pomodoro "))
+            return null;
+
+        var rest = "";
+        if (q.startsWith("pomodoro "))
+            rest = q.substring(9).trim();
+        else if (q.startsWith("pom "))
+            rest = q.substring(4).trim();
+        else if (q === "pomodoro" || q === "pom")
+            rest = "";
+
+        if (rest === "")
+            return { command: null, minutes: -1 };
+
+        if (rest === "start" || rest === "go")
+            return { command: "start", minutes: -1 };
+        if (rest === "stop" || rest === "pause")
+            return { command: "stop", minutes: -1 };
+        if (rest === "toggle")
+            return { command: "toggle", minutes: -1 };
+        if (rest === "reset")
+            return { command: "reset", minutes: -1 };
+        if (rest === "work" || rest === "focus")
+            return { command: "work", minutes: -1 };
+        if (rest === "break" || rest === "short")
+            return { command: "break", minutes: -1 };
+        if (rest === "long")
+            return { command: "long", minutes: -1 };
+
+        if (rest.startsWith("+") || rest.startsWith("-")) {
+            var adj = parseInt(rest);
+            if (!isNaN(adj) && adj !== 0)
+                return { command: "adjust", minutes: adj };
+        }
+
+        var num = parseInt(rest);
+        if (!isNaN(num) && num >= 1 && num <= 120)
+            return { command: "set", minutes: num };
+
+        return { command: null, minutes: -1 };
+    }
+
     function parseClipQuery(query) {
         var q = query.trim().toLowerCase();
         if (q !== "clip" && !q.startsWith("clip "))
@@ -371,6 +418,43 @@ PanelWindow {
         }
     }
 
+    function executePomCommand() {
+        var pq = launcherWindow.pomQuery;
+        if (!pq || !pq.command) return;
+
+        if (pq.command === "set" && pq.minutes > 0) {
+            Pomodoro.setDuration(pq.minutes);
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+            launcherWindow.closeMenu();
+        } else if (pq.command === "start") {
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+            launcherWindow.closeMenu();
+        } else if (pq.command === "stop") {
+            Pomodoro.isRunning = false;
+            launcherWindow.closeMenu();
+        } else if (pq.command === "toggle") {
+            Pomodoro.toggle();
+            launcherWindow.closeMenu();
+        } else if (pq.command === "reset") {
+            Pomodoro.reset();
+            launcherWindow.closeMenu();
+        } else if (pq.command === "work") {
+            Pomodoro.setMode(0);
+            launcherWindow.closeMenu();
+        } else if (pq.command === "break") {
+            Pomodoro.setMode(1);
+            launcherWindow.closeMenu();
+        } else if (pq.command === "long") {
+            Pomodoro.setMode(2);
+            launcherWindow.closeMenu();
+        } else if (pq.command === "adjust" && pq.minutes !== 0) {
+            Pomodoro.adjustTime(pq.minutes);
+            launcherWindow.closeMenu();
+        }
+    }
+
     function buildFilteredList() {
         var allApps = DesktopEntries.applications.values;
         var query = ctrl.searchText.trim();
@@ -382,6 +466,10 @@ PanelWindow {
         var _recStateDep = ScreenRecord.recording;
         var _recAudioDep = ScreenRecord.recordAudio;
         var _dndDep = DoNotDisturb.enabled;
+        var _pomRunDep = Pomodoro.isRunning;
+        var _pomModeDep = Pomodoro.mode;
+        var _pomSessionsDep = Pomodoro.completedSessions;
+        var _pomShowDep = Pomodoro.shouldShow;
 
         var results = [];
 
@@ -436,6 +524,66 @@ PanelWindow {
                     icon: DoNotDisturb.enabled ? "󰂛" : "󰂚"
                 });
             return dndResults;
+        }
+
+        if (launcherWindow.pomModeActive) {
+            var pq = launcherWindow.pomQuery;
+            var pomResults = [];
+
+            if (pq.command === "set" && pq.minutes > 0) {
+                pomResults.push({
+                    type: "system_command",
+                    actionId: "pom_set",
+                    actionValue: pq.minutes,
+                    name: "Start " + pq.minutes + " min " + Pomodoro.modeLabel,
+                    description: "Set duration and start the timer",
+                    icon: "󱎫"
+                });
+                return pomResults;
+            }
+
+            if (pq.command === "adjust") {
+                var sign = pq.minutes > 0 ? "+" : "";
+                pomResults.push({
+                    type: "system_command",
+                    actionId: "pom_adjust",
+                    actionValue: pq.minutes,
+                    name: "Adjust by " + sign + pq.minutes + " min",
+                    description: "Change the current session length",
+                    icon: "󰔟"
+                });
+                return pomResults;
+            }
+
+            if (pq.command === "work") {
+                pomResults.push({ type: "system_command", actionId: "pom_work", name: "Focus Mode", description: "Switch to a focus session", icon: "󱎫" });
+                return pomResults;
+            }
+            if (pq.command === "break") {
+                pomResults.push({ type: "system_command", actionId: "pom_break", name: "Short Break", description: "Switch to a short break", icon: "󰅶" });
+                return pomResults;
+            }
+            if (pq.command === "long") {
+                pomResults.push({ type: "system_command", actionId: "pom_long", name: "Long Break", description: "Switch to a long break", icon: "󰒲" });
+                return pomResults;
+            }
+            if (pq.command === "reset") {
+                pomResults.push({ type: "system_command", actionId: "pom_reset", name: "Reset Timer", description: "Restore full duration for this mode", icon: "󰑐" });
+                return pomResults;
+            }
+
+            // Bare "pom" / start / stop / toggle — keep the list light; modes live in the widget chips
+            pomResults.push({
+                type: "system_command",
+                actionId: Pomodoro.isRunning ? "pom_stop" : "pom_start",
+                name: Pomodoro.isRunning ? "Pause Timer" : "Start Timer",
+                description: Pomodoro.modeLabel
+                    + (Pomodoro.completedSessions > 0 ? " · " + Pomodoro.completedSessions + " done" : ""),
+                icon: Pomodoro.isRunning ? "󰏤" : "󰐊"
+            });
+            if (Pomodoro.shouldShow)
+                pomResults.push({ type: "system_command", actionId: "pom_reset", name: "Reset Timer", description: "Restore full duration for this mode", icon: "󰑐" });
+            return pomResults;
         }
 
         if (launcherWindow.sliderModeActive) {
@@ -1485,6 +1633,8 @@ PanelWindow {
                                     launcherWindow.executeNightCommand();
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
                                     launcherWindow.executeDndCommand();
+                                } else if (launcherWindow.pomModeActive && launcherWindow.pomQuery.command) {
+                                    launcherWindow.executePomCommand();
                                 } else if (launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
                                 } else if (launcherWindow.connectivityModeActive) {
@@ -1510,6 +1660,9 @@ PanelWindow {
                                     event.accepted = true;
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
                                     launcherWindow.executeDndCommand();
+                                    event.accepted = true;
+                                } else if (launcherWindow.pomModeActive && launcherWindow.pomQuery.command) {
+                                    launcherWindow.executePomCommand();
                                     event.accepted = true;
                                 } else if (launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
@@ -1571,6 +1724,13 @@ PanelWindow {
                                 } else if (launcherWindow.dndModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.pomModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                    if (launcherWindow.pomQuery.minutes > 0)
+                                        pomWidget.pendingMinutes = launcherWindow.pomQuery.minutes;
+                                    else
+                                        pomWidget.pendingMinutes = -1;
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
@@ -1595,6 +1755,13 @@ PanelWindow {
                                     var delta = event.key === Qt.Key_Right ? 0.05 : -0.05;
                                     if (launcherWindow.volSliderActive) volSliderWidget.nudge(delta);
                                     else if (launcherWindow.blSliderActive) blSliderWidget.nudge(delta);
+                                    event.accepted = true;
+                                } else if (launcherWindow.pomModeActive && (event.key === Qt.Key_Left || event.key === Qt.Key_Right) && !Pomodoro.isRunning) {
+                                    var step = event.key === Qt.Key_Right ? 5 : -5;
+                                    var base = pomWidget.pendingMinutes > 0
+                                        ? pomWidget.pendingMinutes
+                                        : Math.round(Pomodoro.currentDuration / 60);
+                                    pomWidget.commitMinutes(base + step);
                                     event.accepted = true;
                                 } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
                                     if (lazyContentRoot.handleSpecialNavigationKey(event))
@@ -1622,6 +1789,9 @@ PanelWindow {
                                     event.accepted = true;
                                 } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
                                     launcherWindow.executeDndCommand();
+                                    event.accepted = true;
+                                } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.pomModeActive && launcherWindow.pomQuery.command) {
+                                    launcherWindow.executePomCommand();
                                     event.accepted = true;
                                 } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.musicModeActive) {
                                     lazyContentRoot.activateMusicSelection();
@@ -1655,7 +1825,7 @@ PanelWindow {
                     // --- Calculator Result Card ---
                     Item {
                         id: calcCard
-                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive
+                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive && !launcherWindow.pomModeActive
                         anchors.top: searchArea.bottom
                         anchors.topMargin: 12
                         anchors.left: parent.left
@@ -1803,7 +1973,7 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 height: sliderWidgetArea.visible ? implicitHeight : 0
-                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive
+                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive || launcherWindow.pomModeActive
                                 spacing: 8
                                 topPadding: 8
                                 bottomPadding: 4
@@ -1885,6 +2055,12 @@ PanelWindow {
                                     id: dndWidget
                                     width: parent.width
                                     active: launcherWindow.dndModeActive
+                                }
+
+                                LauncherPomodoroWidget {
+                                    id: pomWidget
+                                    width: parent.width
+                                    active: launcherWindow.pomModeActive
                                 }
                             }
 

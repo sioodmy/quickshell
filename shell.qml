@@ -4,7 +4,6 @@ import Quickshell
 import QtQuick
 import "dock"
 import "lock"
-import "sidebar"
 import "desktop"
 
 import qs.utilities.launcher
@@ -30,11 +29,6 @@ ShellRoot {
     // Session lock screen
     Lock {
         id: lockScreen
-    }
-
-    // Right-side control center sidebar
-    Sidebar {
-        id: controlCenterSidebar
     }
 
     // Floating notification overlay
@@ -67,18 +61,9 @@ ShellRoot {
         id: screenshotOverlay
     }
 
-    RecordingIndicator {
-        id: recordingIndicator
-    }
-
     // Live synced lyrics on desktop (wallpaper)
     LyricsDesktop {
         id: lyricsDesktop
-    }
-
-    // Mini floating lyrics overlay
-    LyricsOverlay {
-        id: lyricsOverlay
     }
 
     // Fullscreen media overlay

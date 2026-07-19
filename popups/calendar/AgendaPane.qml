@@ -6,7 +6,6 @@ import qs.services
 /**
  * Org Agenda Panel — right side of the calendar popup.
  * Shows today's date, upcoming/overdue tasks with M3 styling.
- * Replaces the old ClockPane.
  */
 Item {
     id: root

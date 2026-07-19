@@ -1,22 +1,15 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.services // for Playerctl
 
 Singleton {
     id: root
     
-    // Array of objects: { time: float, text: string }
+    // Array of objects: { time: float, text: string, textTranslit: string }
     property var parsedLyrics: []
     property int currentIndex: -1
     property bool showFullscreen: false
-    property bool showOverlay: false
-    
-    property string currentLine: ""
-    property string nextLine: ""
-    
-    property string currentLineTranslit: ""
     
     property string currentTrack: Playerctl.artist + " - " + Playerctl.title
     
@@ -75,9 +68,6 @@ Singleton {
 
     onCurrentTrackChanged: {
         parsedLyrics = [];
-        currentLine = "";
-        nextLine = "";
-        currentLineTranslit = "";
         currentIndex = -1;
         
         BackendDaemon.lyricsStatus = "";
@@ -131,9 +121,6 @@ Singleton {
     
     function updateLine(pos) {
         if (parsedLyrics.length === 0) {
-            currentLine = "";
-            nextLine = "";
-            currentLineTranslit = "";
             currentIndex = -1;
             return;
         }
@@ -149,23 +136,6 @@ Singleton {
         
         if (idx !== currentIndex) {
             currentIndex = idx;
-            if (idx >= 0 && idx < parsedLyrics.length) {
-                currentLine = parsedLyrics[idx].text;
-                currentLineTranslit = parsedLyrics[idx].textTranslit || "";
-                if (idx + 1 < parsedLyrics.length) {
-                    nextLine = parsedLyrics[idx + 1].text;
-                } else {
-                    nextLine = "";
-                }
-            } else {
-                currentLine = "";
-                currentLineTranslit = "";
-                if (parsedLyrics.length > 0) {
-                    nextLine = parsedLyrics[0].text;
-                } else {
-                    nextLine = "";
-                }
-            }
         }
     }
 }

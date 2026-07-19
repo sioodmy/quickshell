@@ -7,12 +7,12 @@ import qs.services
 
 /**
  * Vertical application dock functioning as a LeftBar.
- * 
+ *
  * Layout:
  * - Solid background extending full height.
- * - Top: Launcher icon + Pinned apps (that are NOT running).
- * - Center: Workspaces containing their respective running apps, with sliding highlight.
- * - Bottom: Sidebar toggle button.
+ * - Top: Launcher icon + clock.
+ * - Center: WorkspaceBar — workspaces with running apps and sliding highlight.
+ * - Bottom: System stats.
  */
 Variants {
     id: root
@@ -69,6 +69,7 @@ Variants {
                 function onFocusSwitched() {
                     dockContent.anyHovered = false;
                     dockContent.hoveredWinId = "";
+                    tooltip.visible = false;
                 }
             }
             
@@ -77,22 +78,16 @@ Variants {
             property real dragX: 0
             property real dragY: 0
 
-            property Item currentActiveWs: null
-
             Timer {
                 id: tooltipTimeoutTimer
                 interval: 3500
                 onTriggered: {
                     dockContent.anyHovered = false;
                     dockContent.hoveredWinId = "";
+                    tooltip.visible = false;
                 }
             }
 
-            // Split model into pinned (not running) and all running apps
-            property var pinnedNotRunningApps: {
-                var items = DockBackend.dockModel;
-                return items ? items.filter(function(item) { return item.pinned && !item.running; }) : [];
-            }
             property var runningApps: {
                 var items = DockBackend.dockModel;
                 return items ? items.filter(function(item) { return item.running; }) : [];
@@ -110,11 +105,35 @@ Variants {
                 z: -10
             }
 
+            // Recording indicator — same layer / exclusive zone as the bar,
+            // glued to the left edge below the notch, right-side radius only.
+            DockRecordingIndicator {
+                id: recordingIndicator
+                anchors.top: notchBg.bottom
+                anchors.topMargin: 8
+                z: -10
+            }
+
+            // Pomodoro focus orb — above the notch, same left-edge pill treatment.
+            DockPomodoroIndicator {
+                id: pomodoroIndicator
+                anchors.bottom: notchBg.top
+                anchors.bottomMargin: 8
+                z: -10
+            }
+
             // Defines exactly what areas block clicks
             Item {
                 id: inputMaskContainer
                 x: 0
-                y: Math.min(notchBg.y, tooltip.visible ? tooltip.y : notchBg.y, contextMenu.visible ? contextMenu.y : notchBg.y)
+                y: {
+                    var top = notchBg.y;
+                    if (pomodoroIndicator.visible)
+                        top = Math.min(top, pomodoroIndicator.y);
+                    if (tooltip.visible) top = Math.min(top, tooltip.y);
+                    if (contextMenu.visible) top = Math.min(top, contextMenu.y);
+                    return top;
+                }
                 width: {
                     var w = 44;
                     if (tooltip.visible) w = Math.max(w, tooltip.x + tooltip.width + 4);
@@ -123,6 +142,8 @@ Variants {
                 }
                 height: {
                     var bottom = notchBg.y + notchBg.height;
+                    if (recordingIndicator.visible)
+                        bottom = Math.max(bottom, recordingIndicator.y + recordingIndicator.height);
                     if (tooltip.visible) bottom = Math.max(bottom, tooltip.y + tooltip.height + 4);
                     if (contextMenu.visible) bottom = Math.max(bottom, contextMenu.y + contextMenu.height + 4);
                     return bottom - y;
@@ -267,188 +288,58 @@ Variants {
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
-                // 2. Workspaces (centerSection)
-                Rectangle {
-                    id: centerSection
+                // 2. Workspaces
+                WorkspaceBar {
+                    id: workspaceBar
                     anchors.top: clockModule.bottom
                     anchors.topMargin: 12
                     anchors.bottom: statsModule.top
                     anchors.bottomMargin: 12
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: 30
-                    radius: width / 2
-                    color: Theme.surface_container
-                    clip: true
 
-                    property int innerPadding: 6
-                    property int contentWidth: width - innerPadding
-                    // Leave margin inside the pill so scaled icons never touch the edges
-                    property int appSlotSize: 20
-                    property int workspaceGap: 6
-                    property int maxVisibleAppsPerWorkspace: 4
+                    runningApps: dockContent.runningApps
+                    draggingApp: dockContent.draggingApp
+                    draggingWinId: dockContent.draggingWinId
 
-                    // Sliding Highlight — never shorter than the active workspace while animating,
-                    // so newly added icons can't sit outside the bubble.
-                    Rectangle {
-                        id: slidingHighlight
-
-                        property real targetY: dockContent.currentActiveWs ? dockContent.currentActiveWs.mapToItem(centerSection, 0, 0).y : centerSection.innerPadding
-                        property real targetHeight: dockContent.currentActiveWs ? dockContent.currentActiveWs.height : 0
-
-                        property real animHeight: targetHeight
-
-                        y: targetY
-                        width: parent.width
-                        height: Math.max(targetHeight, animHeight)
-                        radius: width / 2
-                        anchors.horizontalCenter: parent.horizontalCenter
-
-                        color: Theme.secondary_container
-                        opacity: dockContent.currentActiveWs ? 1.0 : 0.0
-
-                        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        Behavior on animHeight { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                    onAppHover: function(name, itemY, winId) {
+                        dockContent.hoveredAppName = name
+                        dockContent.hoveredItemY = itemY
+                        dockContent.hoveredWinId = winId
+                        dockContent.anyHovered = true
+                        dockContent.previewTimestamp = Date.now()
+                        tooltip.visible = true
+                        tooltipTimeoutTimer.restart()
                     }
-
-                    Column {
-                        id: workspaceColumn
-                        anchors.centerIn: parent
-                        width: centerSection.contentWidth
-                        spacing: centerSection.workspaceGap
-
-                        Repeater {
-                            id: wsRepeater
-                            model: NiriService.workspaces
-
-                            delegate: Item {
-                                id: wsItem
-                                width: workspaceColumn.width
-                                height: hasApps ? (wsAppColumn.implicitHeight + overflowBadge.height + 14) : width
-
-                                property bool isFocused: model.isFocused
-                                property bool isActive: model.isActive
-                                property int wsId: model.id
-                                property var wsApps: dockContent.runningApps ? dockContent.runningApps.filter(function(app) { return app.minWorkspaceId === wsId; }) : []
-                                readonly property bool hasApps: wsApps && wsApps.length > 0
-                                readonly property int visibleAppCount: hasApps ? Math.min(wsApps.length, centerSection.maxVisibleAppsPerWorkspace) : 0
-                                readonly property int hiddenAppCount: hasApps ? Math.max(0, wsApps.length - visibleAppCount) : 0
-
-                                onIsFocusedChanged: { if (isFocused) dockContent.currentActiveWs = wsItem; }
-                                onIsActiveChanged: { if (isActive && !dockContent.currentActiveWs) dockContent.currentActiveWs = wsItem; }
-                                Component.onCompleted: { if (isFocused || (isActive && !dockContent.currentActiveWs)) dockContent.currentActiveWs = wsItem; }
-
-                                Rectangle {
-                                    id: inactivePill
-                                    anchors.fill: parent
-                                    radius: width / 2
-                                    color: Theme.surface_container_high
-                                    opacity: (isFocused || isActive || !wsApps || wsApps.length === 0) ? 0.0 : 1.0
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                }
-
-                                HoverHandler { id: wsHover }
-
-                                Rectangle {
-                                    id: hoverOverlay
-                                    anchors.fill: parent
-                                    radius: width / 2
-                                    color: wsHover.hovered ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                }
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    property bool isDragTarget: dockContent.draggingApp !== null
-                                    width: isDragTarget ? 14 : 8
-                                    height: width
-                                    radius: width / 2
-                                    color: Theme.on_surface_variant
-                                    opacity: isDragTarget ? 0.8 : 0.3
-                                    visible: (!wsApps || wsApps.length === 0) && !isFocused && !isActive
-                                    Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                }
-
-                                Column {
-                                    id: wsAppColumn
-                                    width: parent.width
-                                    anchors.top: parent.top
-                                    anchors.topMargin: 7
-                                    spacing: wsItem.wsApps.length > 3 ? 2 : 4
-
-                                    Repeater {
-                                        model: wsItem.visibleAppCount
-                                        Item {
-                                            width: wsAppColumn.width
-                                            height: centerSection.appSlotSize
-
-                                            DockItem {
-                                                id: runningItem
-                                                anchors.centerIn: parent
-                                                width: centerSection.appSlotSize
-                                                height: centerSection.appSlotSize
-                                                itemData: wsItem.wsApps[index]
-                                                onDragStarted: {
-                                                    dockContent.draggingApp = runningItem;
-                                                    var wsWins = runningItem.itemData.windows.filter(function(w) { return w.workspaceId === wsItem.wsId; });
-                                                    dockContent.draggingWinId = wsWins.length > 0 ? wsWins[0].id : "";
-                                                    var global = runningItem.mapToItem(dockContent, 0, 0);
-                                                    dockContent.dragX = global.x + runningItem.width / 2;
-                                                    dockContent.dragY = global.y + runningItem.height / 2;
-                                                    dockContent.anyHovered = false;
-                                                    tooltipTimeoutTimer.stop();
-                                                }
-                                                onDragUpdated: function(globalX, globalY) { dockContent.dragX = globalX; dockContent.dragY = globalY; }
-                                                onDragEnded: function(globalX, globalY) {
-                                                    for (var i = 0; i < wsRepeater.count; i++) {
-                                                        var wItem = wsRepeater.itemAt(i);
-                                                        if (!wItem) continue;
-                                                        var wGlobal = wItem.mapToItem(dockContent, 0, 0);
-                                                        if (dockContent.dragY >= wGlobal.y && dockContent.dragY <= wGlobal.y + wItem.height) {
-                                                            if (wItem.wsId !== wsItem.wsId) Quickshell.execDetached({ command: ["niri", "msg", "action", "move-window-to-workspace", wItem.wsId.toString(), "--window-id", dockContent.draggingWinId.toString()] });
-                                                            break;
-                                                        }
-                                                    }
-                                                    dockContent.draggingApp = null;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    id: overflowBadge
-                                    anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: 5
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    width: parent.width - 8
-                                    height: wsItem.hiddenAppCount > 0 ? 14 : 0
-                                    radius: height / 2
-                                    visible: wsItem.hiddenAppCount > 0
-                                    color: Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.14)
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "+" + wsItem.hiddenAppCount
-                                        color: Theme.on_surface_variant
-                                        font {
-                                            family: "Google Sans"
-                                            pixelSize: 9
-                                            weight: Font.DemiBold
-                                        }
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: 4
-                                    z: -1
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: NiriService.focusWorkspaceById(wsItem.wsId)
-                                }
-                            }
-                        }
+                    onAppHoverEnd: {
+                        // keep tooltip until timeout / focus switch
+                    }
+                    onAppContextMenu: function(itemData, itemY) {
+                        dockContent.contextDesktopId = itemData.desktopId || ""
+                        dockContent.contextAppName = itemData.name || ""
+                        dockContent.contextIsPinned = !!itemData.pinned
+                        dockContent.contextIsRunning = !!itemData.running
+                        dockContent.contextItemY = itemY - dockContent.mapToItem(null, 0, 0).y
+                        dockContent.contextMenuOpen = true
+                        tooltip.visible = false
+                    }
+                    onDragStarted: function(item, winId, gx, gy) {
+                        var local = dockContent.mapFromItem(null, gx, gy)
+                        dockContent.draggingApp = item
+                        dockContent.draggingWinId = winId
+                        dockContent.dragX = local.x
+                        dockContent.dragY = local.y
+                        dockContent.anyHovered = false
+                        tooltipTimeoutTimer.stop()
+                        tooltip.visible = false
+                    }
+                    onDragUpdated: function(gx, gy) {
+                        var local = dockContent.mapFromItem(null, gx, gy)
+                        dockContent.dragX = local.x
+                        dockContent.dragY = local.y
+                    }
+                    onDragEnded: function(gx, gy) {
+                        dockContent.draggingApp = null
+                        dockContent.draggingWinId = ""
                     }
                 }
 
@@ -473,7 +364,7 @@ Variants {
                 Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
 
                 x: 56
-                y: dockContent.hoveredItemY + 6 - 80
+                y: dockContent.hoveredItemY + 6 - 80 - dockContent.mapToItem(null, 0, 0).y
 
                 width: 260
                 height: 200
@@ -551,7 +442,7 @@ Variants {
             // === CONTEXT MENU ===
             Rectangle {
                 id: contextMenu
-                visible: false
+                visible: dockContent.contextMenuOpen
                 opacity: visible ? 1.0 : 0.0
                 scale: visible ? 1.0 : 0.85
 
@@ -702,8 +593,6 @@ Variants {
             DockItem {
                 id: dragProxy
                 visible: dockContent.draggingApp !== null
-                isLauncher: false
-                isSidebarToggle: false
                 itemData: dockContent.draggingApp ? dockContent.draggingApp.itemData : {}
                 width: 32; height: 32
                 opacity: 0.8

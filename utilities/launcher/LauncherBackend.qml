@@ -509,6 +509,27 @@ Item {
             DoNotDisturb.disable();
         } else if (actionId === "dnd_toggle") {
             DoNotDisturb.toggle();
+        } else if (actionId === "pom_start") {
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+        } else if (actionId === "pom_stop") {
+            Pomodoro.isRunning = false;
+        } else if (actionId === "pom_toggle") {
+            Pomodoro.toggle();
+        } else if (actionId === "pom_reset") {
+            Pomodoro.reset();
+        } else if (actionId === "pom_work") {
+            Pomodoro.setMode(0);
+        } else if (actionId === "pom_break") {
+            Pomodoro.setMode(1);
+        } else if (actionId === "pom_long") {
+            Pomodoro.setMode(2);
+        } else if (actionId === "pom_set") {
+            Pomodoro.setDuration(value);
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+        } else if (actionId === "pom_adjust") {
+            Pomodoro.adjustTime(value);
         }
         backend.closeMenuRequested();
     }
