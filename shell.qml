@@ -37,6 +37,11 @@ ShellRoot {
         id: notificationOverlay
     }
 
+    // Top-right file stash (Dropzone-style)
+    FileStashPopup {
+        id: fileStashOverlay
+    }
+
     // Application Launcher
     Launcher {
         id: launcherWindow

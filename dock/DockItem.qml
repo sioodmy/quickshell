@@ -122,21 +122,28 @@ Item {
     signal dragUpdated(real globalX, real globalY)
     signal dragEnded(real globalX, real globalY)
 
+    // Last pointer position during an active drag. DragHandler.translation can
+    // reset to 0 before onActiveChanged(false), so drop hit-tests must not
+    // recompute from translation at release.
+    property real _dragGX: 0
+    property real _dragGY: 0
+
     DragHandler {
         id: dragHandler
         target: null
-        
+
         onActiveChanged: {
             if (active) {
                 root.dragStarted();
             } else {
-                var globalPos = mapToItem(null, dragHandler.translation.x + width / 2, dragHandler.translation.y + height / 2);
-                root.dragEnded(globalPos.x, globalPos.y);
+                root.dragEnded(root._dragGX, root._dragGY);
             }
         }
         onTranslationChanged: {
             var globalPos = mapToItem(null, dragHandler.translation.x + width / 2, dragHandler.translation.y + height / 2);
-            root.dragUpdated(globalPos.x, globalPos.y);
+            root._dragGX = globalPos.x;
+            root._dragGY = globalPos.y;
+            root.dragUpdated(root._dragGX, root._dragGY);
         }
     }
 }

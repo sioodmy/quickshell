@@ -77,6 +77,14 @@ Variants {
             property string draggingWinId: ""
             property real dragX: 0
             property real dragY: 0
+            property real dragVY: 0
+            property real _prevDragY: 0
+            property bool dropHoverActive: workspaceBar.dropHoverActive
+
+            onDragYChanged: {
+                dragVY = dragY - _prevDragY
+                _prevDragY = dragY
+            }
 
             Timer {
                 id: tooltipTimeoutTimer
@@ -138,6 +146,9 @@ Variants {
                     var w = 44;
                     if (tooltip.visible) w = Math.max(w, tooltip.x + tooltip.width + 4);
                     if (contextMenu.visible) w = Math.max(w, contextMenu.x + contextMenu.width + 4);
+                    // Keep a bit of horizontal slack while dragging so the
+                    // pointer doesn't leave the layer-shell input region.
+                    if (dockContent.draggingApp !== null) w = Math.max(w, 72);
                     return w;
                 }
                 height: {
@@ -328,6 +339,8 @@ Variants {
                         dockContent.draggingWinId = winId
                         dockContent.dragX = local.x
                         dockContent.dragY = local.y
+                        dockContent._prevDragY = local.y
+                        dockContent.dragVY = 0
                         dockContent.anyHovered = false
                         tooltipTimeoutTimer.stop()
                         tooltip.visible = false
@@ -340,6 +353,7 @@ Variants {
                     onDragEnded: function(gx, gy) {
                         dockContent.draggingApp = null
                         dockContent.draggingWinId = ""
+                        dockContent.dragVY = 0
                     }
                 }
 
@@ -589,16 +603,178 @@ Variants {
                 onClicked: dockContent.contextMenuOpen = false
             }
 
-            // Floating Drag Proxy
-            DockItem {
+            // Floating drag proxy — lagged jelly follow + continuous wobble
+            Item {
                 id: dragProxy
-                visible: dockContent.draggingApp !== null
-                itemData: dockContent.draggingApp ? dockContent.draggingApp.itemData : {}
-                width: 32; height: 32
-                opacity: 0.8
-                x: dockContent.dragX - width / 2
-                y: dockContent.dragY - height / 2
-                scale: 1.05
+
+                property real followX: dockContent.dragX
+                property real followY: dockContent.dragY
+                property bool active: dockContent.draggingApp !== null
+                // Animations write here so they don't break the scale binding
+                property real popBoost: 1.0
+                property real wobbleSpin: 0
+
+                width: 40
+                height: 40
+                x: followX - width / 2
+                y: followY - height / 2
+                z: 100
+                visible: active
+                opacity: active ? 1 : 0
+                transformOrigin: Item.Center
+                rotation: wobbleSpin
+
+                scale: {
+                    var base = 0.4
+                    if (active)
+                        base = dockContent.dropHoverActive ? 1.35 : 1.15
+                    return base * popBoost
+                }
+
+                onActiveChanged: {
+                    if (active) {
+                        followBehaviorX.enabled = false
+                        followBehaviorY.enabled = false
+                        followX = dockContent.dragX
+                        followY = dockContent.dragY
+                        followBehaviorX.enabled = true
+                        followBehaviorY.enabled = true
+                        popBoost = 1.0
+                        grabPop.restart()
+                        wobbleLoop.restart()
+                    } else {
+                        wobbleLoop.stop()
+                        wobbleSpin = 0
+                        popBoost = 1.0
+                    }
+                }
+
+                Connections {
+                    target: dockContent
+                    function onDragXChanged() {
+                        if (dragProxy.active)
+                            dragProxy.followX = dockContent.dragX
+                    }
+                    function onDragYChanged() {
+                        if (dragProxy.active)
+                            dragProxy.followY = dockContent.dragY
+                    }
+                }
+
+                Behavior on followX {
+                    id: followBehaviorX
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                Behavior on followY {
+                    id: followBehaviorY
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 2.8
+                    }
+                }
+                Behavior on opacity { NumberAnimation { duration: 90 } }
+
+                SequentialAnimation {
+                    id: grabPop
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "popBoost"
+                        to: 1.25
+                        duration: 90
+                        easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "popBoost"
+                        to: 1.0
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 2.4
+                    }
+                }
+
+                SequentialAnimation {
+                    id: wobbleLoop
+                    loops: Animation.Infinite
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "wobbleSpin"
+                        to: 16
+                        duration: 90
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "wobbleSpin"
+                        to: -14
+                        duration: 160
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "wobbleSpin"
+                        to: 10
+                        duration: 130
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "wobbleSpin"
+                        to: -6
+                        duration: 110
+                        easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: dragProxy
+                        property: "wobbleSpin"
+                        to: 0
+                        duration: 90
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width + 14
+                    height: parent.height + 14
+                    radius: width / 2
+                    color: Qt.alpha(Theme.primary, dockContent.dropHoverActive ? 0.45 : 0.22)
+                    scale: dockContent.dropHoverActive ? 1.2 : 1.0
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Behavior on scale {
+                        NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+                    }
+                }
+
+                Image {
+                    anchors.centerIn: parent
+                    width: parent.width * 0.88
+                    height: parent.height * 0.88
+                    fillMode: Image.PreserveAspectFit
+                    mipmap: true
+                    source: {
+                        if (!dockContent.draggingApp)
+                            return ""
+                        var icon = dockContent.draggingApp.itemData
+                            ? (dockContent.draggingApp.itemData.icon || "")
+                            : ""
+                        if (!icon || icon === "")
+                            return "image://icon/application-x-executable"
+                        if (icon.startsWith("/"))
+                            return "file://" + icon
+                        return "image://icon/" + icon
+                    }
+                }
             }
         }
     }

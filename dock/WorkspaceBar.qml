@@ -18,6 +18,8 @@ Item {
     // --- Public API ---
     property var runningApps: []
     property Item draggingApp: null
+    property int dropHoverWsId: -1
+    readonly property bool dropHoverActive: dropHoverWsId >= 0
 
     signal appHover(string name, real itemY, string winId)
     signal appHoverEnd()
@@ -47,7 +49,8 @@ Item {
         anchors.fill: parent
         radius: width / 2
         color: Theme.surface_container
-        clip: true
+        // Let drop-target wobble spill slightly outside the track
+        clip: root.draggingApp === null
 
         // Sliding active highlight — same width as pills, follows active item
         Rectangle {
@@ -89,6 +92,7 @@ Item {
                     width: root.pillWidth
 
                     wsId: model.id
+                    wsName: model.name || ""
                     isFocused: model.isFocused
                     isActive: model.isActive
                     runningApps: root.runningApps
@@ -101,6 +105,8 @@ Item {
                     emptyDotSize: root.emptyDotSize
                     emptySlotHeight: root.emptySlotHeight
                     isDragTarget: root.draggingApp !== null
+                    isDropHovered: root.dropHoverWsId === wsItem.wsId
+                    draggingApp: root.draggingApp
 
                     // Own background only when occupied & inactive (active uses sliding highlight)
                     showPill: hasApps && !isFocused && !isActive
@@ -118,9 +124,15 @@ Item {
                         root.appContextMenu(itemData, itemY)
                     }
                     onDragStarted: function(item, winId, gx, gy) {
+                        root._lastDragGX = gx
+                        root._lastDragGY = gy
+                        root._updateDropHover(gx, gy)
                         root.dragStarted(item, winId, gx, gy)
                     }
                     onDragUpdated: function(gx, gy) {
+                        root._lastDragGX = gx
+                        root._lastDragGY = gy
+                        root._updateDropHover(gx, gy)
                         root.dragUpdated(gx, gy)
                     }
                     onDragEnded: function(gx, gy) {
@@ -141,27 +153,60 @@ Item {
     }
     readonly property real activeTargetHeight: activeWsItem ? activeWsItem.height : 0
 
-    function _finishDrag(globalX, globalY, fromWsId) {
-        var localY = track.mapFromItem(null, globalX, globalY).y
+    // Last drag position in scene coords — kept in sync by dragUpdated so drop
+    // hit-testing does not depend on DragHandler.translation at release.
+    property real _lastDragGX: 0
+    property real _lastDragGY: 0
+
+    function _workspaceAt(gx, gy) {
+        var local = wsColumn.mapFromItem(null, gx, gy)
+        var halfGap = root.workspaceGap / 2
         for (var i = 0; i < wsRepeater.count; i++) {
             var item = wsRepeater.itemAt(i)
             if (!item)
                 continue
-            var top = wsColumn.y + item.y
-            var bottom = top + item.height
-            if (localY >= top && localY <= bottom) {
-                if (item.wsId !== fromWsId && root.draggingWinId !== "") {
-                    Quickshell.execDetached({
-                        command: [
-                            "niri", "msg", "action", "move-window-to-workspace",
-                            item.wsId.toString(), "--window-id", root.draggingWinId
-                        ]
-                    })
-                }
-                break
+            var top = item.y - halfGap
+            var bottom = item.y + item.height + halfGap
+            if (local.y >= top && local.y <= bottom)
+                return item
+        }
+        return null
+    }
+
+    function _updateDropHover(gx, gy) {
+        var item = root._workspaceAt(gx, gy)
+        root.dropHoverWsId = item ? item.wsId : -1
+    }
+
+    function _finishDrag(globalX, globalY, fromWsId) {
+        var gx = root._lastDragGX
+        var gy = root._lastDragGY
+        var winId = root.draggingWinId
+        var target = root._workspaceAt(gx, gy)
+
+        if (target && target.wsId !== fromWsId && winId !== "") {
+            target.playDropAccept()
+            // Prefer workspace name for the CLI. Unique ids are not accepted as
+            // bare numbers (those are treated as index), so fall back to IPC Id.
+            if (target.wsName && target.wsName.length > 0) {
+                Quickshell.execDetached({
+                    command: [
+                        "niri", "msg", "action", "move-window-to-workspace",
+                        target.wsName, "--window-id", winId, "--focus", "false"
+                    ]
+                })
+            } else {
+                NiriService.sendRawAction({
+                    "MoveWindowToWorkspace": {
+                        "window_id": Number(winId),
+                        "reference": { "Id": Number(target.wsId) },
+                        "focus": false
+                    }
+                })
             }
         }
-        root.dragEnded(globalX, globalY)
+        root.dropHoverWsId = -1
+        root.dragEnded(gx, gy)
     }
 
     // Set by parent while a drag is in progress (window id being moved)

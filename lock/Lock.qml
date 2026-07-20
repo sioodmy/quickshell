@@ -61,7 +61,7 @@ Scope {
     // Wayland session lock is released.
     Timer {
         id: unlockAnimTimer
-        interval: 950
+        interval: 520
         onTriggered: root.finishUnlock()
     }
 

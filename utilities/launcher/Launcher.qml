@@ -818,7 +818,7 @@ PanelWindow {
         } else if (queryLower === "reboot" || queryLower === "restart") {
             results.push({ type: "system_command", actionId: "reboot", name: "Reboot", description: "Restart the computer", icon: "󰜉" });
         } else if (queryLower === "sleep" || queryLower === "suspend") {
-            results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "󰤓" });
+            results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "󰒲" });
         } else if (queryLower === "lock" || queryLower === "lockscreen") {
             results.push({ type: "system_command", actionId: "lock", name: "Lock Screen", description: "Lock the session", icon: "󰌾" });
         } else if (queryLower === "audio out hdmi") {

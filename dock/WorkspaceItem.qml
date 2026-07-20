@@ -5,18 +5,23 @@ import qs.services
 /**
  * One workspace entry in the workspace bar.
  *
- * Occupied: pill-sized column of centered app icons (+ optional overflow badge).
- * Empty + inactive: small centered dot.
+ * Occupied: pill-shaped column of app icons (+ optional overflow badge).
+ * Empty + inactive: centered dot.
  * Empty + active: circular slot (highlight drawn by parent).
+ *
+ * During window drag: scales up, shakes, and shows a glow ring when hovered.
  */
 Item {
     id: root
 
     property int wsId: -1
+    property string wsName: ""
     property bool isFocused: false
     property bool isActive: false
     property var runningApps: []
     property bool isDragTarget: false
+    property bool isDropHovered: false
+    property Item draggingApp: null
     property bool showPill: false
 
     property int iconSize: 20
@@ -46,7 +51,6 @@ Item {
     readonly property int visibleCount: hasApps ? Math.min(wsApps.length, maxApps) : 0
     readonly property int hiddenCount: hasApps ? Math.max(0, wsApps.length - visibleCount) : 0
 
-    // Explicit height — no implicitHeight + margin spaghetti
     height: {
         if (!hasApps)
             return (isFocused || isActive) ? width : emptySlotHeight
@@ -56,7 +60,141 @@ Item {
         return h
     }
 
-    clip: hasApps
+    // Don't clip while dragging so scale/glow can spill out of the pill
+    clip: hasApps && !isDragTarget
+
+    transformOrigin: Item.Center
+
+    // Base scale stays declarative; animations write to boost/spin only
+    // so they never break the binding.
+    property real animBoost: 1.0
+    property real animSpin: 0
+
+    scale: {
+        var base = 1.0
+        if (isDropHovered)
+            base = hasApps ? 1.28 : 1.55
+        else if (isDragTarget)
+            base = 1.06
+        return base * animBoost
+    }
+    rotation: animSpin
+
+    Behavior on scale {
+        NumberAnimation {
+            duration: 220
+            easing.type: Easing.OutBack
+            easing.overshoot: 2.6
+        }
+    }
+
+    onIsDropHoveredChanged: {
+        if (isDropHovered) {
+            shakeLoop.restart()
+        } else {
+            shakeLoop.stop()
+            animSpin = 0
+        }
+    }
+
+    onIsDragTargetChanged: {
+        if (!isDragTarget) {
+            shakeLoop.stop()
+            animSpin = 0
+            animBoost = 1.0
+        }
+    }
+
+    function playDropAccept() {
+        shakeLoop.stop()
+        animSpin = 0
+        acceptPop.restart()
+    }
+
+    // Continuous shake while this slot is the drop target
+    SequentialAnimation {
+        id: shakeLoop
+        loops: Animation.Infinite
+        NumberAnimation {
+            target: root
+            property: "animSpin"
+            to: 14
+            duration: 70
+            easing.type: Easing.InOutSine
+        }
+        NumberAnimation {
+            target: root
+            property: "animSpin"
+            to: -14
+            duration: 140
+            easing.type: Easing.InOutSine
+        }
+        NumberAnimation {
+            target: root
+            property: "animSpin"
+            to: 10
+            duration: 110
+            easing.type: Easing.InOutSine
+        }
+        NumberAnimation {
+            target: root
+            property: "animSpin"
+            to: -6
+            duration: 90
+            easing.type: Easing.InOutSine
+        }
+        NumberAnimation {
+            target: root
+            property: "animSpin"
+            to: 0
+            duration: 80
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 60 }
+    }
+
+    // Big bounce when a window lands here
+    SequentialAnimation {
+        id: acceptPop
+        NumberAnimation {
+            target: root
+            property: "animBoost"
+            to: 1.35
+            duration: 100
+            easing.type: Easing.OutCubic
+        }
+        ParallelAnimation {
+            NumberAnimation {
+                target: root
+                property: "animBoost"
+                to: 1.0
+                duration: 380
+                easing.type: Easing.OutBack
+                easing.overshoot: 3.2
+            }
+            SequentialAnimation {
+                NumberAnimation {
+                    target: root
+                    property: "animSpin"
+                    to: -18
+                    duration: 80
+                }
+                NumberAnimation {
+                    target: root
+                    property: "animSpin"
+                    to: 14
+                    duration: 100
+                }
+                NumberAnimation {
+                    target: root
+                    property: "animSpin"
+                    to: 0
+                    duration: 180
+                    easing.type: Easing.OutBack
+                }
+            }
+        }
+    }
 
     onIsFocusedChanged: {
         if (isFocused)
@@ -82,14 +220,56 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
     }
 
-    // Hover wash
+    // Hover / drop wash
     Rectangle {
         anchors.fill: parent
         radius: width / 2
-        color: wsHover.hovered
-            ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08)
-            : "transparent"
-        Behavior on color { ColorAnimation { duration: 150 } }
+        color: {
+            if (root.isDropHovered)
+                return Qt.alpha(Theme.primary, 0.35)
+            if (wsHover.hovered)
+                return Qt.alpha(Theme.on_surface, 0.08)
+            return "transparent"
+        }
+        Behavior on color { ColorAnimation { duration: 100 } }
+    }
+
+    // Glow ring — the obvious "you can drop here" signal
+    Rectangle {
+        id: dropRing
+        anchors.centerIn: parent
+        width: parent.width + (root.isDropHovered ? 18 : (root.isDragTarget ? 10 : 0))
+        height: parent.height + (root.isDropHovered ? 18 : (root.isDragTarget ? 10 : 0))
+        radius: width / 2
+        color: "transparent"
+        border.width: root.isDropHovered ? 3 : (root.isDragTarget ? 2 : 0)
+        border.color: Theme.primary
+        property real pulse: 1.0
+        opacity: {
+            if (!root.isDragTarget && !root.isDropHovered)
+                return 0
+            if (root.isDropHovered)
+                return pulse
+            return 0.45
+        }
+        visible: root.isDragTarget || root.isDropHovered
+        z: -1
+
+        Behavior on width {
+            NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+        }
+        Behavior on height {
+            NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+        }
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on border.width { NumberAnimation { duration: 120 } }
+
+        SequentialAnimation on pulse {
+            running: root.isDropHovered
+            loops: Animation.Infinite
+            NumberAnimation { to: 1.0; duration: 280; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.4; duration: 280; easing.type: Easing.InOutSine }
+        }
     }
 
     HoverHandler { id: wsHover }
@@ -97,17 +277,26 @@ Item {
     // Empty-workspace indicator
     Rectangle {
         anchors.centerIn: parent
-        width: root.isDragTarget ? 14 : root.emptyDotSize
+        width: {
+            if (root.isDropHovered)
+                return 18
+            if (root.isDragTarget)
+                return 13
+            return root.emptyDotSize
+        }
         height: width
         radius: width / 2
-        color: Theme.on_surface_variant
-        opacity: root.isDragTarget ? 0.8 : 0.35
+        color: root.isDropHovered ? Theme.primary : Theme.on_surface_variant
+        opacity: root.isDropHovered ? 1.0 : (root.isDragTarget ? 0.85 : 0.35)
         visible: !root.hasApps && !root.isFocused && !root.isActive
-        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Behavior on width {
+            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 2.8 }
+        }
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: 120 } }
     }
 
-    // App icons + overflow — column spans pill width so every child can center
     Column {
         id: appColumn
         anchors.horizontalCenter: parent.horizontalCenter
@@ -133,6 +322,8 @@ Item {
                     width: root.iconSize
                     height: root.iconSize
                     itemData: root.wsApps[slot.index] || ({})
+                    opacity: root.draggingApp === appItem ? 0.15 : 1.0
+                    Behavior on opacity { NumberAnimation { duration: 100 } }
 
                     onHoverChanged: function(hovered) {
                         if (hovered) {
@@ -155,9 +346,12 @@ Item {
 
                     onDragStarted: {
                         var wins = (appItem.itemData.windows || []).filter(function(w) {
-                            return w.workspaceId === root.wsId
+                            return Number(w.workspaceId) === Number(root.wsId)
                         })
-                        var winId = wins.length > 0 ? wins[0].id : ""
+                        var winId = wins.length > 0
+                            ? String(wins[0].id)
+                            : (appItem.itemData.windows && appItem.itemData.windows.length > 0
+                                ? String(appItem.itemData.windows[0].id) : "")
                         var g = appItem.mapToItem(null, appItem.width / 2, appItem.height / 2)
                         root.dragStarted(appItem, winId, g.x, g.y)
                     }
@@ -181,12 +375,7 @@ Item {
                 width: parent.width - 8
                 height: parent.height
                 radius: height / 2
-                color: Qt.rgba(
-                    Theme.on_surface_variant.r,
-                    Theme.on_surface_variant.g,
-                    Theme.on_surface_variant.b,
-                    0.14
-                )
+                color: Qt.alpha(Theme.on_surface_variant, 0.14)
 
                 Text {
                     anchors.centerIn: parent
@@ -202,7 +391,6 @@ Item {
         }
     }
 
-    // Click empty/padding area to focus workspace (icons handle their own clicks)
     MouseArea {
         anchors.fill: parent
         z: -1
