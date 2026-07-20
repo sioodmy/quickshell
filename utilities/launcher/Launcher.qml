@@ -463,6 +463,7 @@ PanelWindow {
 
         // Track async search results to force QML to re-evaluate this function
         var _fileSearchDep = ctrl.fileSearchResults;
+        var _bookmarkSearchDep = ctrl.bookmarkSearchResults;
         var _recStateDep = ScreenRecord.recording;
         var _recAudioDep = ScreenRecord.recordAudio;
         var _dndDep = DoNotDisturb.enabled;
@@ -865,6 +866,20 @@ PanelWindow {
                     results.push({
                         type: "file",
                         file: fileResults[fi]
+                    });
+                }
+            }
+        }
+
+        // --- Bookmark search results (from Rust backend) ---
+        if (queryLen >= 2) {
+            var bookmarkResults = ctrl.bookmarkSearchResults;
+            if (bookmarkResults && ctrl.bookmarkSearchQuery.toLowerCase() === queryLower) {
+                var maxBookmarks = Math.min(bookmarkResults.length, 5);
+                for (var bi = 0; bi < maxBookmarks; bi++) {
+                    results.push({
+                        type: "bookmark",
+                        bookmark: bookmarkResults[bi]
                     });
                 }
             }

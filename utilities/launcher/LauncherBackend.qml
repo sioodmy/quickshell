@@ -44,6 +44,8 @@ Item {
     // File search (delegated to Rust backend)
     property var fileSearchResults: BackendDaemon.fileSearchResults
     property string fileSearchQuery: BackendDaemon.fileSearchQuery
+    property var bookmarkSearchResults: BackendDaemon.bookmarkSearchResults
+    property string bookmarkSearchQuery: BackendDaemon.bookmarkSearchQuery
     property var filePreview: BackendDaemon.filePreview
     property string selectedFilePath: ""
 
@@ -64,6 +66,8 @@ Item {
         BackendDaemon.backendqsStatus = "";
         BackendDaemon.fileSearchResults = [];
         BackendDaemon.fileSearchQuery = "";
+        BackendDaemon.bookmarkSearchResults = [];
+        BackendDaemon.bookmarkSearchQuery = "";
         BackendDaemon.filePreview = null;
         backend.selectedFilePath = "";
         BackendDaemon.filePreviewPath = "";
@@ -247,6 +251,7 @@ Item {
         calcDebounce.restart();
         dictDebounce.restart();
         fileSearchDebounce.restart();
+        bookmarkSearchDebounce.restart();
     }
 
     Timer {
@@ -385,11 +390,35 @@ Item {
         }
     }
 
+    Timer {
+        id: bookmarkSearchDebounce
+        interval: 150
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length >= 2) {
+                BackendDaemon.send({"action": "bookmark_search", "query": query});
+            } else {
+                BackendDaemon.bookmarkSearchResults = [];
+            }
+        }
+    }
+
     function openFile(path) {
         BackendDaemon.send({"action": "file_open", "path": path});
         BackendDaemon.send({
             "action": "frecency_record",
             "id": path,
+            "query": backend.searchText.trim()
+        });
+        backend.closeMenuRequested();
+    }
+
+    function openUrl(url) {
+        xdgOpenProcess.targetUrl = url;
+        xdgOpenProcess.running = true;
+        BackendDaemon.send({
+            "action": "frecency_record",
+            "id": url,
             "query": backend.searchText.trim()
         });
         backend.closeMenuRequested();

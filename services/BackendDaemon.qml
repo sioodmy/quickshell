@@ -25,6 +25,8 @@ Singleton {
     property var frecencyScores: ({ apps: {}, quickkeys: {} })
     property var fileSearchResults: []
     property string fileSearchQuery: ""
+    property var bookmarkSearchResults: []
+    property string bookmarkSearchQuery: ""
     property var filePreview: null
     property string filePreviewPath: ""
     property var bluetoothDevices: []
@@ -129,6 +131,9 @@ Singleton {
                     } else if (type === "file_search_result") {
                         root.fileSearchQuery = parsed.query || "";
                         root.fileSearchResults = parsed.results || [];
+                    } else if (type === "bookmark_search_result") {
+                        root.bookmarkSearchQuery = parsed.query || "";
+                        root.bookmarkSearchResults = parsed.results || [];
                     } else if (type === "file_preview_result") {
                         if (parsed.path === root.filePreviewPath) {
                             root.filePreview = parsed;

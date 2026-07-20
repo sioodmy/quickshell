@@ -51,6 +51,8 @@ Item {
             return modelData.file ? modelData.file.dir : "";
         } else if (itemType === "system_command") {
             return modelData.description || "";
+        } else if (itemType === "bookmark") {
+            return modelData.bookmark ? modelData.bookmark.url : "";
         }
         return "";
     }
@@ -70,6 +72,8 @@ Item {
             return modelData.file ? modelData.file.name : "";
         } else if (itemType === "system_command") {
             return modelData.name || "";
+        } else if (itemType === "bookmark") {
+            return modelData.bookmark ? modelData.bookmark.name : "";
         }
         return "";
     }
@@ -99,6 +103,8 @@ Item {
             ctrl.openFile(modelData.file.path);
         } else if (itemType === "system_command") {
             ctrl.executeSystemCommand(modelData.actionId, modelData.actionValue);
+        } else if (itemType === "bookmark") {
+            ctrl.openUrl(modelData.bookmark.url);
         }
     }
 
@@ -327,6 +333,52 @@ Item {
                         }
                     }
                 }
+
+                // Bookmark icon
+                Item {
+                    anchors.fill: parent
+                    visible: delegateRoot.itemType === "bookmark"
+
+                    IconImage {
+                        anchors.fill: parent
+                        source: "image://icon/helium"
+                        onStatusChanged: {
+                            if (status === Image.Error) {
+                                source = "image://icon/web-browser";
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: -6
+                        anchors.bottomMargin: -6
+                        width: 24
+                        height: 24
+                        radius: 12
+                        color: Theme.surface_container_low
+
+                        Image {
+                            id: faviconImage
+                            anchors.centerIn: parent
+                            width: 16
+                            height: 16
+                            source: delegateRoot.itemType === "bookmark" && modelData.bookmark ? "file://" + modelData.bookmark.icon_path : ""
+                            fillMode: Image.PreserveAspectFit
+                            visible: status === Image.Ready
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: ""
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 14
+                            color: Theme.on_surface_variant
+                            visible: faviconImage.status !== Image.Ready
+                        }
+                    }
+                }
             }
 
             Column {
@@ -381,6 +433,8 @@ Item {
                         return Theme.tertiary;
                     if (delegateRoot.itemType === "file")
                         return Theme.secondary;
+                    if (delegateRoot.itemType === "bookmark")
+                        return Theme.secondary;
                     return Theme.primary;
                 }
                 opacity: delegateRoot.isSelected ? 1.0 : 0.0
@@ -424,6 +478,8 @@ Item {
                             }
                             if (delegateRoot.itemType === "file")
                                 return "Open";
+                            if (delegateRoot.itemType === "bookmark")
+                                return "Open";
                             return "Launch";
                         }
                         color: {
@@ -434,6 +490,8 @@ Item {
                             if (delegateRoot.itemType === "focus")
                                 return Theme.on_tertiary;
                             if (delegateRoot.itemType === "file")
+                                return Theme.on_secondary;
+                            if (delegateRoot.itemType === "bookmark")
                                 return Theme.on_secondary;
                             return Theme.on_primary;
                         }
@@ -460,6 +518,9 @@ Item {
                             if (delegateRoot.itemType === "system_command") {
                                 return "󰐍";
                             }
+                            if (delegateRoot.itemType === "bookmark") {
+                                return "";
+                            }
                             return "󰌑";
                         }
                         color: {
@@ -470,6 +531,8 @@ Item {
                             if (delegateRoot.itemType === "focus")
                                 return Theme.on_tertiary;
                             if (delegateRoot.itemType === "file")
+                                return Theme.on_secondary;
+                            if (delegateRoot.itemType === "bookmark")
                                 return Theme.on_secondary;
                             return Theme.on_primary;
                         }

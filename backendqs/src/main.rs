@@ -11,6 +11,7 @@ mod filesearch;
 mod pdfpreview;
 mod sysctl;
 mod cliphist;
+mod bookmarks;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -110,6 +111,8 @@ enum DaemonRequest {
     FrecencyRecord { id: String, query: Option<String> },
     #[serde(rename = "file_search")]
     FileSearch { query: String },
+    #[serde(rename = "bookmark_search")]
+    BookmarkSearch { query: String },
     #[serde(rename = "file_preview")]
     FilePreview { path: String },
     #[serde(rename = "file_open")]
@@ -149,6 +152,8 @@ enum DaemonEvent {
     FrecencyUpdate { scores: frecency::FrecencyScores },
     #[serde(rename = "file_search_result")]
     FileSearchResult { query: String, results: Vec<filesearch::FileResult> },
+    #[serde(rename = "bookmark_search_result")]
+    BookmarkSearchResult { query: String, results: Vec<bookmarks::BookmarkResult> },
     #[serde(rename = "file_preview_result")]
     FilePreviewResult(filesearch::PreviewResult),
     #[serde(rename = "sysctl_list_result")]
@@ -302,6 +307,16 @@ async fn main() -> Result<()> {
                 });
             }
 
+            // Build bookmark index in background
+            let bookmark_index = bookmarks::new_index();
+            {
+                let idx = bookmark_index.clone();
+                let c = client.clone();
+                tokio::spawn(async move {
+                    bookmarks::build_index(c, idx).await;
+                });
+            }
+
             // Monotonic generation so stale file_search tasks can abort.
             let file_search_generation = Arc::new(AtomicU64::new(0));
 
@@ -333,6 +348,7 @@ async fn main() -> Result<()> {
                 let notes_dir = notes_dir.clone();
                 let frecency_state = frecency_state.clone();
                 let file_index = file_index.clone();
+                let bookmark_index = bookmark_index.clone();
                 let file_search_generation = file_search_generation.clone();
                 let cliphist_state = cliphist_state.clone();
                 let ocr_sem = ocr_sem.clone();
@@ -521,6 +537,14 @@ async fn main() -> Result<()> {
                                         .await;
                                 }
                             }
+                        }
+                        DaemonRequest::BookmarkSearch { query } => {
+                            let results = tokio::task::spawn_blocking({
+                                let idx = bookmark_index.clone();
+                                let q = query.clone();
+                                move || bookmarks::search(&idx, &q)
+                            }).await.unwrap();
+                            let _ = tx.send(DaemonEvent::BookmarkSearchResult { query, results }).await;
                         }
                         DaemonRequest::FilePreview { path } => {
                             let result = tokio::task::spawn_blocking(move || {
