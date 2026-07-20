@@ -871,8 +871,15 @@ PanelWindow {
         }
 
         // --- Emoji results (skip 1-char queries — they match nearly everything) ---
-        if (queryLen >= 2) {
-            var emojiResults = ctrl.filterEmojis(query);
+        var isEmojiQuery = queryLower.indexOf("emoji") !== -1;
+        var emojiSearchQuery = isEmojiQuery ? queryLower.replace(/emojis?/g, "").trim() : query;
+        if (emojiSearchQuery === "") {
+            emojiSearchQuery = query;
+        }
+
+        var emojiQueryLen = emojiSearchQuery.length;
+        if (emojiQueryLen >= 2 || (isEmojiQuery && emojiQueryLen > 0)) {
+            var emojiResults = ctrl.filterEmojis(emojiSearchQuery);
 
             emojiResults.sort((a, b) => {
                 var freqA = ctrl.getAppFrecency("emoji:" + a.emoji);
@@ -881,14 +888,28 @@ PanelWindow {
             });
 
             var maxEmojis = Math.min(emojiResults.length, launcherWindow.maxEmojiResults);
+            var emojiItemsToInsert = [];
+
             for (var ei = 0; ei < maxEmojis; ei++) {
                 var eId = "emoji:" + emojiResults[ei].emoji;
                 if (!quickkeyBoostedIds[eId]) {
-                    results.push({
+                    var eItem = {
                         type: "emoji",
                         emoji: emojiResults[ei].emoji,
                         display: emojiResults[ei].display
-                    });
+                    };
+                    
+                    if (isEmojiQuery) {
+                        emojiItemsToInsert.push(eItem);
+                    } else {
+                        results.push(eItem);
+                    }
+                }
+            }
+
+            if (isEmojiQuery && emojiItemsToInsert.length > 0) {
+                for (var j = emojiItemsToInsert.length - 1; j >= 0; j--) {
+                    results.unshift(emojiItemsToInsert[j]);
                 }
             }
         }
