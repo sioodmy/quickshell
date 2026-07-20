@@ -9,6 +9,7 @@ mod weather;
 mod frecency;
 mod filesearch;
 mod pdfpreview;
+mod videopreview;
 mod sysctl;
 mod cliphist;
 mod bookmarks;

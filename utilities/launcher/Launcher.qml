@@ -2462,18 +2462,18 @@ PanelWindow {
                             id: imagePreview
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || (ctrl.filePreview.preview_type === "pdf" && !!ctrl.filePreview.preview_path))
+                            visible: ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path))
                             source: {
                                 if (!ctrl.filePreview) return "";
                                 if (ctrl.filePreview.preview_type === "image")
                                     return "file://" + ctrl.filePreview.path;
-                                if (ctrl.filePreview.preview_type === "pdf" && ctrl.filePreview.preview_path)
+                                if ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && ctrl.filePreview.preview_path)
                                     return "file://" + ctrl.filePreview.preview_path;
                                 return "";
                             }
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
-                            cache: ctrl.filePreview && ctrl.filePreview.preview_type === "pdf"
+                            cache: ctrl.filePreview && (ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video")
                             smooth: true
                             mipmap: true
 
@@ -2541,7 +2541,7 @@ PanelWindow {
                             visible: {
                                 if (!ctrl.filePreview) return true;
                                 var pt = ctrl.filePreview.preview_type;
-                                if (pt === "pdf" && ctrl.filePreview.preview_path) return false;
+                                if ((pt === "pdf" || pt === "video") && ctrl.filePreview.preview_path) return false;
                                 return pt !== "image" && pt !== "text";
                             }
 
@@ -2567,6 +2567,7 @@ PanelWindow {
                                         if (ctrl.filePreview.preview_type === "text_too_large") return "File too large to preview";
                                         if (ctrl.filePreview.preview_type === "binary") return "Binary file";
                                         if (ctrl.filePreview.preview_type === "pdf") return "PDF preview unavailable";
+                                        if (ctrl.filePreview.preview_type === "video") return "Video preview unavailable";
                                         return "No preview available";
                                     }
                                     color: Theme.on_surface_variant

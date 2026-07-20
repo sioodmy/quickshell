@@ -107,11 +107,13 @@ pub async fn build_index(index: FileIndex) {
     let docs = home_path.join("Documents");
     let notes = home_path.join("Notes");
     let dls = home_path.join("Downloads");
+    let vids = home_path.join("Videos");
     
     let mut dirs_to_watch = vec![];
     if docs.exists() { dirs_to_watch.push(docs.clone()); }
     if notes.exists() { dirs_to_watch.push(notes.clone()); }
     if dls.exists() { dirs_to_watch.push(dls.clone()); }
+    if vids.exists() { dirs_to_watch.push(vids.clone()); }
 
     let index_clone = index.clone();
     let hp_clone = home_path.clone();
@@ -319,6 +321,14 @@ pub fn load_preview(path: &str) -> PreviewResult {
         let preview_path = crate::pdfpreview::thumbnail_path(path, modified, size);
         return PreviewResult {
             path: path.into(), preview_type: "pdf".into(),
+            preview_path, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+        };
+    }
+
+    if cat == "video" {
+        let preview_path = crate::videopreview::thumbnail_path(path, modified, size);
+        return PreviewResult {
+            path: path.into(), preview_type: "video".into(),
             preview_path, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
         };
     }
