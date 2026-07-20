@@ -458,25 +458,25 @@ Item {
 
     function executeSystemCommand(actionId, value) {
         if (actionId === "vol_mute") {
-            Process.run("wpctl", ["set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"]);
+            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] });
         } else if (actionId === "vol_set") {
-            Process.run("wpctl", ["set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)]);
+            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)] });
         } else if (actionId === "bl_set") {
             Brightness.setPercent(value);
         } else if (actionId === "shutdown") {
-            Process.run("systemctl", ["poweroff"]);
+            Quickshell.execDetached({ command: ["systemctl", "poweroff"] });
         } else if (actionId === "reboot") {
-            Process.run("systemctl", ["reboot"]);
+            Quickshell.execDetached({ command: ["systemctl", "reboot"] });
         } else if (actionId === "sleep") {
-            Process.run("systemctl", ["suspend"]);
+            Quickshell.execDetached({ command: ["systemctl", "suspend"] });
         } else if (actionId === "lock") {
             Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] });
         } else if (actionId === "audio_out_hdmi") {
-            Process.run("bash", ["-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"]);
+            Quickshell.execDetached({ command: ["bash", "-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"] });
         } else if (actionId === "bt_connect") {
-            Process.run("bluetoothctl", ["connect", value]);
+            Quickshell.execDetached({ command: ["bluetoothctl", "connect", value] });
         } else if (actionId === "wifi_connect") {
-            Process.run("nmcli", ["device", "wifi", "connect", value]);
+            Quickshell.execDetached({ command: ["nmcli", "device", "wifi", "connect", value] });
         } else if (actionId === "night_on") {
             NightLight.enable();
         } else if (actionId === "night_off") {

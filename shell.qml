@@ -1,6 +1,7 @@
 //@ pragma IconTheme Papirus
 
 import Quickshell
+import Quickshell.Io
 import QtQuick
 import "dock"
 import "lock"
@@ -69,5 +70,24 @@ ShellRoot {
     // Fullscreen media overlay
     FullscreenMedia {
         id: fullscreenMedia
+    }
+
+    IpcHandler {
+        target: "volume"
+        function up() {
+            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.1+"] });
+            volumePopupWindow.osdTriggered();
+        }
+        function down() {
+            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.1-"] });
+            volumePopupWindow.osdTriggered();
+        }
+        function mute() {
+            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] });
+            volumePopupWindow.osdTriggered();
+        }
+        function micMute() {
+            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"] });
+        }
     }
 }

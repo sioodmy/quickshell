@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
+import Quickshell.Io
 import QtQuick
 import QtQuick.Effects
 import "../theme"
@@ -9,6 +10,8 @@ import qs.services
 Variants {
     id: root
     model: Quickshell.screens
+
+    signal osdTriggered()
 
     delegate: PanelWindow {
         id: volumeOsdPopup
@@ -45,6 +48,13 @@ Variants {
 
         onVolumeLevelChanged: {
             triggerOsd();
+        }
+
+        Connections {
+            target: root
+            function onOsdTriggered() {
+                triggerOsd();
+            }
         }
 
         onIsMutedChanged: {

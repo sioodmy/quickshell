@@ -21,37 +21,40 @@ PanelWindow {
     property var selectedFileData: null
     property real fileSplitBlend: 0
 
-    readonly property bool weatherModeActive: ctrl.searchText.trim().toLowerCase() === "weather"
-    readonly property bool colorPickerModeActive: ctrl.isColorPickerQuery(ctrl.searchText.trim())
-    readonly property var connectivityQuery: parseConnectivityQuery(ctrl.searchText.trim())
-    readonly property var musicQuery: parseMusicQuery(ctrl.searchText.trim())
+    readonly property string trimmedQuery: ctrl.searchText.trim()
+    readonly property string normalizedQuery: trimmedQuery.toLowerCase()
+
+    readonly property bool weatherModeActive: normalizedQuery === "weather"
+    readonly property bool colorPickerModeActive: ctrl.isColorPickerQuery(trimmedQuery)
+    readonly property var connectivityQuery: parseConnectivityQuery(trimmedQuery)
+    readonly property var musicQuery: parseMusicQuery(trimmedQuery)
     readonly property bool btModeActive: connectivityQuery && connectivityQuery.mode === "bt"
     readonly property bool wifiModeActive: connectivityQuery && connectivityQuery.mode === "wifi"
     readonly property bool connectivityModeActive: btModeActive || wifiModeActive
     readonly property bool musicModeActive: musicQuery !== null
 
-    readonly property var sliderQuery: parseSliderQuery(ctrl.searchText.trim())
+    readonly property var sliderQuery: parseSliderQuery(trimmedQuery)
     readonly property bool volSliderActive: sliderQuery && sliderQuery.mode === "vol"
     readonly property bool blSliderActive: sliderQuery && sliderQuery.mode === "bl"
     readonly property bool sliderModeActive: volSliderActive || blSliderActive
     readonly property bool sliderHasValue: sliderModeActive && sliderQuery.value >= 0
 
-    readonly property var nightQuery: parseNightQuery(ctrl.searchText.trim())
+    readonly property var nightQuery: parseNightQuery(trimmedQuery)
     readonly property bool nightModeActive: nightQuery !== null
 
-    readonly property var dndQuery: parseDndQuery(ctrl.searchText.trim())
+    readonly property var dndQuery: parseDndQuery(trimmedQuery)
     readonly property bool dndModeActive: dndQuery !== null
 
-    readonly property var pomQuery: parsePomQuery(ctrl.searchText.trim())
+    readonly property var pomQuery: parsePomQuery(trimmedQuery)
     readonly property bool pomModeActive: pomQuery !== null
 
-    readonly property var clipQuery: parseClipQuery(ctrl.searchText.trim())
+    readonly property var clipQuery: parseClipQuery(trimmedQuery)
     readonly property bool clipModeActive: clipQuery !== null
 
-    readonly property var ssQuery: parseSsQuery(ctrl.searchText.trim())
+    readonly property var ssQuery: parseSsQuery(trimmedQuery)
     readonly property bool ssModeActive: ssQuery !== null
 
-    readonly property var recQuery: parseRecQuery(ctrl.searchText.trim())
+    readonly property var recQuery: parseRecQuery(trimmedQuery)
     readonly property bool recModeActive: recQuery !== null
 
     readonly property bool captureModeActive: ssModeActive || recModeActive
@@ -177,11 +180,8 @@ PanelWindow {
             return 800;
 
         // Any word in the string starts with query
-        var words = textLower.split(/[\s\-_]+/);
-        for (var i = 0; i < words.length; i++) {
-            if (words[i].startsWith(queryLower))
-                return 600;
-        }
+        if (textLower.indexOf(" " + queryLower) !== -1 || textLower.indexOf("-" + queryLower) !== -1 || textLower.indexOf("_" + queryLower) !== -1)
+            return 600;
 
         // single/double letter matches polluting short queries
         if (queryLen >= 3 && textLower.indexOf(queryLower) !== -1)
@@ -480,7 +480,10 @@ PanelWindow {
                 if (!app.name)
                     return false;
                 var n = app.name.toLowerCase();
-                return !hiddenKeywords.some(keyword => n.includes(keyword));
+                for (var k = 0; k < hiddenKeywords.length; k++) {
+                    if (n.includes(hiddenKeywords[k])) return false;
+                }
+                return true;
             }).sort((a, b) => {
                 var freqA = ctrl.appFrequencies[a.id] || 0;
                 var freqB = ctrl.appFrequencies[b.id] || 0;
@@ -633,7 +636,13 @@ PanelWindow {
         }
 
         // Check if the user's search explicitly contains any of the hidden keywords
-        var isSearchingHidden = hiddenKeywords.some(keyword => queryLower.includes(keyword));
+        var isSearchingHidden = false;
+        for (var k = 0; k < hiddenKeywords.length; k++) {
+            if (queryLower.includes(hiddenKeywords[k])) {
+                isSearchingHidden = true;
+                break;
+            }
+        }
         var scored = [];
         var appById = {};
 
@@ -644,7 +653,13 @@ PanelWindow {
 
             // Hide apps matching hiddenKeywords unless explicitly searched for
             var nameLower = entry.name ? entry.name.toLowerCase() : "";
-            var isHiddenApp = hiddenKeywords.some(keyword => nameLower.includes(keyword));
+            var isHiddenApp = false;
+            for (var hk = 0; hk < hiddenKeywords.length; hk++) {
+                if (nameLower.includes(hiddenKeywords[hk])) {
+                    isHiddenApp = true;
+                    break;
+                }
+            }
 
             if (isHiddenApp && !isSearchingHidden) {
                 continue;
@@ -694,6 +709,15 @@ PanelWindow {
         var quickkeyBoostedIds = {};
         var appSlotsUsed = 0;
         var runningWindows = ctrl.getRunningWindows();
+        var runningWindowsById = {};
+        for (var w = 0; w < runningWindows.length; w++) {
+            var win = runningWindows[w];
+            if (win.appId) {
+                if (!runningWindowsById[win.appId])
+                    runningWindowsById[win.appId] = [];
+                runningWindowsById[win.appId].push(win);
+            }
+        }
 
         for (var qk = 0; qk < quickkeyMatches.length; qk++) {
             if (appSlotsUsed >= launcherWindow.maxAppResults)
@@ -718,14 +742,14 @@ PanelWindow {
             quickkeyBoostedIds[qkId] = true;
             appSlotsUsed++;
 
-            for (var w = 0; w < runningWindows.length; w++) {
-                var win = runningWindows[w];
-                if (win.appId && win.appId === qkId) {
+            var qkWins = runningWindowsById[qkId];
+            if (qkWins) {
+                for (var qw = 0; qw < qkWins.length; qw++) {
                     results.push({
                         type: "focus",
                         entry: qkEntry,
-                        windowId: win.id,
-                        windowTitle: win.title || ""
+                        windowId: qkWins[qw].id,
+                        windowTitle: qkWins[qw].title || ""
                     });
                 }
             }
@@ -755,14 +779,14 @@ PanelWindow {
 
             appSlotsUsed++;
 
-            for (var w = 0; w < runningWindows.length; w++) {
-                var win = runningWindows[w];
-                if (win.appId && entryId && win.appId === entryId) {
+            var appWins = runningWindowsById[entryId];
+            if (appWins) {
+                for (var aw = 0; aw < appWins.length; aw++) {
                     results.push({
                         type: "focus",
                         entry: appEntry,
-                        windowId: win.id,
-                        windowTitle: win.title || ""
+                        windowId: appWins[aw].id,
+                        windowTitle: appWins[aw].title || ""
                     });
                 }
             }
@@ -881,10 +905,12 @@ PanelWindow {
         if (emojiQueryLen >= 2 || (isEmojiQuery && emojiQueryLen > 0)) {
             var emojiResults = ctrl.filterEmojis(emojiSearchQuery);
 
+            for (var e = 0; e < emojiResults.length; e++) {
+                emojiResults[e]._freq = ctrl.getAppFrecency("emoji:" + emojiResults[e].emoji);
+            }
+
             emojiResults.sort((a, b) => {
-                var freqA = ctrl.getAppFrecency("emoji:" + a.emoji);
-                var freqB = ctrl.getAppFrecency("emoji:" + b.emoji);
-                return freqB - freqA;
+                return b._freq - a._freq;
             });
 
             var maxEmojis = Math.min(emojiResults.length, launcherWindow.maxEmojiResults);

@@ -75,4 +75,17 @@ Singleton {
             onRead: root.refresh()
         }
     }
+
+    IpcHandler {
+        target: "brightness"
+        function up() {
+            root.setPercent((root.value * 100) + 5);
+        }
+        function down() {
+            root.setPercent((root.value * 100) - 5);
+        }
+        function set(val: real) {
+            root.setPercent(val);
+        }
+    }
 }
