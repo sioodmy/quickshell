@@ -52,6 +52,26 @@ Item {
         // Let drop-target wobble spill slightly outside the track
         clip: root.draggingApp === null
 
+        // Inactive backgrounds
+        Repeater {
+            model: NiriService.workspaces
+            Rectangle {
+                property var wsItem: wsRepeater.itemAt(index)
+                
+                width: root.pillWidth
+                height: wsItem ? wsItem.height : 0
+                x: root.trackInset
+                y: wsColumn.y + (wsItem ? wsItem.y : 0)
+                radius: width / 2
+                color: Theme.surface_container_high
+                opacity: (wsItem && wsItem.showPill) ? 1 : 0
+                scale: wsItem ? wsItem.scale : 1
+                rotation: wsItem ? wsItem.rotation : 0
+                
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
+        }
+
         // Sliding active highlight — same width as pills, follows active item
         Rectangle {
             id: highlight
@@ -62,7 +82,6 @@ Item {
             radius: width / 2
             color: Theme.secondary_container
             opacity: root.activeWsItem ? 1 : 0
-            z: 0
 
             property real animHeight: activeTargetHeight
 

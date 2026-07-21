@@ -211,15 +211,6 @@ Item {
             becameActive(false)
     }
 
-    // Inactive occupied pill background
-    Rectangle {
-        anchors.fill: parent
-        radius: width / 2
-        color: Theme.surface_container_high
-        opacity: root.showPill ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-    }
-
     // Hover / drop wash
     Rectangle {
         anchors.fill: parent
