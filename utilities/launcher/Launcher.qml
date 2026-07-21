@@ -2513,11 +2513,11 @@ PanelWindow {
                                 color: Theme.on_surface
                                 wrapMode: Text.WrapAnywhere
                                 font {
-                                    family: "JetBrains Mono"
-                                    pixelSize: 11
+                                    family: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
+                                    pixelSize: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
                                 }
                                 lineHeight: 1.4
-                                textFormat: Text.PlainText
+                                textFormat: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.PlainText
                             }
                         }
 
