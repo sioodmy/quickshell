@@ -793,24 +793,31 @@ WlSessionLockSurface {
     // ========================================================================
     //  Bottom session chrome — bar-matching pills
     // ========================================================================
-    Row {
-        id: bottomChrome
+    Rectangle {
+        id: bottomChromeBar
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: surface.height * 0.05
-        spacing: 12
+        anchors.bottomMargin: -22
+        width: bottomChrome.implicitWidth + 32
+        height: bottomChrome.implicitHeight + 24 + 22
+        radius: 22
+        color: Theme.surface
 
-        // Battery
-        Rectangle {
-            id: battPill
-            height: 40
-            width: battRow.implicitWidth + 28
-            radius: 14
-            color: Theme.surface
-            border.width: 1
-            border.color: Theme.surface_container_high
-            visible: UPower.displayDevice?.isPresent ?? false
-            anchors.verticalCenter: parent.verticalCenter
+        Row {
+            id: bottomChrome
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -11
+            spacing: 12
+
+            // Battery
+            Rectangle {
+                id: battPill
+                height: 40
+                width: battRow.implicitWidth + 28
+                radius: 14
+                color: "transparent"
+                visible: UPower.displayDevice?.isPresent ?? false
+                anchors.verticalCenter: parent.verticalCenter
 
             Row {
                 id: battRow
@@ -883,15 +890,13 @@ WlSessionLockSurface {
                 width: 40
                 height: 40
                 radius: 14
-                border.width: 1
-                border.color: Theme.surface_container_high
                 scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.04 : 1.0)
                 color: {
                     if (btnArea.pressed)
                         return Theme.surface_container_high;
                     if (btnArea.containsMouse)
                         return Theme.surface_container;
-                    return Theme.surface;
+                    return "transparent";
                 }
 
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
@@ -928,6 +933,7 @@ WlSessionLockSurface {
                 accent: Theme.critical
                 onTriggered: Quickshell.execDetached(["systemctl", "poweroff"])
             }
+        }
         }
     }
 
