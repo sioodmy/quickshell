@@ -465,38 +465,135 @@ WlSessionLockSurface {
                     Behavior on color { ColorAnimation { duration: 150 } }
                 }
 
-                TextInput {
-                    id: passwordInput
+                Item {
+                    id: pwInputArea
                     anchors.left: lockGlyph.right
                     anchors.leftMargin: 12
                     anchors.right: revealBtn.left
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
                     height: parent.height
-                    verticalAlignment: TextInput.AlignVCenter
-                    color: Theme.on_surface
-                    font { family: "Google Sans"; pixelSize: 17; weight: Font.Medium }
-                    echoMode: revealBtn.revealed ? TextInput.Normal : TextInput.Password
-                    passwordCharacter: "●"
                     clip: true
-                    enabled: !surface.authenticating && !surface.unlocking
-                    focus: true
-                    selectByMouse: true
-                    selectionColor: Theme.primary
 
-                    onAccepted: {
-                        if (!surface.unlocking)
-                            surface.controller.submit(text);
+                    TextInput {
+                        id: passwordInput
+                        anchors.fill: parent
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: revealBtn.revealed ? Theme.on_surface : "transparent"
+                        font { family: "Google Sans"; pixelSize: 17; weight: Font.Medium }
+                        echoMode: TextInput.Normal
+                        cursorVisible: activeFocus
+                        clip: true
+                        enabled: !surface.authenticating && !surface.unlocking
+                        focus: true
+                        selectByMouse: revealBtn.revealed
+                        selectionColor: Theme.primary
+
+                        // Hide the native caret while masked — shapes row draws its own.
+                        // When revealed, this delegate is the only caret.
+                        cursorDelegate: Rectangle {
+                            width: revealBtn.revealed ? 2 : 0
+                            height: 16
+                            radius: 1
+                            color: Theme.primary
+                            visible: revealBtn.revealed
+                        }
+
+                        onAccepted: {
+                            if (!surface.unlocking)
+                                surface.controller.submit(text);
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            visible: passwordInput.text.length === 0
+                            text: "Enter password"
+                            color: Theme.on_surface_variant
+                            opacity: 0.7
+                            font: passwordInput.font
+                        }
                     }
 
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
+                    // Shape glyphs instead of password dots (hidden when revealed)
+                    Row {
+                        id: pwShapes
                         anchors.left: parent.left
-                        visible: passwordInput.text.length === 0
-                        text: "Enter password"
-                        color: Theme.on_surface_variant
-                        opacity: 0.7
-                        font: passwordInput.font
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 7
+                        visible: !revealBtn.revealed
+
+                        Repeater {
+                            model: passwordInput.text.length
+
+                            Item {
+                                id: shapeSlot
+                                width: 11
+                                height: 11
+                                // 0 = circle, 1 = square, 2 = triangle
+                                readonly property int kind: index % 3
+
+                                // Circle
+                                Rectangle {
+                                    visible: shapeSlot.kind === 0
+                                    anchors.centerIn: parent
+                                    width: 10
+                                    height: 10
+                                    radius: width / 2
+                                    color: Theme.on_surface
+                                }
+
+                                // Square
+                                Rectangle {
+                                    visible: shapeSlot.kind === 1
+                                    anchors.centerIn: parent
+                                    width: 9
+                                    height: 9
+                                    radius: 1.5
+                                    color: Theme.on_surface
+                                }
+
+                                // Triangle
+                                Shape {
+                                    visible: shapeSlot.kind === 2
+                                    anchors.centerIn: parent
+                                    width: 11
+                                    height: 10
+                                    layer.enabled: true
+                                    layer.samples: 4
+
+                                    ShapePath {
+                                        fillColor: Theme.on_surface
+                                        strokeWidth: 0
+                                        startX: 5.5; startY: 0.5
+                                        PathLine { x: 10.5; y: 9.5 }
+                                        PathLine { x: 0.5; y: 9.5 }
+                                        PathLine { x: 5.5; y: 0.5 }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Caret after the last shape
+                        Rectangle {
+                            id: pwCaret
+                            width: 2
+                            height: 16
+                            radius: 1
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.primary
+                            visible: passwordInput.activeFocus
+                            opacity: 1
+
+                            SequentialAnimation on opacity {
+                                running: pwCaret.visible
+                                loops: Animation.Infinite
+                                PauseAnimation { duration: 530 }
+                                PropertyAction { value: 0 }
+                                PauseAnimation { duration: 530 }
+                                PropertyAction { value: 1 }
+                            }
+                        }
                     }
                 }
 
