@@ -50,8 +50,7 @@ Item {
     readonly property real estimatedSelectedY: {
         if (selectedAlbum !== null)
             return 80 + selectedTrackIndex * 52;
-        var base = BackendDaemon.musicState.hasPlayer ? 88 : 0;
-        return base + selectedIndex * 72;
+        return selectedIndex * 72;
     }
 
     function scoreMatch(text, query) {
@@ -163,199 +162,11 @@ Item {
         return m + ":" + (s < 10 ? "0" : "") + s;
     }
 
-    // ─── Now Playing Mini-Bar ───
-    Rectangle {
-        id: nowPlaying
-        anchors.top: parent.top
-        width: parent.width
-        height: BackendDaemon.musicState.hasPlayer ? 76 : 0
-        radius: 16
-        color: nowPlayingHover.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
-        clip: true
-        visible: height > 0
-        opacity: BackendDaemon.musicState.hasPlayer ? 1.0 : 0.0
-
-        Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Behavior on opacity { NumberAnimation { duration: 250 } }
-        Behavior on color { ColorAnimation { duration: 120 } }
-
-        MouseArea {
-            id: nowPlayingHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: Lyrics.showFullscreen = true
-        }
-
-        Row {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 12
-
-            Rectangle {
-                width: 56
-                height: 56
-                radius: 12
-                color: Theme.surface_variant
-                clip: true
-
-                Image {
-                    id: npArt
-                    anchors.fill: parent
-                    source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
-                    fillMode: Image.PreserveAspectCrop
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        maskEnabled: true
-                        maskSource: ShaderEffectSource {
-                            sourceItem: Rectangle { width: npArt.width; height: npArt.height; radius: 12 }
-                        }
-                    }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: "󰝚"
-                    font.family: "JetBrainsMono Nerd Font"
-                    font.pixelSize: 22
-                    color: Theme.on_surface_variant
-                    visible: npArt.status !== Image.Ready
-                }
-            }
-
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 56 - 12 - transportRow.width - 12
-                spacing: 2
-
-                Text {
-                    text: BackendDaemon.musicState.title !== "" ? BackendDaemon.musicState.title : "Not Playing"
-                    font.family: "Google Sans Medium"
-                    font.pixelSize: 14
-                    color: Theme.on_surface
-                    elide: Text.ElideRight
-                    width: parent.width
-                }
-                Text {
-                    text: BackendDaemon.musicState.artist !== "" ? BackendDaemon.musicState.artist : ""
-                    font.family: "Google Sans"
-                    font.pixelSize: 12
-                    color: Theme.on_surface_variant
-                    elide: Text.ElideRight
-                    width: parent.width
-                    visible: text !== ""
-                }
-
-                Item {
-                    width: parent.width
-                    height: 12
-                    visible: BackendDaemon.musicState.hasPlayer
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 3
-                        radius: 1.5
-                        color: Theme.surface_variant
-
-                        Rectangle {
-                            height: parent.height
-                            radius: parent.radius
-                            color: Theme.primary
-                            width: BackendDaemon.musicState.duration > 0
-                                ? Math.max(height, parent.width * Math.min(BackendDaemon.musicState.position / BackendDaemon.musicState.duration, 1.0))
-                                : height
-                        }
-                    }
-                }
-            }
-
-            Row {
-                id: transportRow
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
-
-                Rectangle {
-                    width: 32; height: 32; radius: 16
-                    color: prevHover.containsMouse ? Theme.surface_variant : "transparent"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "󰒮"
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 16
-                        color: Theme.on_surface_variant
-                    }
-                    MouseArea {
-                        id: prevHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.previous()
-                    }
-                }
-
-                Rectangle {
-                    width: 40; height: 40; radius: 20
-                    color: Theme.primary_container
-                    anchors.verticalCenter: parent.verticalCenter
-                    scale: ppHover.containsMouse ? 1.08 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-
-                    Text {
-                        id: ppIcon
-                        anchors.centerIn: parent
-                        text: BackendDaemon.musicState.playing ? "󰏤" : "󰐊"
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 20
-                        color: Theme.on_primary_container
-                        scale: 1.0
-                        onTextChanged: ppBounce.restart()
-                        SequentialAnimation {
-                            id: ppBounce
-                            NumberAnimation { target: ppIcon; property: "scale"; to: 0.7; duration: 80; easing.type: Easing.OutCubic }
-                            NumberAnimation { target: ppIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
-                        }
-                    }
-
-                    MouseArea {
-                        id: ppHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.toggle()
-                    }
-                }
-
-                Rectangle {
-                    width: 32; height: 32; radius: 16
-                    color: nextHover.containsMouse ? Theme.surface_variant : "transparent"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "󰒭"
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 16
-                        color: Theme.on_surface_variant
-                    }
-                    MouseArea {
-                        id: nextHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.next()
-                    }
-                }
-            }
-        }
-    }
-
     // ─── Album List ───
     ListView {
         id: albumList
-        anchors.top: nowPlaying.visible ? nowPlaying.bottom : parent.top
-        anchors.topMargin: nowPlaying.visible ? 12 : 0
+        anchors.top: parent.top
+        anchors.topMargin: 0
         anchors.bottom: parent.bottom
         width: parent.width
         clip: true
@@ -363,8 +174,6 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
         visible: root.selectedAlbum === null
         model: root.filteredAlbums
-
-        Behavior on anchors.topMargin { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -523,8 +332,8 @@ Item {
     // ─── Album Detail / Track Picker ───
     Item {
         id: albumDetail
-        anchors.top: nowPlaying.visible ? nowPlaying.bottom : parent.top
-        anchors.topMargin: nowPlaying.visible ? 12 : 0
+        anchors.top: parent.top
+        anchors.topMargin: 0
         anchors.bottom: parent.bottom
         width: parent.width
         visible: root.selectedAlbum !== null
@@ -547,104 +356,110 @@ Item {
                     height: 12
                 }
 
-                Row {
+                Item {
                     width: parent.width
                     height: 72
-                    spacing: 14
 
-                    Rectangle {
-                        width: 36; height: 36
-                        radius: 18
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: backBtnMouse.containsMouse ? Theme.surface_variant : "transparent"
-                        Behavior on color { ColorAnimation { duration: 100 } }
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 12
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "󰁍"
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 18
-                            color: Theme.on_surface
+                        Rectangle {
+                            width: 36; height: 36
+                            radius: 18
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: backBtnMouse.containsMouse ? Theme.surface_variant : "transparent"
+                            Behavior on color { ColorAnimation { duration: 100 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "󰁍"
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 18
+                                color: Theme.on_surface
+                            }
+
+                            MouseArea {
+                                id: backBtnMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.selectedAlbum = null
+                            }
                         }
 
-                        MouseArea {
-                            id: backBtnMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedAlbum = null
-                        }
-                    }
+                        Rectangle {
+                            width: 56; height: 56
+                            radius: 12
+                            color: Theme.surface_variant
+                            anchors.verticalCenter: parent.verticalCenter
+                            clip: true
 
-                    Rectangle {
-                        width: 56; height: 56
-                        radius: 12
-                        color: Theme.surface_variant
-                        anchors.verticalCenter: parent.verticalCenter
-                        clip: true
-
-                        Image {
-                            id: detailArt
-                            anchors.fill: parent
-                            source: (root.selectedAlbum && root.selectedAlbum.cover_path) ? "file://" + root.selectedAlbum.cover_path : ""
-                            fillMode: Image.PreserveAspectCrop
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    sourceItem: Rectangle { width: detailArt.width; height: detailArt.height; radius: 12 }
+                            Image {
+                                id: detailArt
+                                anchors.fill: parent
+                                source: (root.selectedAlbum && root.selectedAlbum.cover_path) ? "file://" + root.selectedAlbum.cover_path : ""
+                                fillMode: Image.PreserveAspectCrop
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    maskEnabled: true
+                                    maskSource: ShaderEffectSource {
+                                        sourceItem: Rectangle { width: detailArt.width; height: detailArt.height; radius: 12 }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - 36 - 56 - 14 - 14 - playAllBtn.width - 8
-                        spacing: 2
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 36 - 56 - 36 - parent.spacing * 3
+                            spacing: 2
 
-                        Text {
-                            text: root.selectedAlbum ? root.selectedAlbum.title : ""
-                            font.family: "Google Sans Medium"
-                            font.pixelSize: 16
-                            color: Theme.on_surface
-                            elide: Text.ElideRight
-                            width: parent.width
-                        }
-                        Text {
-                            text: root.selectedAlbum ? root.selectedAlbum.artist : ""
-                            font.family: "Google Sans"
-                            font.pixelSize: 12
-                            color: Theme.on_surface_variant
-                            elide: Text.ElideRight
-                            width: parent.width
-                        }
-                    }
-
-                    Rectangle {
-                        id: playAllBtn
-                        width: 36; height: 36
-                        radius: 18
-                        color: Theme.primary
-                        anchors.verticalCenter: parent.verticalCenter
-                        scale: playAllMouse.containsMouse ? 1.1 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
-
-                        Text {
-                            anchors.centerIn: parent
-                            anchors.horizontalCenterOffset: 1
-                            text: "󰐊"
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 18
-                            color: Theme.on_primary
+                            Text {
+                                text: root.selectedAlbum ? root.selectedAlbum.title : ""
+                                font.family: "Google Sans Medium"
+                                font.pixelSize: 16
+                                color: Theme.on_surface
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+                            Text {
+                                text: root.selectedAlbum ? root.selectedAlbum.artist : ""
+                                font.family: "Google Sans"
+                                font.pixelSize: 12
+                                color: Theme.on_surface_variant
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
                         }
 
-                        MouseArea {
-                            id: playAllMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: if (root.selectedAlbum) MusicService.playTrack(root.selectedAlbum, 0)
+                        Rectangle {
+                            id: playAllBtn
+                            width: 36; height: 36
+                            radius: 18
+                            color: Theme.primary
+                            anchors.verticalCenter: parent.verticalCenter
+                            scale: playAllMouse.containsMouse ? 1.08 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                anchors.horizontalCenterOffset: 1
+                                text: "󰐊"
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 18
+                                color: Theme.on_primary
+                            }
+
+                            MouseArea {
+                                id: playAllMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: if (root.selectedAlbum) MusicService.playTrack(root.selectedAlbum, 0)
+                            }
                         }
                     }
                 }

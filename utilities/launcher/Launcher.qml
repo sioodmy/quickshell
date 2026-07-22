@@ -20,6 +20,8 @@ PanelWindow {
     property bool hasFileSelected: false
     property var selectedFileData: null
     property real fileSplitBlend: 0
+    property real musicSplitBlend: 0
+    readonly property real activeSplitBlend: Math.max(fileSplitBlend, musicSplitBlend)
     property bool shareModeActive: false
     property var shareData: null
     property real shareViewBlend: 0
@@ -83,12 +85,28 @@ PanelWindow {
     }
     onMusicModeActiveChanged: {
         fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+        syncMusicSplitBlend()
         if (musicModeActive && !BackendDaemon.musicLibrary)
             BackendDaemon.send({ action: "music_library" });
     }
 
+    function syncMusicSplitBlend() {
+        musicSplitBlend = (musicModeActive && BackendDaemon.musicState.hasPlayer) ? 1 : 0
+    }
+
     Behavior on fileSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+    }
+
+    Behavior on musicSplitBlend {
+        NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+    }
+
+    Connections {
+        target: BackendDaemon
+        function onMusicStateChanged() {
+            launcherWindow.syncMusicSplitBlend()
+        }
     }
 
     onShareModeActiveChanged: shareViewBlend = shareModeActive ? 1 : 0
@@ -2317,39 +2335,51 @@ PanelWindow {
                             }
                         }
 
-                        Flickable {
-                            id: musicScroll
+                        Item {
+                            id: musicListContainer
                             z: launcherWindow.musicModeActive ? 2 : 0
                             enabled: launcherWindow.musicModeActive
                             anchors.top: parent.top
                             anchors.left: parent.left
-                            anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
+                            width: parent.width * (1 - 0.48 * launcherWindow.musicSplitBlend)
                             clip: true
-                            boundsBehavior: Flickable.StopAtBounds
-                            contentWidth: width
-                            contentHeight: musicView.height
                             opacity: launcherWindow.musicModeActive ? 1 : 0
                             visible: opacity > 0.02
 
+                            Behavior on width {
+                                NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                            }
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherMusicView {
-                                id: musicView
-                                width: musicScroll.width
-                                height: musicScroll.height
-                                filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
-                                revealProgress: launcherWindow.musicModeActive ? 1 : 0
+                            Flickable {
+                                id: musicScroll
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.bottom: parent.bottom
+                                anchors.right: parent.right
+                                anchors.leftMargin: 32
+                                anchors.rightMargin: 16
+                                anchors.topMargin: 12
+                                anchors.bottomMargin: 20
+                                clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+                                contentWidth: width
+                                contentHeight: musicView.height
 
-                                onSelectedIndexChanged: {
-                                    if (launcherWindow.musicModeActive)
-                                        lazyContentRoot.scrollSpecialToSelection();
+                                LauncherMusicView {
+                                    id: musicView
+                                    width: musicScroll.width
+                                    height: musicScroll.height
+                                    filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
+                                    revealProgress: launcherWindow.musicModeActive ? 1 : 0
+
+                                    onSelectedIndexChanged: {
+                                        if (launcherWindow.musicModeActive)
+                                            lazyContentRoot.scrollSpecialToSelection();
+                                    }
                                 }
                             }
                         }
@@ -2467,12 +2497,13 @@ PanelWindow {
                     }
                     // ──── Separator ────
                     Rectangle {
-                        x: 48 + listContainer.width
+                        x: 48 + (launcherWindow.musicModeActive ? musicListContainer.width : listContainer.width)
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
                         width: 1
-                        opacity: launcherWindow.fileSplitBlend
+                        opacity: launcherWindow.activeSplitBlend
                         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                        Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "transparent" }
@@ -2485,6 +2516,41 @@ PanelWindow {
                                 color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
                             }
                             GradientStop { position: 1.0; color: "transparent" }
+                        }
+                    }
+
+                    // ──── Music Controls Panel (Split View) ────
+                    Item {
+                        id: musicControlsPanel
+                        visible: launcherWindow.musicSplitBlend > 0.02
+                        opacity: launcherWindow.musicSplitBlend
+                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+
+                        anchors.right: parent.right
+                        anchors.top: belowSearchArea.top
+                        anchors.bottom: parent.bottom
+                        width: parent.width - 48 - musicListContainer.width
+                        clip: true
+
+                        transform: [
+                            Translate {
+                                id: musicSlide
+                                x: (1 - launcherWindow.musicSplitBlend) * 18
+                                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                            },
+                            Scale {
+                                id: musicScale
+                                origin.x: 0
+                                origin.y: 0
+                                xScale: 0.97 + 0.03 * launcherWindow.musicSplitBlend
+                                yScale: 0.98 + 0.02 * launcherWindow.musicSplitBlend
+                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                            }
+                        ]
+
+                        LauncherMusicControls {
+                            anchors.fill: parent
                         }
                     }
 
