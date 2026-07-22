@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-/** Temporary file stash — holds paths dropped onto the dropzone until cleared. */
+/** Drag Queen — temporary file holding tray for paths dropped onto the dropzone. */
 Singleton {
     id: root
 

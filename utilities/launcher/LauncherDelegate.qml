@@ -580,24 +580,37 @@ Item {
                 delegate: Rectangle {
                     required property int index
                     required property var modelData
-                    
+
+                    property bool isPrimaryAction: index === 0
                     property bool isActionSelected: delegateRoot.isSelected && launcherWindow.appActionIndex === index
-                    
-                    width: actionText.implicitWidth + 32
+                    // State-layer on secondary_container selection (tonal containers would blend)
+                    property color restFill: Qt.rgba(Theme.on_secondary_container.r, Theme.on_secondary_container.g, Theme.on_secondary_container.b, 0.16)
+                    property color restLabel: Theme.on_secondary_container
+
+                    width: actionText.implicitWidth + 20
                     height: 32
                     anchors.verticalCenter: parent.verticalCenter
                     radius: 16
-                    color: isActionSelected ? Theme.primary : Theme.surface_container_highest
-                    
+                    color: isActionSelected
+                        ? (isPrimaryAction ? Theme.primary : Theme.secondary)
+                        : restFill
+                    border.width: isActionSelected ? 0 : 1
+                    border.color: Qt.rgba(Theme.on_secondary_container.r, Theme.on_secondary_container.g, Theme.on_secondary_container.b, 0.28)
+
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
                     Text {
                         id: actionText
                         anchors.centerIn: parent
                         text: modelData.name || ""
-                        font.family: "Google Sans Medium"
-                        font.pixelSize: 13
-                        color: isActionSelected ? Theme.on_primary : Theme.on_surface_variant
+                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                        color: isActionSelected
+                            ? (isPrimaryAction ? Theme.on_primary : Theme.on_secondary)
+                            : restLabel
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
                     }
-                    
+
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
@@ -605,8 +618,6 @@ Item {
                         onEntered: launcherWindow.appActionIndex = index
                         onClicked: delegateRoot.activateAction(index)
                     }
-                    
-                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
         }
@@ -762,7 +773,10 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onEntered: delegateRoot.ListView.view.currentIndex = index
+            onEntered: {
+                launcherWindow.pinSelectionToBest = false;
+                delegateRoot.ListView.view.currentIndex = index;
+            }
             onClicked: mouse => delegateRoot.activate(mouse.modifiers & Qt.ShiftModifier)
         }
     }

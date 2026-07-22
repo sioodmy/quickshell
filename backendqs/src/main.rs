@@ -8,6 +8,7 @@ mod state;
 mod weather;
 mod frecency;
 mod filesearch;
+mod archivepreview;
 mod pdfpreview;
 mod videopreview;
 mod sysctl;

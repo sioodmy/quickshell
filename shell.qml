@@ -37,7 +37,7 @@ ShellRoot {
         id: notificationOverlay
     }
 
-    // Top-right file stash (Dropzone-style)
+    // Top-right Drag Queen dropzone
     FileStashPopup {
         id: fileStashOverlay
     }

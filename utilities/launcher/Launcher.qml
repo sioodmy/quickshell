@@ -60,6 +60,9 @@ PanelWindow {
     readonly property bool captureModeActive: ssModeActive || recModeActive
 
     property int appActionIndex: -1
+    // While true, filtering keeps the best match selected at index 0 and does not
+    // scroll/cycle. Cleared only by Tab/arrows or mouse hover selection.
+    property bool pinSelectionToBest: true
 
     readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
 
@@ -981,6 +984,7 @@ PanelWindow {
                 closeMenu();
             } else {
                 ctrl.clearStates();
+                launcherWindow.pinSelectionToBest = true;
                 closeAnim.stop();
                 launcherWindow.menuOpen = true;
                 openAnim.start();
@@ -1026,6 +1030,38 @@ PanelWindow {
                     } else {
                         launcherWindow.hasFileSelected = false;
                         launcherWindow.selectedFileData = null;
+                    }
+                }
+
+                // Keep the best match first+selected when the query changes.
+                // ScriptModel move ops would otherwise drag currentIndex with the
+                // previously selected item as results reorder.
+                function resetSelectionToBest() {
+                    if (!launcherWindow.pinSelectionToBest)
+                        return;
+                    launcherWindow.appActionIndex = -1;
+                    if (listView.count <= 0) {
+                        listView.currentIndex = -1;
+                        return;
+                    }
+                    listView.currentIndex = 0;
+                    listView.positionViewAtBeginning();
+                }
+
+                function cycleListSelection(forward) {
+                    launcherWindow.pinSelectionToBest = false;
+                    if (listView.count <= 0)
+                        return;
+                    if (forward) {
+                        if (listView.currentIndex >= listView.count - 1)
+                            listView.currentIndex = 0;
+                        else
+                            listView.incrementCurrentIndex();
+                    } else {
+                        if (listView.currentIndex <= 0)
+                            listView.currentIndex = listView.count - 1;
+                        else
+                            listView.decrementCurrentIndex();
                     }
                 }
 
@@ -1619,30 +1655,18 @@ PanelWindow {
                                 event.accepted = true;
                                 return;
                             }
-                            if ((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
-                                if (listView.currentIndex <= 0) {
-                                    listView.currentIndex = listView.count - 1;
-                                } else {
-                                    listView.decrementCurrentIndex();
-                                }
-                            } else {
-                                if (listView.currentIndex >= listView.count - 1) {
-                                    listView.currentIndex = 0;
-                                } else {
-                                    listView.incrementCurrentIndex();
-                                }
-                            }
+                            lazyContentRoot.cycleListSelection(!((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab));
                             event.accepted = true;
                         } else if (lazyContentRoot.handleSpecialNavigationKey(event)) {
                             return;
                         } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.connectivityModeActive) {
                             lazyContentRoot.activateConnectivitySelection();
                             event.accepted = true;
-                        } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_J || event.key === Qt.Key_Down)) {
-                            listView.incrementCurrentIndex();
+                        } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
+                            lazyContentRoot.cycleListSelection(true);
                             event.accepted = true;
-                        } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_K || event.key === Qt.Key_Up)) {
-                            listView.decrementCurrentIndex();
+                        } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Up) {
+                            lazyContentRoot.cycleListSelection(false);
                             event.accepted = true;
                         } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
@@ -1785,7 +1809,8 @@ PanelWindow {
 
                             onTextChanged: {
                                 ctrl.searchText = text;
-                                listView.currentIndex = 0;
+                                launcherWindow.pinSelectionToBest = true;
+                                lazyContentRoot.resetSelectionToBest();
                                 if (launcherWindow.weatherModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
@@ -1861,19 +1886,7 @@ PanelWindow {
                                         event.accepted = true;
                                         return;
                                     }
-                                    if ((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab) {
-                                        if (listView.currentIndex <= 0) {
-                                            listView.currentIndex = listView.count - 1;
-                                        } else {
-                                            listView.decrementCurrentIndex();
-                                        }
-                                    } else {
-                                        if (listView.currentIndex >= listView.count - 1) {
-                                            listView.currentIndex = 0;
-                                        } else {
-                                            listView.incrementCurrentIndex();
-                                        }
-                                    }
+                                    lazyContentRoot.cycleListSelection(!((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab));
                                     event.accepted = true;
                                 } else if ((event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
@@ -1906,11 +1919,11 @@ PanelWindow {
                                 } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
                                     event.accepted = true;
-                                } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Down || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)))) {
-                                    listView.incrementCurrentIndex();
+                                } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
+                                    lazyContentRoot.cycleListSelection(true);
                                     event.accepted = true;
-                                } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Up || (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)))) {
-                                    listView.decrementCurrentIndex();
+                                } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Up) {
+                                    lazyContentRoot.cycleListSelection(false);
                                     event.accepted = true;
                                 }
                             }
@@ -2179,13 +2192,19 @@ PanelWindow {
                                     // Recycle heavy delegates across keystroke model swaps
                                     reuseItems: true
                                     cacheBuffer: 160
-                                    highlightMoveDuration: 80
-                                    highlightFollowsCurrentItem: true
+                                    highlightMoveDuration: launcherWindow.pinSelectionToBest ? 0 : 80
+                                    // Only follow selection when the user cycles (Tab/arrows/hover),
+                                    // never when typing reorders results via ScriptModel moves.
+                                    highlightFollowsCurrentItem: !launcherWindow.pinSelectionToBest
                                     delegate: LauncherDelegate {}
 
                                     model: ScriptModel {
                                         id: searchModel
                                         values: launcherWindow.buildFilteredList()
+                                        onValuesChanged: {
+                                            if (launcherWindow.pinSelectionToBest)
+                                                lazyContentRoot.resetSelectionToBest();
+                                        }
                                     }
 
                                     onCurrentIndexChanged: syncFilePreviewForCurrentItem()
@@ -2571,6 +2590,218 @@ PanelWindow {
                             }
                         }
 
+                        // Archive listing preview (M3 tree + Theme-tinted RichText)
+                        Item {
+                            id: archivePreview
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "archive"
+
+                            property var listing: {
+                                if (!ctrl.filePreview || ctrl.filePreview.preview_type !== "archive" || !ctrl.filePreview.content)
+                                    return null;
+                                try {
+                                    return JSON.parse(ctrl.filePreview.content);
+                                } catch (e) {
+                                    return null;
+                                }
+                            }
+
+                            // Build Qt RichText from Theme tokens (same pipeline as syntect HTML)
+                            property string treeHtml: {
+                                var L = archivePreview.listing;
+                                if (!L || !L.entries) return "";
+                                function esc(s) {
+                                    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                                }
+                                function sz(n) {
+                                    n = Number(n) || 0;
+                                    if (n < 1024) return n + " B";
+                                    var kb = n / 1024;
+                                    if (kb < 1024) return kb.toFixed(1) + " KB";
+                                    var mb = kb / 1024;
+                                    if (mb < 1024) return mb.toFixed(1) + " MB";
+                                    return (mb / 1024).toFixed(2) + " GB";
+                                }
+                                function hex(c) {
+                                    // Theme tokens are hex strings; color objects need packing.
+                                    if (typeof c === "string") return c;
+                                    var r = Math.round(c.r * 255);
+                                    var g = Math.round(c.g * 255);
+                                    var b = Math.round(c.b * 255);
+                                    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                                }
+                                function icon(cat, isDir) {
+                                    if (isDir) return "󰉋";
+                                    if (cat === "image") return "󰋩";
+                                    if (cat === "video") return "󰕧";
+                                    if (cat === "audio") return "󰝚";
+                                    if (cat === "pdf") return "󰈦";
+                                    if (cat === "archive") return "󰀼";
+                                    if (cat === "document") return "󱎒";
+                                    if (cat === "text") return "󰈙";
+                                    return "󰈔";
+                                }
+                                function iconColor(cat, isDir) {
+                                    if (isDir) return hex(Theme.primary);
+                                    if (cat === "image" || cat === "video" || cat === "audio") return hex(Theme.tertiary);
+                                    if (cat === "pdf") return hex(Theme.critical);
+                                    return hex(Theme.secondary);
+                                }
+                                var guide = hex(Theme.surface_container_highest);
+                                var onSurf = hex(Theme.on_surface);
+                                var onVar = hex(Theme.on_surface_variant);
+                                var outline = hex(Theme.outline);
+                                var tertiary = hex(Theme.tertiary);
+                                var html = "<pre style=\"margin:0;white-space:pre;line-height:1.55;\">";
+                                for (var i = 0; i < L.entries.length; i++) {
+                                    var e = L.entries[i];
+                                    for (var d = 0; d < (e.depth || 0); d++)
+                                        html += "<span style=\"color:" + guide + ";\">│  </span>";
+                                    html += "<span style=\"color:" + iconColor(e.mime_cat, e.is_dir) + ";\">" + icon(e.mime_cat, e.is_dir) + "</span> ";
+                                    if (e.is_dir) {
+                                        html += "<span style=\"color:" + onSurf + ";\">" + esc(e.name) + "</span>";
+                                        html += "<span style=\"color:" + outline + ";\">/</span>";
+                                    } else {
+                                        html += "<span style=\"color:" + onVar + ";\">" + esc(e.name) + "</span>";
+                                        if (e.size > 0)
+                                            html += "  <span style=\"color:" + outline + ";\">" + esc(sz(e.size)) + "</span>";
+                                    }
+                                    html += "\n";
+                                }
+                                if (L.truncated) {
+                                    var rem = Math.max(1, (L.total_entries || 0) - (L.entries.length || 0));
+                                    html += "<span style=\"color:" + tertiary + ";\">󰇘  " + rem + " more entries</span>\n";
+                                }
+                                html += "</pre>";
+                                return html;
+                            }
+
+                            Column {
+                                anchors.fill: parent
+                                spacing: 10
+
+                                // Summary chips
+                                Flow {
+                                    id: archiveChips
+                                    width: parent.width
+                                    spacing: 6
+
+                                    Rectangle {
+                                        visible: !!(archivePreview.listing && archivePreview.listing.format)
+                                        height: 24
+                                        width: formatChipText.implicitWidth + 16
+                                        radius: 12
+                                        color: Theme.primary_container
+
+                                        Text {
+                                            id: formatChipText
+                                            anchors.centerIn: parent
+                                            text: (archivePreview.listing && archivePreview.listing.format) || ""
+                                            color: Theme.on_primary_container
+                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        visible: !!(archivePreview.listing)
+                                        height: 24
+                                        width: filesChipText.implicitWidth + 16
+                                        radius: 12
+                                        color: Theme.secondary_container
+
+                                        Text {
+                                            id: filesChipText
+                                            anchors.centerIn: parent
+                                            text: {
+                                                var L = archivePreview.listing;
+                                                if (!L) return "";
+                                                var t = L.file_count + (L.file_count === 1 ? " file" : " files");
+                                                if (L.dir_count > 0)
+                                                    t += " · " + L.dir_count + (L.dir_count === 1 ? " folder" : " folders");
+                                                return t;
+                                            }
+                                            color: Theme.on_secondary_container
+                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        visible: !!(archivePreview.listing && archivePreview.listing.uncompressed_size > 0)
+                                        height: 24
+                                        width: sizeChipText.implicitWidth + 16
+                                        radius: 12
+                                        color: Theme.surface_container_highest
+
+                                        Text {
+                                            id: sizeChipText
+                                            anchors.centerIn: parent
+                                            text: {
+                                                var L = archivePreview.listing;
+                                                if (!L) return "";
+                                                return ctrl.formatFileSize(L.uncompressed_size) + " unpacked";
+                                            }
+                                            color: Theme.on_surface_variant
+                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        visible: !!(archivePreview.listing && archivePreview.listing.truncated)
+                                        height: 24
+                                        width: truncChipText.implicitWidth + 16
+                                        radius: 12
+                                        color: Theme.tertiary_container
+
+                                        Text {
+                                            id: truncChipText
+                                            anchors.centerIn: parent
+                                            text: "truncated"
+                                            color: Theme.on_tertiary_container
+                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                        }
+                                    }
+                                }
+
+                                Flickable {
+                                    id: archiveFlickable
+                                    width: parent.width
+                                    height: parent.height - archiveChips.height - 10
+                                    contentWidth: width
+                                    contentHeight: archiveTree.implicitHeight
+                                    clip: true
+                                    boundsBehavior: Flickable.StopAtBounds
+                                    opacity: archivePreview.listing ? 1 : 0
+
+                                    Text {
+                                        id: archiveTree
+                                        width: archiveFlickable.width
+                                        text: archivePreview.treeHtml
+                                        textFormat: Text.RichText
+                                        color: Theme.on_surface
+                                        wrapMode: Text.NoWrap
+                                        font {
+                                            family: "JetBrainsMono Nerd Font"
+                                            pixelSize: 11
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Fade when truncated / scrollable
+                            Rectangle {
+                                visible: archivePreview.visible && archivePreview.listing && archivePreview.listing.truncated
+                                anchors.bottom: parent.bottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                height: 36
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: "transparent" }
+                                    GradientStop { position: 1.0; color: Theme.surface }
+                                }
+                            }
+                        }
+
                         // Fallback icon for non-previewable files
                         Item {
                             id: fallbackIcon
@@ -2579,7 +2810,7 @@ PanelWindow {
                                 if (!ctrl.filePreview) return true;
                                 var pt = ctrl.filePreview.preview_type;
                                 if ((pt === "pdf" || pt === "video") && ctrl.filePreview.preview_path) return false;
-                                return pt !== "image" && pt !== "text";
+                                return pt !== "image" && pt !== "text" && pt !== "archive";
                             }
 
                             Column {
@@ -2605,6 +2836,7 @@ PanelWindow {
                                         if (ctrl.filePreview.preview_type === "binary") return "Binary file";
                                         if (ctrl.filePreview.preview_type === "pdf") return "PDF preview unavailable";
                                         if (ctrl.filePreview.preview_type === "video") return "Video preview unavailable";
+                                        if (ctrl.filePreview.preview_type === "archive_unavailable") return "Couldn't list archive";
                                         return "No preview available";
                                     }
                                     color: Theme.on_surface_variant
@@ -2724,7 +2956,7 @@ PanelWindow {
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Copy File"
+                                            text: "Copy"
                                             font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                                             color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
                                         }
@@ -2763,7 +2995,7 @@ PanelWindow {
                                         }
                                         Text {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "Copy Path"
+                                            text: "Path"
                                             font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                                             color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
                                         }
@@ -2777,6 +3009,82 @@ PanelWindow {
                                         onClicked: {
                                             if (launcherWindow.selectedFileData)
                                                 ctrl.copyFilePath(launcherWindow.selectedFileData.path);
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: stashFileBtn
+                                    // FileStash.count keeps this reactive when Drag Queen mutates
+                                    readonly property bool alreadyStashed: FileStash.count >= 0
+                                        && !!launcherWindow.selectedFileData
+                                        && FileStash.indexOfPath(launcherWindow.selectedFileData.path) !== -1
+                                    // Soft M3-weight pride tones
+                                    readonly property color prideRed: "#E57373"
+                                    readonly property color prideOrange: "#FFB74D"
+                                    readonly property color prideYellow: "#FFF176"
+                                    readonly property color prideGreen: "#81C784"
+                                    readonly property color prideBlue: "#64B5F6"
+                                    readonly property color prideViolet: "#BA68C8"
+
+                                    width: stashFileRow.width + 20
+                                    height: 32
+                                    radius: 16
+                                    color: Theme.surface_container_high
+
+                                    // Soft pride wash — denser on hover / when already queued
+                                    // Same radius as parent so corners stay round (clip ignores radius)
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: parent.radius
+                                        opacity: stashFileMouse.containsMouse
+                                            ? 0.42
+                                            : (stashFileBtn.alreadyStashed ? 0.28 : 0.18)
+                                        Behavior on opacity { NumberAnimation { duration: 100 } }
+                                        gradient: Gradient {
+                                            orientation: Gradient.Horizontal
+                                            GradientStop { position: 0.00; color: stashFileBtn.prideRed }
+                                            GradientStop { position: 0.20; color: stashFileBtn.prideOrange }
+                                            GradientStop { position: 0.40; color: stashFileBtn.prideYellow }
+                                            GradientStop { position: 0.60; color: stashFileBtn.prideGreen }
+                                            GradientStop { position: 0.80; color: stashFileBtn.prideBlue }
+                                            GradientStop { position: 1.00; color: stashFileBtn.prideViolet }
+                                        }
+                                    }
+
+                                    Row {
+                                        id: stashFileRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "󰆥"
+                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                            color: Theme.on_surface
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: stashFileBtn.alreadyStashed ? "Dragged" : "Drag Queen"
+                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                                            color: Theme.on_surface
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: stashFileMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (!launcherWindow.selectedFileData)
+                                                return;
+                                            const path = launcherWindow.selectedFileData.path;
+                                            if (FileStash.indexOfPath(path) !== -1)
+                                                FileStash.removePath(path);
+                                            else
+                                                FileStash.addPath(path);
+                                            launcherWindow.closeMenu();
                                         }
                                     }
                                 }

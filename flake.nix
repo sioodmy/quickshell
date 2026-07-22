@@ -24,11 +24,11 @@
           };
 
           nativeBuildInputs = [ pkgs.makeWrapper pkgs.pkg-config pkgs.cmake ];
-          buildInputs = [ pkgs.alsa-lib pkgs.libopus pkgs.dbus ];
+          buildInputs = [ pkgs.alsa-lib pkgs.libopus pkgs.dbus pkgs.xz pkgs.bzip2 ];
 
           postInstall = ''
             wrapProgram $out/bin/backendqs \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pandoc pkgs.tectonic pkgs.poppler-utils pkgs.rink pkgs.cliphist pkgs.wl-clipboard (pkgs.tesseract.override { enableLanguages = [ "eng" ]; }) ]}
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pandoc pkgs.tectonic pkgs.poppler-utils pkgs.rink pkgs.cliphist pkgs.wl-clipboard pkgs.libarchive pkgs.coreutils (pkgs.tesseract.override { enableLanguages = [ "eng" ]; }) ]}
           '';
         };
 
@@ -53,8 +53,11 @@
             alsa-lib
             libopus
             dbus
+            xz
+            bzip2
             cliphist
             wl-clipboard
+            libarchive
             (tesseract.override { enableLanguages = [ "eng" ]; })
           ];
         };

@@ -408,6 +408,34 @@ fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> Prev
         };
     }
 
+    if cat == "archive" {
+        if let Some(listing) = crate::archivepreview::list_archive(p) {
+            let line_count = listing.entries.len() as u32;
+            // JSON payload — QML builds a Theme-aware tree (same RichText path as fallback).
+            let content = serde_json::to_string(&listing).unwrap_or_default();
+            return PreviewResult {
+                path: path.into(),
+                preview_type: "archive".into(),
+                preview_path: None,
+                content: Some(content),
+                line_count,
+                size,
+                modified,
+                mime_cat: cat.into(),
+            };
+        }
+        return PreviewResult {
+            path: path.into(),
+            preview_type: "archive_unavailable".into(),
+            preview_path: None,
+            content: None,
+            line_count: 0,
+            size,
+            modified,
+            mime_cat: cat.into(),
+        };
+    }
+
     // Text-like files: read first N bytes
     if cat == "text" {
         if size > 5_000_000 {
@@ -585,7 +613,9 @@ fn categorize_ext(ext: &str) -> &'static str {
         "pdf" => "pdf",
 
         "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" | "zst"
-        | "lz4" | "lzma" | "deb" | "rpm" => "archive",
+        | "lz4" | "lzma" | "tgz" | "tbz" | "tbz2" | "txz" | "tzst"
+        | "jar" | "apk" | "whl" | "aar" | "epub"
+        | "deb" | "rpm" => "archive",
 
         "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
         | "odt" | "ods" | "odp" | "rtf" => "document",

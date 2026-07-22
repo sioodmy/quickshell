@@ -6,14 +6,14 @@ import "../theme"
 import qs.services
 
 /**
- * Top-right file stash (Dropzone-style).
+ * Top-right Drag Queen dropzone (Dropzone-style file holding tray).
  *
  * Geometry matches the dock notch: radius 22 with half the pill parked past the
  * top and right screen edges, so the visible free curve sits on the bottom
  * (bottom-right meeting the screen edge).
  *
  * The corner drop zone stays live while empty so external file drags can reveal
- * the panel; it auto-hides again once the stash is empty and the drag leaves.
+ * the panel; it auto-hides again once Drag Queen is empty and the drag leaves.
  */
 Variants {
     id: root
@@ -29,6 +29,14 @@ Variants {
         readonly property int contentWidth: 300
         readonly property bool hasItems: FileStash.count > 0
         readonly property bool dragHovering: dropArea.containsDrag
+
+        // Soft M3-toned pride palette (classic 6-stripe, container-weight)
+        readonly property color prideRed: "#E57373"
+        readonly property color prideOrange: "#FFB74D"
+        readonly property color prideYellow: "#FFF176"
+        readonly property color prideGreen: "#81C784"
+        readonly property color prideBlue: "#64B5F6"
+        readonly property color prideViolet: "#BA68C8"
 
         property bool panelVisible: false
 
@@ -58,7 +66,7 @@ Variants {
 
         // While empty, only a small corner hotspot receives input so normal
         // clicks still reach windows. During an external drag into that corner
-        // (or when the stash has files) the panel expands and takes a full hitbox.
+        // (or when Drag Queen has files) the panel expands and takes a full hitbox.
         readonly property int emptySensorSize: 88
 
         implicitWidth: contentWidth + barRadius + 16
@@ -71,7 +79,7 @@ Variants {
         }
 
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.namespace: "file_stash"
+        WlrLayershell.namespace: "drag_queen"
         WlrLayershell.exclusionMode: ExclusionMode.Ignore
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
@@ -117,23 +125,42 @@ Variants {
                 }
             }
 
+            // Pride gradient border ring — visible on drag hover
+            property int borderInset: dropArea.containsDrag ? 2 : 0
+            Behavior on borderInset {
+                NumberAnimation {
+                    duration: 120
+                }
+            }
+
+            Rectangle {
+                id: prideBorder
+                anchors.fill: parent
+                radius: stashWindow.barRadius
+                opacity: dropArea.containsDrag ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 160
+                    }
+                }
+
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.00; color: stashWindow.prideRed }
+                    GradientStop { position: 0.20; color: stashWindow.prideOrange }
+                    GradientStop { position: 0.40; color: stashWindow.prideYellow }
+                    GradientStop { position: 0.60; color: stashWindow.prideGreen }
+                    GradientStop { position: 0.80; color: stashWindow.prideBlue }
+                    GradientStop { position: 1.00; color: stashWindow.prideViolet }
+                }
+            }
+
             Rectangle {
                 id: panelBg
                 anchors.fill: parent
-                radius: stashWindow.barRadius
+                anchors.margins: stashPanel.borderInset
+                radius: stashWindow.barRadius - (stashPanel.borderInset > 0 ? 1 : 0)
                 color: Theme.surface
-                // Keep a faint presence while invisible so the drop zone still
-                // participates cleanly; opacity is driven by the parent.
-                opacity: 1
-
-                border.width: dropArea.containsDrag ? 2 : 0
-                border.color: Theme.primary
-
-                Behavior on border.width {
-                    NumberAnimation {
-                        duration: 120
-                    }
-                }
 
                 layer.enabled: panelVisible
                 layer.effect: MultiEffect {
@@ -145,15 +172,24 @@ Variants {
                 }
             }
 
+            // Soft pride wash while dragging
             Rectangle {
-                anchors.fill: parent
-                radius: stashWindow.barRadius
-                color: Theme.primary
-                opacity: dropArea.containsDrag ? 0.12 : 0
+                anchors.fill: panelBg
+                radius: panelBg.radius
+                opacity: dropArea.containsDrag ? 0.10 : 0
                 Behavior on opacity {
                     NumberAnimation {
                         duration: 140
                     }
+                }
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.00; color: stashWindow.prideRed }
+                    GradientStop { position: 0.20; color: stashWindow.prideOrange }
+                    GradientStop { position: 0.40; color: stashWindow.prideYellow }
+                    GradientStop { position: 0.60; color: stashWindow.prideGreen }
+                    GradientStop { position: 0.80; color: stashWindow.prideBlue }
+                    GradientStop { position: 1.00; color: stashWindow.prideViolet }
                 }
             }
 
@@ -168,40 +204,72 @@ Variants {
                 spacing: 10
                 visible: panelVisible || dropArea.containsDrag
 
-                Row {
+                // Thick pride bar with header chips overlaid
+                Item {
                     width: parent.width
-                    height: 28
-                    spacing: 8
+                    height: 36
 
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "󰉍"
-                        font {
-                            family: "JetBrainsMono Nerd Font"
-                            pixelSize: 16
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 12
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.00; color: stashWindow.prideRed }
+                            GradientStop { position: 0.20; color: stashWindow.prideOrange }
+                            GradientStop { position: 0.40; color: stashWindow.prideYellow }
+                            GradientStop { position: 0.60; color: stashWindow.prideGreen }
+                            GradientStop { position: 0.80; color: stashWindow.prideBlue }
+                            GradientStop { position: 1.00; color: stashWindow.prideViolet }
                         }
-                        color: Theme.primary
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - 80
-                        text: {
-                            if (dropArea.containsDrag && FileStash.count === 0)
-                                return "Drop to stash";
-                            if (FileStash.count === 0)
-                                return "File stash";
-                            return FileStash.count === 1 ? "1 file" : (FileStash.count + " files");
-                        }
-                        font {
-                            family: "Google Sans Medium"
-                            pixelSize: 14
-                        }
-                        color: Theme.on_surface
-                        elide: Text.ElideRight
                     }
 
                     Rectangle {
+                        id: statusChip
+                        anchors.left: parent.left
+                        anchors.leftMargin: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: headerChipRow.width + 14
+                        height: 26
+                        radius: 13
+                        color: Theme.surface_container_high
+
+                        Row {
+                            id: headerChipRow
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "󰆥"
+                                font {
+                                    family: "JetBrainsMono Nerd Font"
+                                    pixelSize: 13
+                                }
+                                color: stashWindow.prideViolet
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: {
+                                    if (dropArea.containsDrag && FileStash.count === 0)
+                                        return "Drop to Drag Queen";
+                                    if (FileStash.count === 0)
+                                        return "Drag Queen";
+                                    return FileStash.count === 1 ? "1 file" : (FileStash.count + " files");
+                                }
+                                font {
+                                    family: "Google Sans Medium"
+                                    pixelSize: 11
+                                }
+                                color: Theme.on_surface
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: clearChip
+                        anchors.right: parent.right
+                        anchors.rightMargin: 5
                         anchors.verticalCenter: parent.verticalCenter
                         visible: FileStash.count > 0
                         width: clearLabel.implicitWidth + 14
@@ -241,11 +309,26 @@ Variants {
                     height: 64
                     radius: 14
                     visible: FileStash.count === 0
-                    color: dropArea.containsDrag ? Theme.primary_container : Theme.surface_container
+                    color: Theme.surface_container
+                    clip: true
 
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: 140
+                    // Soft pride tint behind empty-state copy
+                    Rectangle {
+                        anchors.fill: parent
+                        opacity: dropArea.containsDrag ? 0.18 : 0.08
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 140
+                            }
+                        }
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.00; color: stashWindow.prideRed }
+                            GradientStop { position: 0.20; color: stashWindow.prideOrange }
+                            GradientStop { position: 0.40; color: stashWindow.prideYellow }
+                            GradientStop { position: 0.60; color: stashWindow.prideGreen }
+                            GradientStop { position: 0.80; color: stashWindow.prideBlue }
+                            GradientStop { position: 1.00; color: stashWindow.prideViolet }
                         }
                     }
 
@@ -260,17 +343,17 @@ Variants {
                                 family: "JetBrainsMono Nerd Font"
                                 pixelSize: 20
                             }
-                            color: dropArea.containsDrag ? Theme.on_primary_container : Theme.on_surface_variant
+                            color: dropArea.containsDrag ? stashWindow.prideViolet : Theme.on_surface_variant
                         }
 
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: dropArea.containsDrag ? "Release to stash" : "Drag files here"
+                            text: dropArea.containsDrag ? "Release to Drag Queen" : "Drag files here"
                             font {
                                 family: "Google Sans"
                                 pixelSize: 12
                             }
-                            color: dropArea.containsDrag ? Theme.on_primary_container : Theme.on_surface_variant
+                            color: dropArea.containsDrag ? Theme.on_surface : Theme.on_surface_variant
                         }
                     }
                 }
@@ -292,6 +375,17 @@ Variants {
                             required property string name
                             required property string glyph
                             required property bool isImage
+
+                            // Cycle soft pride accents across chips
+                            readonly property var prideColors: [
+                                stashWindow.prideRed,
+                                stashWindow.prideOrange,
+                                stashWindow.prideYellow,
+                                stashWindow.prideGreen,
+                                stashWindow.prideBlue,
+                                stashWindow.prideViolet
+                            ]
+                            readonly property color accent: prideColors[index % 6]
 
                             width: 84
                             height: 96
@@ -317,6 +411,17 @@ Variants {
                                     ColorAnimation {
                                         duration: 120
                                     }
+                                }
+
+                                // Tiny pride accent bar on each chip
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    height: 2
+                                    radius: 1
+                                    color: chipRoot.accent
+                                    opacity: 0.85
                                 }
 
                                 Item {
@@ -389,7 +494,6 @@ Variants {
                                 hoverEnabled: true
                                 cursorShape: chipRoot.Drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                                 acceptedButtons: Qt.LeftButton
-                                // Keep remove control above this area via z-order.
                                 z: 1
 
                                 property real pressX: 0
