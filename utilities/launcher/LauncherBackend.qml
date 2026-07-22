@@ -103,6 +103,34 @@ Item {
         backend.closeMenuRequested();
     }
 
+    function launchAppAction(desktopEntry, actionObj) {
+        if (desktopEntry.id) {
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": desktopEntry.id,
+                "query": query
+            });
+        }
+
+        var finalCommand = [];
+        finalCommand.push("run-as-service");
+        
+        if (actionObj.command) {
+            finalCommand = finalCommand.concat(actionObj.command);
+        } else if (actionObj.execString) {
+            // Fallback if Quickshell only provides execString
+            finalCommand = ["bash", "-c", actionObj.execString];
+        }
+
+        Quickshell.execDetached({
+            command: finalCommand,
+            workingDirectory: desktopEntry.workingDirectory || ""
+        });
+
+        backend.closeMenuRequested();
+    }
+
     // Get quickkey matches for a query string
     function getQuickkeyMatches(query) {
         var q = (query || "").trim().toLowerCase();

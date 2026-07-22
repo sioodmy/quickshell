@@ -10,13 +10,24 @@ Item {
     
     property bool isWolfram: itemType === "action" && modelData.actionId === "wolfram"
     property bool isDictionary: itemType === "action" && modelData.actionId === "dictionary"
-    property bool hasExpanded: (isWolfram && ctrl.backendqsSvg !== "") || (isDictionary && ctrl.dictStatus === "ok")
+    property bool hasActions: itemType === "app" && modelData.entry && modelData.entry.actions && modelData.entry.actions.length > 0
+    property int actionCount: hasActions ? modelData.entry.actions.length : 0
+    property bool isExpandedWithActions: delegateRoot.isSelected && hasActions
+
+    property bool hasExpanded: (isWolfram && ctrl.backendqsSvg !== "") || (isDictionary && ctrl.dictStatus === "ok") || isExpandedWithActions
     
     height: {
         if (!hasExpanded) return 72;
         if (isWolfram) return 180;
         if (isDictionary) return 72 + dictContent.height + 16;
+        if (isExpandedWithActions) return 120;
         return 72;
+    }
+    
+    function activateAction(index) {
+        if (hasActions && index >= 0 && index < actionCount) {
+            ctrl.launchAppAction(modelData.entry, modelData.entry.actions[index]);
+        }
     }
     
     Behavior on height {
@@ -546,8 +557,63 @@ Item {
         }
         
         Item {
-            id: previewArea
+            id: actionsArea
             anchors.top: topRow.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: delegateRoot.isExpandedWithActions ? 48 : 0
+            visible: height > 0
+            clip: true
+            opacity: delegateRoot.isExpandedWithActions ? 1.0 : 0.0
+            Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 250 } }
+
+            ListView {
+                id: actionsList
+                anchors.fill: parent
+                anchors.leftMargin: 82
+                anchors.rightMargin: 16
+                orientation: ListView.Horizontal
+                spacing: 8
+                interactive: false
+                model: delegateRoot.hasActions ? modelData.entry.actions : []
+                delegate: Rectangle {
+                    required property int index
+                    required property var modelData
+                    
+                    property bool isActionSelected: delegateRoot.isSelected && launcherWindow.appActionIndex === index
+                    
+                    width: actionText.implicitWidth + 32
+                    height: 32
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: 16
+                    color: isActionSelected ? Theme.primary : Theme.surface_container_highest
+                    
+                    Text {
+                        id: actionText
+                        anchors.centerIn: parent
+                        text: modelData.name || ""
+                        font.family: "Google Sans Medium"
+                        font.pixelSize: 13
+                        color: isActionSelected ? Theme.on_primary : Theme.on_surface_variant
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered: launcherWindow.appActionIndex = index
+                        onClicked: delegateRoot.activateAction(index)
+                    }
+                    
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+            }
+        }
+
+        Item {
+            id: previewArea
+            anchors.top: actionsArea.visible ? actionsArea.bottom : topRow.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

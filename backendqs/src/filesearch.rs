@@ -1,21 +1,83 @@
 use serde::Serialize;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, VecDeque};
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::UNIX_EPOCH;
 use ignore::WalkBuilder;
 use notify::{Watcher, RecursiveMode, EventKind};
 use nucleo_matcher::Utf32String;
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Color, FontStyle, Theme, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
 
 const MAX_RESULTS: usize = 15;
 const MAX_INDEX_ENTRIES: usize = 200_000;
 const MAX_PREVIEW_BYTES: usize = 8192;
 const MAX_PREVIEW_LINES: usize = 60;
 const MAX_DEPTH: usize = 8;
+const PREVIEW_CACHE_CAP: usize = 48;
 /// Abort a superseded search after this many entries.
 const CANCEL_CHECK_INTERVAL: usize = 4096;
+
+fn syntax_set() -> &'static SyntaxSet {
+    static SET: OnceLock<SyntaxSet> = OnceLock::new();
+    SET.get_or_init(SyntaxSet::load_defaults_newlines)
+}
+
+fn catppuccin_theme() -> &'static Theme {
+    static THEME: OnceLock<Theme> = OnceLock::new();
+    THEME.get_or_init(|| {
+        let theme_bytes = include_bytes!("../assets/Catppuccin-Mocha.tmTheme");
+        ThemeSet::load_from_reader(&mut std::io::Cursor::new(theme_bytes))
+            .expect("Catppuccin Mocha theme")
+    })
+}
+
+/// Force-load syntect data so the first file preview isn't a hitch.
+pub fn warmup_highlighter() {
+    let _ = syntax_set();
+    let _ = catppuccin_theme();
+}
+
+struct PreviewCacheEntry {
+    key: (String, u64, u64),
+    result: PreviewResult,
+}
+
+fn preview_cache() -> &'static Mutex<VecDeque<PreviewCacheEntry>> {
+    static CACHE: OnceLock<Mutex<VecDeque<PreviewCacheEntry>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(VecDeque::with_capacity(PREVIEW_CACHE_CAP)))
+}
+
+fn preview_cache_get(path: &str, modified: u64, size: u64) -> Option<PreviewResult> {
+    let mut cache = preview_cache().lock().ok()?;
+    let key = (path.to_string(), modified, size);
+    let pos = cache.iter().position(|e| e.key == key)?;
+    let entry = cache.remove(pos)?;
+    let result = entry.result.clone();
+    cache.push_front(PreviewCacheEntry { key, result: result.clone() });
+    Some(result)
+}
+
+fn preview_cache_put(path: &str, modified: u64, size: u64, result: &PreviewResult) {
+    if let Ok(mut cache) = preview_cache().lock() {
+        let key = (path.to_string(), modified, size);
+        if let Some(pos) = cache.iter().position(|e| e.key == key) {
+            cache.remove(pos);
+        }
+        cache.push_front(PreviewCacheEntry {
+            key,
+            result: result.clone(),
+        });
+        while cache.len() > PREVIEW_CACHE_CAP {
+            cache.pop_back();
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct FileEntry {
@@ -42,7 +104,7 @@ pub struct FileResult {
     pub score: i32,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct PreviewResult {
     pub path: String,
     pub preview_type: String,
@@ -306,6 +368,19 @@ pub fn load_preview(path: &str) -> PreviewResult {
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
+    if let Some(cached) = preview_cache_get(path, modified, size) {
+        return cached;
+    }
+
+    let result = load_preview_uncached(path, p, size, modified);
+    // Cache successful text / media previews; skip ephemeral "none".
+    if result.preview_type != "none" {
+        preview_cache_put(path, modified, size, &result);
+    }
+    result
+}
+
+fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> PreviewResult {
     let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     let cat = categorize_ext(&ext);
 
@@ -336,46 +411,160 @@ pub fn load_preview(path: &str) -> PreviewResult {
     // Text-like files: read first N bytes
     if cat == "text" {
         if size > 5_000_000 {
-            // Too large, don't preview content
             return PreviewResult {
                 path: path.into(), preview_type: "text_too_large".into(),
                 preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
             };
         }
-        match std::fs::read(p) {
-            Ok(bytes) => {
-                let read_len = bytes.len().min(MAX_PREVIEW_BYTES);
-                let slice = &bytes[..read_len];
+        if let Ok(bytes) = std::fs::read(p) {
+            let read_len = bytes.len().min(MAX_PREVIEW_BYTES);
+            let slice = &bytes[..read_len];
 
-                // Quick binary check: if >10% non-text bytes in first 512, treat as binary
-                let check_len = slice.len().min(512);
-                let non_text = slice[..check_len].iter()
-                    .filter(|&&b| b < 0x09 || (b > 0x0d && b < 0x20 && b != 0x1b))
-                    .count();
-                if non_text > check_len / 10 {
-                    return PreviewResult {
-                        path: path.into(), preview_type: "binary".into(),
-                        preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
-                    };
-                }
-
-                let text = String::from_utf8_lossy(slice);
-                let lines: Vec<&str> = text.lines().take(MAX_PREVIEW_LINES).collect();
-                let line_count = lines.len() as u32;
-                let content = lines.join("\n");
-
+            // Quick binary check: if >10% non-text bytes in first 512, treat as binary
+            let check_len = slice.len().min(512);
+            let non_text = slice[..check_len].iter()
+                .filter(|&&b| b < 0x09 || (b > 0x0d && b < 0x20 && b != 0x1b))
+                .count();
+            if non_text > check_len / 10 {
                 return PreviewResult {
-                    path: path.into(), preview_type: "text".into(),
-                    preview_path: None, content: Some(content), line_count, size, modified, mime_cat: cat.into(),
+                    path: path.into(), preview_type: "binary".into(),
+                    preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
                 };
             }
-            Err(_) => {}
+
+            let text = String::from_utf8_lossy(slice);
+            let lines: Vec<&str> = text.lines().take(MAX_PREVIEW_LINES).collect();
+            let line_count = lines.len() as u32;
+            let plain_content = lines.join("\n");
+
+            let content = if ext == "md" {
+                Some(plain_content)
+            } else {
+                Some(highlight_qt_html(&plain_content, &ext))
+            };
+
+            return PreviewResult {
+                path: path.into(), preview_type: "text".into(),
+                preview_path: None, content, line_count, size, modified, mime_cat: cat.into(),
+            };
         }
     }
 
     PreviewResult {
         path: path.into(), preview_type: "none".into(),
         preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+    }
+}
+
+/// Emit Qt RichText-compatible HTML.
+///
+/// Uses `<pre style="white-space:pre-wrap">` so indentation survives and the
+/// narrow launcher panel can still wrap. Colors are always `#RRGGBB` (Qt does
+/// not accept syntect's `#RRGGBBAA`).
+fn highlight_qt_html(content: &str, ext: &str) -> String {
+    let ss = syntax_set();
+    let theme = catppuccin_theme();
+    let syntax = ss
+        .find_syntax_by_extension(ext)
+        .or_else(|| ss.find_syntax_by_first_line(content))
+        .unwrap_or_else(|| ss.find_syntax_plain_text());
+
+    // Plain text: escape only — no span tax.
+    if syntax.name == "Plain Text" {
+        let mut out = String::with_capacity(content.len() + 64);
+        out.push_str("<pre style=\"margin:0;white-space:pre-wrap;\">");
+        append_html_escaped(&mut out, content);
+        out.push_str("</pre>");
+        return out;
+    }
+
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut out = String::with_capacity(content.len().saturating_mul(4).saturating_add(64));
+    out.push_str("<pre style=\"margin:0;white-space:pre-wrap;\">");
+
+    let default_fg = theme.settings.foreground.unwrap_or(Color {
+        r: 0xcd,
+        g: 0xd6,
+        b: 0xf4,
+        a: 0xff,
+    });
+
+    for line in LinesWithEndings::from(content) {
+        let regions = match highlighter.highlight_line(line, ss) {
+            Ok(r) => r,
+            Err(_) => {
+                append_html_escaped(&mut out, line);
+                continue;
+            }
+        };
+
+        let mut prev_style: Option<syntect::highlighting::Style> = None;
+        for (style, text) in regions {
+            if text.is_empty() {
+                continue;
+            }
+
+            let same = prev_style.is_some_and(|ps| ps == style);
+            if same {
+                append_html_escaped(&mut out, text);
+                continue;
+            }
+            if prev_style.is_some() {
+                out.push_str("</span>");
+            }
+
+            let colored = style.foreground.r != default_fg.r
+                || style.foreground.g != default_fg.g
+                || style.foreground.b != default_fg.b;
+            let italic = style.font_style.contains(FontStyle::ITALIC);
+            let bold = style.font_style.contains(FontStyle::BOLD);
+            let underline = style.font_style.contains(FontStyle::UNDERLINE);
+
+            if colored || italic || bold || underline {
+                out.push_str("<span style=\"");
+                if colored {
+                    let _ = write!(
+                        out,
+                        "color:#{:02x}{:02x}{:02x};",
+                        style.foreground.r, style.foreground.g, style.foreground.b
+                    );
+                }
+                if italic {
+                    out.push_str("font-style:italic;");
+                }
+                if bold {
+                    out.push_str("font-weight:bold;");
+                }
+                if underline {
+                    out.push_str("text-decoration:underline;");
+                }
+                out.push_str("\">");
+                append_html_escaped(&mut out, text);
+                prev_style = Some(style);
+            } else {
+                append_html_escaped(&mut out, text);
+                prev_style = None;
+            }
+        }
+        if prev_style.is_some() {
+            out.push_str("</span>");
+        }
+    }
+
+    out.push_str("</pre>");
+    out
+}
+
+#[inline]
+fn append_html_escaped(out: &mut String, text: &str) {
+    for c in text.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(c),
+        }
     }
 }
 

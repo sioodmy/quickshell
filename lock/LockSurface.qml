@@ -264,21 +264,21 @@ WlSessionLockSurface {
             id: hoursMetrics
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
             text: morphClock.hours
         }
         TextMetrics {
             id: minsMetrics
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
             text: morphClock.mins
         }
         TextMetrics {
             id: colonMetrics
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
-            font.weight: Font.DemiBold
+            font.weight: Font.Bold
             text: ":"
         }
         TextMetrics {
@@ -305,7 +305,7 @@ WlSessionLockSurface {
             font {
                 family: "Google Sans"
                 pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.DemiBold : Font.Bold
+                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
                 letterSpacing: morphClock.p > 0.5 ? -2 : 0
             }
             x: surface.lerp((morphClock.width - hoursText.width) / 2, (morphClock.width - morphClock.rowW) / 2, morphClock.p)
@@ -320,7 +320,7 @@ WlSessionLockSurface {
             font {
                 family: "Google Sans"
                 pixelSize: morphClock.fontPx
-                weight: Font.DemiBold
+                weight: Font.Bold
                 letterSpacing: -2
             }
             x: hoursText.x + hoursText.width + morphClock.colonGap
@@ -334,7 +334,7 @@ WlSessionLockSurface {
             font {
                 family: "Google Sans"
                 pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.DemiBold : Font.Bold
+                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
                 letterSpacing: morphClock.p > 0.5 ? -2 : 0
             }
             x: surface.lerp(

@@ -59,6 +59,8 @@ PanelWindow {
 
     readonly property bool captureModeActive: ssModeActive || recModeActive
 
+    property int appActionIndex: -1
+
     readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
 
     readonly property var pipewireSink: Pipewire.defaultAudioSink
@@ -768,6 +770,9 @@ PanelWindow {
                 return freqB - freqA;
             return (a.entry.name || "").localeCompare(b.entry.name || "");
         });
+
+        var maxAppActions = 3;
+        var appActionsUsed = 0;
 
         for (var i = 0; i < scored.length; i++) {
             if (appSlotsUsed >= launcherWindow.maxAppResults)
@@ -1597,6 +1602,16 @@ PanelWindow {
                         } else if (event.key === Qt.Key_Slash || event.key === Qt.Key_I) {
                             searchField.forceActiveFocus();
                             event.accepted = true;
+                        } else if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && (event.modifiers & Qt.ControlModifier)) {
+                            if (!launcherWindow.specialViewActive && listView.currentItem && listView.currentItem.hasActions) {
+                                var count = listView.currentItem.actionCount;
+                                if (event.modifiers & Qt.ShiftModifier) {
+                                    launcherWindow.appActionIndex = launcherWindow.appActionIndex <= 0 ? count - 1 : launcherWindow.appActionIndex - 1;
+                                } else {
+                                    launcherWindow.appActionIndex = launcherWindow.appActionIndex >= count - 1 ? 0 : launcherWindow.appActionIndex + 1;
+                                }
+                                event.accepted = true;
+                            }
                         } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
                             if (lazyContentRoot.handleSpecialNavigationKey(event))
                                 return;
@@ -1737,7 +1752,11 @@ PanelWindow {
                                     event.accepted = true;
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem) {
-                                        listView.currentItem.activate(false);
+                                        if (listView.currentItem.hasActions && launcherWindow.appActionIndex >= 0) {
+                                            listView.currentItem.activateAction(launcherWindow.appActionIndex);
+                                        } else {
+                                            listView.currentItem.activate(false);
+                                        }
                                     } else if (ctrl.calcResult !== "") {
                                         ctrl.copyResult();
                                     }
@@ -1825,6 +1844,16 @@ PanelWindow {
                                         : Math.round(Pomodoro.currentDuration / 60);
                                     pomWidget.commitMinutes(base + step);
                                     event.accepted = true;
+                                } else if ((event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) && (event.modifiers & Qt.ControlModifier)) {
+                                    if (!launcherWindow.specialViewActive && listView.currentItem && listView.currentItem.hasActions) {
+                                        var count = listView.currentItem.actionCount;
+                                        if (event.modifiers & Qt.ShiftModifier) {
+                                            launcherWindow.appActionIndex = launcherWindow.appActionIndex <= 0 ? count - 1 : launcherWindow.appActionIndex - 1;
+                                        } else {
+                                            launcherWindow.appActionIndex = launcherWindow.appActionIndex >= count - 1 ? 0 : launcherWindow.appActionIndex + 1;
+                                        }
+                                        event.accepted = true;
+                                    }
                                 } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
                                     if (lazyContentRoot.handleSpecialNavigationKey(event))
                                         return;
@@ -1865,7 +1894,11 @@ PanelWindow {
                                     return;
                                 } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     if (listView.currentItem) {
-                                        listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
+                                        if (listView.currentItem.hasActions && launcherWindow.appActionIndex >= 0) {
+                                            listView.currentItem.activateAction(launcherWindow.appActionIndex);
+                                        } else {
+                                            listView.currentItem.activate(event.modifiers & Qt.ShiftModifier);
+                                        }
                                     } else if (ctrl.calcResult !== "") {
                                         ctrl.copyResult();
                                     }
@@ -2510,14 +2543,18 @@ PanelWindow {
                                 id: textPreview
                                 width: textFlickable.width
                                 text: (ctrl.filePreview && ctrl.filePreview.content) || ""
-                                color: Theme.on_surface
-                                wrapMode: Text.WrapAnywhere
+                                // Mocha foreground for code so unstyled tokens match the theme;
+                                // markdown keeps the panel's surface contrast color.
+                                color: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md")
+                                    ? Theme.on_surface
+                                    : "#cdd6f4"
+                                wrapMode: Text.Wrap
                                 font {
                                     family: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
                                     pixelSize: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
                                 }
                                 lineHeight: 1.4
-                                textFormat: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.PlainText
+                                textFormat: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.RichText
                             }
                         }
 

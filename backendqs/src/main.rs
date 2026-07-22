@@ -308,6 +308,9 @@ async fn main() -> Result<()> {
                 });
             }
 
+            // Warm syntect so the first code preview isn't a hitch.
+            tokio::task::spawn_blocking(filesearch::warmup_highlighter);
+
             // Build bookmark index in background
             let bookmark_index = bookmarks::new_index();
             {

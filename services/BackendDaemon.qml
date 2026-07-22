@@ -53,6 +53,8 @@ Singleton {
         command: ["/home/sioodmy/.config/quickshell/backendqs/target/release/backendqs", "daemon"]
         running: true
         stdinEnabled: true
+        // Survive crashes / binary rebuilds without requiring a full shell restart.
+        onExited: restartDaemon.restart()
         stdout: SplitParser {
             onRead: data => {
                 var trimmed = data.trim();
@@ -175,6 +177,13 @@ Singleton {
 
     function send(obj) {
         daemon.write(JSON.stringify(obj) + "\n");
+    }
+
+    Timer {
+        id: restartDaemon
+        interval: 250
+        repeat: false
+        onTriggered: daemon.running = true
     }
 
     Timer {
