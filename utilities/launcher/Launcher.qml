@@ -20,6 +20,9 @@ PanelWindow {
     property bool hasFileSelected: false
     property var selectedFileData: null
     property real fileSplitBlend: 0
+    property bool shareModeActive: false
+    property var shareData: null
+    property real shareViewBlend: 0
 
     readonly property string trimmedQuery: ctrl.searchText.trim()
     readonly property string normalizedQuery: trimmedQuery.toLowerCase()
@@ -86,6 +89,24 @@ PanelWindow {
 
     Behavior on fileSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+    }
+
+    onShareModeActiveChanged: shareViewBlend = shareModeActive ? 1 : 0
+    Behavior on shareViewBlend {
+        NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+    }
+
+    Connections {
+        target: BackendDaemon
+        function onFileShareReady(data) {
+            if (data.error) {
+                shareModeActive = false;
+                shareData = null;
+                return;
+            }
+            shareData = data;
+            shareModeActive = true;
+        }
     }
 
     property real openProgress: 0.0
@@ -995,6 +1016,8 @@ PanelWindow {
     }
 
     function closeMenu() {
+        shareModeActive = false;
+        shareData = null;
         if (contentLoader.item)
             contentLoader.item.resetSpecialViewState();
         bluetoothConnectedNotifTimer.stop();
@@ -1014,7 +1037,7 @@ PanelWindow {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                width: 640 + 48
+                width: 680 + 48
                 height: 609
                 x: 0
                 anchors.verticalCenter: parent.verticalCenter
@@ -1264,7 +1287,7 @@ PanelWindow {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.margins: 4
-                    width: Math.max(0, (688 - 44) * launcherWindow.openProgress)
+                    width: Math.max(0, (728 - 44) * launcherWindow.openProgress)
                     radius: 26
                     color: "black"
                     visible: false
@@ -1310,7 +1333,7 @@ PanelWindow {
 
                 Rectangle {
                     id: mainUi
-                    width: 688
+                    width: 728
 
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -2500,6 +2523,176 @@ PanelWindow {
                             color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.03)
                         }
 
+                    // ── WiFi share QR view (replaces preview when active) ──
+                    Item {
+                        id: shareView
+                        anchors.fill: parent
+                        opacity: launcherWindow.shareViewBlend
+                        visible: launcherWindow.shareViewBlend > 0.02
+                        z: 2
+                        property int qrSize: 170
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
+
+                        transform: [
+                            Scale {
+                                origin.x: parent.width / 2
+                                origin.y: parent.height / 2
+                                xScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
+                                yScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
+                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                            }
+                        ]
+
+                        Column {
+                            anchors.top: parent.top
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.topMargin: 8
+                            width: Math.min(parent.width - 48, 280)
+                            spacing: 10
+
+                            Row {
+                                width: parent.width
+                                spacing: 10
+
+                                Rectangle {
+                                    id: shareBackBtn
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 34
+                                    height: 34
+                                    radius: 17
+                                    color: shareBackMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container
+
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰁍"
+                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 17 }
+                                        color: Theme.on_surface
+                                    }
+
+                                    MouseArea {
+                                        id: shareBackMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            launcherWindow.shareModeActive = false;
+                                            launcherWindow.shareData = null;
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - shareBackBtn.width - parent.spacing
+                                    text: "Share over WiFi"
+                                    color: Theme.on_surface
+                                    font { family: "Google Sans"; pixelSize: 16; weight: Font.DemiBold }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: shareView.qrSize + 20
+                                height: shareView.qrSize + 20
+                                radius: 18
+                                color: "#ffffff"
+
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    shadowEnabled: true
+                                    shadowBlur: 0.6
+                                    shadowColor: "#20000000"
+                                    shadowVerticalOffset: 4
+                                }
+
+                                Image {
+                                    id: qrImage
+                                    anchors.centerIn: parent
+                                    width: shareView.qrSize
+                                    height: shareView.qrSize
+                                    source: launcherWindow.shareData && launcherWindow.shareData.qr_svg
+                                        ? "data:image/svg+xml;utf8," + encodeURIComponent(launcherWindow.shareData.qr_svg)
+                                        : ""
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    asynchronous: true
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                text: launcherWindow.shareData ? launcherWindow.shareData.name : "Starting..."
+                                color: Theme.on_surface_variant
+                                elide: Text.ElideMiddle
+                                font { family: "Google Sans"; pixelSize: 12 }
+                            }
+
+                            // Copy-to-clipboard instead of showing the full URL.
+                            Rectangle {
+                                id: copyLinkBtn
+                                width: parent.width
+                                height: 40
+                                radius: 16
+                                color: copyLinkMouse.containsMouse ? Theme.primary : Theme.primary_container
+
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 8
+
+                                    Text {
+                                        text: "󰍨"
+                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                                    }
+                                    Text {
+                                        text: "Copy link"
+                                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: copyLinkMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (launcherWindow.shareData && launcherWindow.shareData.url)
+                                            ctrl.copyText(launcherWindow.shareData.url);
+                                    }
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "Scan QR or open link on the same network"
+                                color: Theme.on_surface_variant
+                                opacity: 0.7
+                                font { family: "Google Sans"; pixelSize: 11 }
+                            }
+                        }
+                    }
+
+                    // Normal preview (fades out when share view is active)
+                    Item {
+                        anchors.fill: parent
+                        opacity: 1 - launcherWindow.shareViewBlend
+                        visible: launcherWindow.shareViewBlend < 0.98
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
+
                     // Preview content area
                     Item {
                         id: previewContent
@@ -3088,9 +3281,56 @@ PanelWindow {
                                         }
                                     }
                                 }
+
+                                Rectangle {
+                                    id: shareFileBtn
+                                    width: 32
+                                    height: 32
+                                    radius: 16
+                                    color: shareFileMouse.containsMouse ? Theme.tertiary : Theme.tertiary_container
+
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰐳"
+                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                                        color: shareFileMouse.containsMouse ? Theme.on_tertiary : Theme.on_tertiary_container
+                                    }
+
+                                    MouseArea {
+                                        id: shareFileMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (!launcherWindow.selectedFileData)
+                                                return;
+                                            // Optimistic UI: show the QR/share panel immediately
+                                            // so the button never feels dead.
+                                            BackendDaemon.fileShareError = "";
+                                            launcherWindow.shareModeActive = true;
+                                            launcherWindow.shareData = null;
+                                            FileShare.startShare(launcherWindow.selectedFileData.path);
+                                        }
+                                    }
+                                }
+                            }
+
+                            // If the backend rejects the share request, the QR button
+                            // would otherwise look "dead" (no animation/no view).
+                            Text {
+                                width: parent.width
+                                visible: BackendDaemon.fileShareError !== "" && !launcherWindow.shareModeActive
+                                text: BackendDaemon.fileShareError
+                                color: Theme.critical
+                                elide: Text.ElideRight
+                                font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                                opacity: 0.95
                             }
                         }
                     }
+                    } // End normal preview wrapper
                 } // End of previewPanel
                 } // End of mainUi
             }

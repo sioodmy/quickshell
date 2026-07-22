@@ -14,6 +14,7 @@ mod videopreview;
 mod sysctl;
 mod cliphist;
 mod bookmarks;
+mod fileshare;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -129,6 +130,12 @@ enum DaemonRequest {
     CliphistDelete { raw: String },
     #[serde(rename = "cliphist_wipe")]
     CliphistWipe,
+    #[serde(rename = "file_share_add")]
+    FileShareAdd { path: String },
+    #[serde(rename = "file_share_remove")]
+    FileShareRemove { id: String },
+    #[serde(rename = "file_share_remove_all")]
+    FileShareRemoveAll,
 }
 
 #[derive(Serialize)]
@@ -166,6 +173,18 @@ enum DaemonEvent {
     CliphistOcrUpdate { id: String, ocr_text: String, search_text: String },
     #[serde(rename = "cliphist_action_done")]
     CliphistActionDone { action: String },
+    #[serde(rename = "file_share_started")]
+    FileShareStarted {
+        status: String,
+        error: Option<String>,
+        id: Option<String>,
+        url: Option<String>,
+        qr_svg: Option<String>,
+        name: Option<String>,
+        size: Option<u64>,
+    },
+    #[serde(rename = "file_share_progress")]
+    FileShareProgress { shares: Vec<fileshare::ShareInfo> },
 }
 
 #[derive(Serialize)]
@@ -325,6 +344,43 @@ async fn main() -> Result<()> {
             // Monotonic generation so stale file_search tasks can abort.
             let file_search_generation = Arc::new(AtomicU64::new(0));
 
+            // Lazy file share server — started on first share request.
+            let file_share: Arc<tokio::sync::Mutex<Option<fileshare::FileShareHandle>>> =
+                Arc::new(tokio::sync::Mutex::new(None));
+            let file_share_progress_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+            // Progress poller: emits share state at most every 500ms while active.
+            {
+                let fs = file_share.clone();
+                let tx_prog = tx_event.clone();
+                let active = file_share_progress_active.clone();
+                tokio::spawn(async move {
+                    let mut interval =
+                        tokio::time::interval(std::time::Duration::from_millis(500));
+                    loop {
+                        interval.tick().await;
+                        if !active.load(Ordering::Relaxed) {
+                            continue;
+                        }
+                        let shares = {
+                            let guard = fs.lock().await;
+                            if let Some(ref h) = *guard {
+                                h.list_shares().await
+                            } else {
+                                vec![]
+                            }
+                        };
+                        if shares.is_empty() {
+                            active.store(false, Ordering::Relaxed);
+                            continue;
+                        }
+                        let _ = tx_prog
+                            .send(DaemonEvent::FileShareProgress { shares })
+                            .await;
+                    }
+                });
+            }
+
             // Stdin reading loop
             let stdin = io::stdin();
             let mut reader = BufReader::new(stdin).lines();
@@ -357,6 +413,8 @@ async fn main() -> Result<()> {
                 let file_search_generation = file_search_generation.clone();
                 let cliphist_state = cliphist_state.clone();
                 let ocr_sem = ocr_sem.clone();
+                let file_share = file_share.clone();
+                let file_share_progress_active = file_share_progress_active.clone();
 
                 // Invalidate older searches synchronously so spawn order cannot race.
                 let assigned_search_gen = match &req {
@@ -589,6 +647,86 @@ async fn main() -> Result<()> {
                         DaemonRequest::CliphistWipe => {
                             let _ = tokio::task::spawn_blocking(|| cliphist::wipe()).await;
                             handle_cliphist_list(cliphist_state, ocr_sem, tx).await;
+                        }
+                        DaemonRequest::FileShareAdd { path } => {
+                            let mut guard = file_share.lock().await;
+                            if guard.is_none() {
+                                match fileshare::start_server().await {
+                                    Ok(h) => *guard = Some(h),
+                                    Err(e) => {
+                                        let _ = tx
+                                            .send(DaemonEvent::FileShareStarted {
+                                                status: "error".into(),
+                                                error: Some(e.to_string()),
+                                                id: None,
+                                                url: None,
+                                                qr_svg: None,
+                                                name: None,
+                                                size: None,
+                                            })
+                                            .await;
+                                        return;
+                                    }
+                                }
+                            }
+                            let handle = guard.as_ref().unwrap();
+                            match handle.add_share(&path).await {
+                                Ok(started) => {
+                                    file_share_progress_active.store(true, Ordering::Relaxed);
+                                    let _ = tx
+                                        .send(DaemonEvent::FileShareStarted {
+                                            status: "ok".into(),
+                                            error: None,
+                                            id: Some(started.id),
+                                            url: Some(started.url),
+                                            qr_svg: Some(started.qr_svg),
+                                            name: Some(started.name),
+                                            size: Some(started.size),
+                                        })
+                                        .await;
+                                    let shares = handle.list_shares().await;
+                                    let _ = tx
+                                        .send(DaemonEvent::FileShareProgress { shares })
+                                        .await;
+                                }
+                                Err(e) => {
+                                    let _ = tx
+                                        .send(DaemonEvent::FileShareStarted {
+                                            status: "error".into(),
+                                            error: Some(e.to_string()),
+                                            id: None,
+                                            url: None,
+                                            qr_svg: None,
+                                            name: None,
+                                            size: None,
+                                        })
+                                        .await;
+                                }
+                            }
+                        }
+                        DaemonRequest::FileShareRemove { id } => {
+                            let guard = file_share.lock().await;
+                            if let Some(ref h) = *guard {
+                                h.remove_share(&id).await;
+                                let shares = h.list_shares().await;
+                                if shares.is_empty() {
+                                    file_share_progress_active
+                                        .store(false, Ordering::Relaxed);
+                                }
+                                let _ = tx
+                                    .send(DaemonEvent::FileShareProgress { shares })
+                                    .await;
+                            }
+                        }
+                        DaemonRequest::FileShareRemoveAll => {
+                            let guard = file_share.lock().await;
+                            if let Some(ref h) = *guard {
+                                h.remove_all().await;
+                            }
+                            file_share_progress_active.store(false, Ordering::Relaxed);
+                            let _ = tx
+                                .send(DaemonEvent::FileShareProgress { shares: vec![] })
+                                .await;
                         }
                     }
                 });

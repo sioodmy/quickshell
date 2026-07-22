@@ -327,6 +327,18 @@ Item {
         command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", resultText]
     }
 
+    // Lightweight clipboard helper for arbitrary text (does not auto-close launcher).
+    Process {
+        id: copyTextProcess
+        property string text: ""
+        command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", text]
+    }
+
+    function copyText(text) {
+        copyTextProcess.text = text;
+        copyTextProcess.running = true;
+    }
+
     function copyResult() {
         if (backend.calcResult !== "") {
             var clean = backend.calcResult;

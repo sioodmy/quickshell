@@ -32,6 +32,11 @@ Singleton {
     property var bluetoothDevices: []
     property var wifiNetworks: []
     property var cliphistItems: []
+    property var fileShareItems: []
+    property string fileShareError: ""
+
+    // Emitted when a new share is ready with QR data for the launcher.
+    signal fileShareReady(var data)
 
     // Emitted once a clipboard copy has been written to the Wayland selection.
     signal cliphistCopied()
@@ -167,6 +172,30 @@ Singleton {
                     } else if (type === "cliphist_action_done") {
                         if (parsed.action === "copy")
                             root.cliphistCopied();
+                    } else if (type === "file_share_started") {
+                        if (parsed.status === "ok") {
+                            root.fileShareError = "";
+                            var shareData = {
+                                id: parsed.id,
+                                url: parsed.url,
+                                qr_svg: parsed.qr_svg,
+                                name: parsed.name,
+                                size: parsed.size
+                            };
+                            FileShare.addShare({
+                                id: parsed.id,
+                                name: parsed.name,
+                                size: parsed.size,
+                                url: parsed.url
+                            });
+                            root.fileShareReady(shareData);
+                        } else {
+                            root.fileShareError = parsed.error || "Share failed";
+                            root.fileShareReady({ error: root.fileShareError });
+                        }
+                    } else if (type === "file_share_progress") {
+                        root.fileShareItems = parsed.shares || [];
+                        FileShare.updateFromBackend(parsed.shares || []);
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);
