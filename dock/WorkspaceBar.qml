@@ -21,8 +21,6 @@ Item {
     property int dropHoverWsId: -1
     readonly property bool dropHoverActive: dropHoverWsId >= 0
 
-    signal appHover(string name, real itemY, string winId)
-    signal appHoverEnd()
     signal appContextMenu(var itemData, real itemY)
     signal dragStarted(Item item, string winId, real globalX, real globalY)
     signal dragUpdated(real globalX, real globalY)
@@ -135,10 +133,6 @@ Item {
                             root.activeWsItem = wsItem
                     }
 
-                    onAppHover: function(name, itemY, winId) {
-                        root.appHover(name, itemY, winId)
-                    }
-                    onAppHoverEnd: root.appHoverEnd()
                     onAppContextMenu: function(itemData, itemY) {
                         root.appContextMenu(itemData, itemY)
                     }

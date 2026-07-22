@@ -36,7 +36,7 @@ Variants {
             bottom: true
         }
 
-        // Make the window wide enough to fit tooltips/menus, but transparent
+        // Make the window wide enough to fit menus, but transparent
         color: "transparent"
         implicitWidth: 400
 
@@ -49,30 +49,14 @@ Variants {
             id: dockContent
             anchors.fill: parent
 
-            // --- State for tooltips and context menu ---
-            property string hoveredAppName: ""
-            property real hoveredItemY: 0
-            property bool anyHovered: false
-
+            // --- State for context menu ---
             property bool contextMenuOpen: false
             property string contextDesktopId: ""
             property string contextAppName: ""
             property bool contextIsPinned: false
             property bool contextIsRunning: false
             property real contextItemY: 0
-            
-            property string hoveredWinId: ""
-            property real previewTimestamp: 0
 
-            Connections {
-                target: DockBackend
-                function onFocusSwitched() {
-                    dockContent.anyHovered = false;
-                    dockContent.hoveredWinId = "";
-                    tooltip.visible = false;
-                }
-            }
-            
             property Item draggingApp: null
             property string draggingWinId: ""
             property real dragX: 0
@@ -84,16 +68,6 @@ Variants {
             onDragYChanged: {
                 dragVY = dragY - _prevDragY
                 _prevDragY = dragY
-            }
-
-            Timer {
-                id: tooltipTimeoutTimer
-                interval: 3500
-                onTriggered: {
-                    dockContent.anyHovered = false;
-                    dockContent.hoveredWinId = "";
-                    tooltip.visible = false;
-                }
             }
 
             property var runningApps: {
@@ -138,13 +112,11 @@ Variants {
                     var top = notchBg.y;
                     if (pomodoroIndicator.visible)
                         top = Math.min(top, pomodoroIndicator.y);
-                    if (tooltip.visible) top = Math.min(top, tooltip.y);
                     if (contextMenu.visible) top = Math.min(top, contextMenu.y);
                     return top;
                 }
                 width: {
                     var w = 44;
-                    if (tooltip.visible) w = Math.max(w, tooltip.x + tooltip.width + 4);
                     if (contextMenu.visible) w = Math.max(w, contextMenu.x + contextMenu.width + 4);
                     // Keep a bit of horizontal slack while dragging so the
                     // pointer doesn't leave the layer-shell input region.
@@ -155,7 +127,6 @@ Variants {
                     var bottom = notchBg.y + notchBg.height;
                     if (recordingIndicator.visible)
                         bottom = Math.max(bottom, recordingIndicator.y + recordingIndicator.height);
-                    if (tooltip.visible) bottom = Math.max(bottom, tooltip.y + tooltip.height + 4);
                     if (contextMenu.visible) bottom = Math.max(bottom, contextMenu.y + contextMenu.height + 4);
                     return bottom - y;
                 }
@@ -312,18 +283,6 @@ Variants {
                     draggingApp: dockContent.draggingApp
                     draggingWinId: dockContent.draggingWinId
 
-                    onAppHover: function(name, itemY, winId) {
-                        dockContent.hoveredAppName = name
-                        dockContent.hoveredItemY = itemY
-                        dockContent.hoveredWinId = winId
-                        dockContent.anyHovered = true
-                        dockContent.previewTimestamp = Date.now()
-                        tooltip.visible = true
-                        tooltipTimeoutTimer.restart()
-                    }
-                    onAppHoverEnd: {
-                        // keep tooltip until timeout / focus switch
-                    }
                     onAppContextMenu: function(itemData, itemY) {
                         dockContent.contextDesktopId = itemData.desktopId || ""
                         dockContent.contextAppName = itemData.name || ""
@@ -331,7 +290,6 @@ Variants {
                         dockContent.contextIsRunning = !!itemData.running
                         dockContent.contextItemY = itemY - dockContent.mapToItem(null, 0, 0).y
                         dockContent.contextMenuOpen = true
-                        tooltip.visible = false
                     }
                     onDragStarted: function(item, winId, gx, gy) {
                         var local = dockContent.mapFromItem(null, gx, gy)
@@ -341,9 +299,6 @@ Variants {
                         dockContent.dragY = local.y
                         dockContent._prevDragY = local.y
                         dockContent.dragVY = 0
-                        dockContent.anyHovered = false
-                        tooltipTimeoutTimer.stop()
-                        tooltip.visible = false
                     }
                     onDragUpdated: function(gx, gy) {
                         var local = dockContent.mapFromItem(null, gx, gy)
@@ -363,93 +318,6 @@ Variants {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 12
                     anchors.horizontalCenter: parent.horizontalCenter
-                }
-            }
-
-            // === TOOLTIP ===
-            Rectangle {
-                id: tooltip
-                property bool hasPreview: dockContent.hoveredWinId !== ""
-                visible: false
-                opacity: visible ? 1.0 : 0.0
-                scale: visible ? 1.0 : 0.8
-                
-                Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
-
-                x: 56
-                y: dockContent.hoveredItemY + 6 - 80 - dockContent.mapToItem(null, 0, 0).y
-
-                width: 260
-                height: 200
-                radius: 16
-                color: Theme.surface_container_high
-
-                Rectangle {
-                    width: 7
-                    height: 7
-                    radius: 2
-                    rotation: 45
-                    color: parent.color
-                    anchors.top: parent.top
-                    anchors.topMargin: 84
-                    anchors.left: parent.left
-                    anchors.leftMargin: -3
-                }
-
-                Item {
-                    anchors.fill: parent
-                    
-                    Text {
-                        id: tooltipText
-                        anchors.top: parent.top
-                        anchors.topMargin: 12
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: dockContent.hoveredAppName || ""
-                        color: Theme.on_surface
-                        font {
-                            family: "Google Sans"
-                            pixelSize: 14
-                            weight: Font.DemiBold
-                        }
-                    }
-                    
-                    Rectangle {
-                        anchors.top: tooltipText.bottom
-                        anchors.topMargin: 12
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 12
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: parent.width - 24
-                        radius: 8
-                        color: Theme.surface_container_highest
-                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.3)
-                        border.width: 1
-
-                        Image {
-                            id: previewImage
-                            anchors.fill: parent
-                            anchors.margins: 1
-                            visible: true
-                            fillMode: Image.PreserveAspectCrop
-                            source: tooltip.hasPreview ? "file://" + DockBackend.cacheDir + "/win_" + dockContent.hoveredWinId + ".png?t=" + dockContent.previewTimestamp : ""
-                            
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    hideSource: true
-                                    sourceItem: Rectangle {
-                                        width: previewImage.width
-                                        height: previewImage.height
-                                        radius: 7
-                                        color: "black"
-                                        visible: false
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -591,7 +459,7 @@ Variants {
 
             Timer {
                 interval: 3000
-                running: (dockContent.contextMenuOpen !== undefined ? dockContent.contextMenuOpen : false) && !(dockContent.anyHovered !== undefined ? dockContent.anyHovered : false)
+                running: dockContent.contextMenuOpen
                 onTriggered: dockContent.contextMenuOpen = false
             }
 

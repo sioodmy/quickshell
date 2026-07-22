@@ -33,8 +33,6 @@ Item {
     property int emptySlotHeight: 14
 
     signal becameActive(bool fromFocus)
-    signal appHover(string name, real itemY, string winId)
-    signal appHoverEnd()
     signal appContextMenu(var itemData, real itemY)
     signal dragStarted(Item item, string winId, real globalX, real globalY)
     signal dragUpdated(real globalX, real globalY)
@@ -315,20 +313,6 @@ Item {
                     itemData: root.wsApps[slot.index] || ({})
                     opacity: root.draggingApp === appItem ? 0.15 : 1.0
                     Behavior on opacity { NumberAnimation { duration: 100 } }
-
-                    onHoverChanged: function(hovered) {
-                        if (hovered) {
-                            var wins = appItem.itemData.windows || []
-                            var wsWins = wins.filter(function(w) {
-                                return w.workspaceId === root.wsId
-                            })
-                            var winId = wsWins.length > 0 ? wsWins[0].id : (wins.length > 0 ? wins[0].id : "")
-                            var globalY = appItem.mapToItem(null, 0, 0).y
-                            root.appHover(appItem.appName, globalY, winId)
-                        } else {
-                            root.appHoverEnd()
-                        }
-                    }
 
                     onContextMenuRequested: {
                         var globalY = appItem.mapToItem(null, 0, 0).y

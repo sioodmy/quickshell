@@ -11,53 +11,8 @@ Singleton {
     property var pinnedIds: []
     property var dockModel: []
 
-    signal focusSwitched()
-
     readonly property string statePath: (Quickshell.env("XDG_STATE_HOME")
         || (Quickshell.env("HOME") + "/.local/state")) + "/quickshell/dock_pinned.json"
-
-    readonly property string cacheDir: "/tmp/quickshell_app_previews"
-
-    Process {
-        Component.onCompleted: running = true
-        command: ["bash", "-c", "rm -rf \"$1\" && mkdir -p \"$1\"", "_", root.cacheDir]
-    }
-
-    Process {
-        id: screenshotProcess
-        property string targetWinId: ""
-        command: ["bash", "-c", "out=\"$1/win_$2.png\"; tmp=\"$out.tmp.png\"; grim -c - | magick - -sample 320x \"$tmp\" && mv \"$tmp\" \"$out\"", "_", root.cacheDir, targetWinId]
-    }
-
-    Timer {
-        id: enterCaptureTimer
-        interval: 1000
-        repeat: false
-        property string pendingWinId: ""
-        onTriggered: {
-            if (pendingWinId !== "") {
-                screenshotProcess.targetWinId = pendingWinId;
-                screenshotProcess.running = true;
-            }
-        }
-    }
-
-    Timer {
-        id: periodicCaptureTimer
-        interval: 15000
-        repeat: true
-        running: true
-        onTriggered: {
-            var map = root._runningWindowsMap;
-            for (var id in map) {
-                if (map[id].isFocused) {
-                    screenshotProcess.targetWinId = id;
-                    screenshotProcess.running = true;
-                    break;
-                }
-            }
-        }
-    }
 
     Process {
         id: loadProcess
@@ -134,12 +89,6 @@ Singleton {
                     map[winId].isFocused = winIsFocused;
                     root._runningWindowsMap = map;
                     root.rebuildModel();
-                    
-                    if (winIsFocused) {
-                        root.focusSwitched();
-                        enterCaptureTimer.pendingWinId = winId;
-                        enterCaptureTimer.restart();
-                    }
                 }
             }
 

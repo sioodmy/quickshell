@@ -15,7 +15,6 @@ Item {
     readonly property string appIcon: itemData.icon || ""
 
     // Signals for parent
-    signal hoverChanged(bool hovered)
     signal contextMenuRequested()
 
     property bool isHovered: hover.hovered
@@ -103,7 +102,6 @@ Item {
     HoverHandler {
         id: hover
         cursorShape: Qt.PointingHandCursor
-        onHoveredChanged: root.hoverChanged(hovered)
     }
 
     TapHandler {
