@@ -14,6 +14,7 @@ pub struct MusicRemoteState {
     pub token: String,
     pub is_active: AtomicBool,
     pub client_connected: AtomicBool,
+    pub cached_library: std::sync::Mutex<Option<music::Library>>,
 }
 
 #[derive(Serialize)]
@@ -32,6 +33,17 @@ pub struct RemoteStateDto {
 pub struct MusicRemoteHandle {
     pub url: String,
     pub qr_svg: String,
+    pub shutdown_tx: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+}
+
+impl Drop for MusicRemoteHandle {
+    fn drop(&mut self) {
+        if let Ok(mut tx) = self.shutdown_tx.lock() {
+            if let Some(tx) = tx.take() {
+                let _ = tx.send(());
+            }
+        }
+    }
 }
 
 pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemoteState>)> {
@@ -53,6 +65,7 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
         token: token.clone(),
         is_active: AtomicBool::new(true),
         client_connected: AtomicBool::new(false),
+        cached_library: std::sync::Mutex::new(None),
     });
 
     let app = Router::new()
@@ -66,10 +79,16 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
         .route("/remote/{token}/seek", post(seek_action))
         .with_state(state.clone());
 
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
     tokio::spawn(async move {
         let addr = format!("0.0.0.0:{}", port);
         if let Ok(listener) = tokio::net::TcpListener::bind(&addr).await {
-            let _ = axum::serve(listener, app).await;
+            let _ = axum::serve(listener, app)
+                .with_graceful_shutdown(async move {
+                    let _ = shutdown_rx.await;
+                })
+                .await;
         }
     });
 
@@ -97,7 +116,11 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
         }
     });
 
-    Ok((MusicRemoteHandle { url, qr_svg }, state))
+    Ok((MusicRemoteHandle { 
+        url, 
+        qr_svg, 
+        shutdown_tx: std::sync::Mutex::new(Some(shutdown_tx)),
+    }, state))
 }
 
 async fn serve_ui(
@@ -209,7 +232,17 @@ async fn get_library(
     if token != state.token || !state.is_active.load(Ordering::Relaxed) {
         return Json(music::Library { albums: vec![] });
     }
-    Json(music::scan_library().unwrap_or(music::Library { albums: vec![] }))
+    
+    let lib_opt = state.cached_library.lock().unwrap().clone();
+    let lib = match lib_opt {
+        Some(l) => l,
+        None => {
+            let scanned = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap().unwrap_or(music::Library { albums: vec![] });
+            *state.cached_library.lock().unwrap() = Some(scanned.clone());
+            scanned
+        }
+    };
+    Json(lib)
 }
 
 async fn get_cover(
@@ -219,13 +252,20 @@ async fn get_cover(
     if token != state.token || !state.is_active.load(Ordering::Relaxed) {
         return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response();
     }
-    let lib = match music::scan_library() {
-        Ok(l) => l,
-        Err(_) => return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response(),
+    
+    let lib_opt = state.cached_library.lock().unwrap().clone();
+    let lib = match lib_opt {
+        Some(l) => l,
+        None => {
+            let scanned = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap().unwrap_or(music::Library { albums: vec![] });
+            *state.cached_library.lock().unwrap() = Some(scanned.clone());
+            scanned
+        }
     };
+
     if let Some(album) = lib.albums.get(index) {
         if let Some(ref path) = album.cover_path {
-            if let Ok(data) = std::fs::read(path) {
+            if let Ok(data) = tokio::fs::read(path).await {
                 let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
                 return ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response();
             }
@@ -241,15 +281,16 @@ async fn get_current_art(
     if token != state.token || !state.is_active.load(Ordering::Relaxed) {
         return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response();
     }
+    let mut art_url = String::new();
     if let Some(player) = music::PLAYER.get() {
         let pstate = player.state.lock().unwrap();
-        let art_url = pstate.art_url.clone();
-        if art_url.starts_with("file://") {
-            let path = art_url.trim_start_matches("file://");
-            if let Ok(data) = std::fs::read(path) {
-                let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
-                return ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response();
-            }
+        art_url = pstate.art_url.clone();
+    }
+    if art_url.starts_with("file://") {
+        let path = art_url.trim_start_matches("file://");
+        if let Ok(data) = tokio::fs::read(path).await {
+            let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
+            return ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response();
         }
     }
     (axum::http::StatusCode::NOT_FOUND, vec![]).into_response()
@@ -294,6 +335,7 @@ fn html_page(token: &str) -> String {
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
         html, body {{ height: 100%; }}
         body {{
             font-family: "Google Sans", system-ui, -apple-system, sans-serif;
@@ -623,7 +665,10 @@ fn html_page(token: &str) -> String {
         <div class="content-section active" id="sec-library">
             <input type="text" id="search-input" class="search-input" placeholder="Search albums or artists...">
             <div id="albums-container">
-                <div style="color: #cac4d0; padding-left: 8px;">Loading...</div>
+                <div style="color: #cac4d0; padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div style="width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #d0bcff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <div>Loading music library...</div>
+                </div>
             </div>
         </div>
 
