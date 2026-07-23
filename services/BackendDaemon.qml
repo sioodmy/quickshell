@@ -34,6 +34,9 @@ Singleton {
     property var cliphistItems: []
     property var fileShareItems: []
     property string fileShareError: ""
+    property string musicRemoteUrl: ""
+    property string musicRemoteQrSvg: ""
+    property bool musicRemoteConnected: false
 
     // Emitted when a new share is ready with QR data for the launcher.
     signal fileShareReady(var data)
@@ -198,6 +201,22 @@ Singleton {
                     } else if (type === "file_share_progress") {
                         root.fileShareItems = parsed.shares || [];
                         FileShare.updateFromBackend(parsed.shares || []);
+                    } else if (type === "music_remote_started") {
+                        if (parsed.status === "ok") {
+                            root.musicRemoteUrl = parsed.url || "";
+                            root.musicRemoteQrSvg = parsed.qr_svg || "";
+                            root.musicRemoteConnected = false;
+                        } else {
+                            root.musicRemoteUrl = "";
+                            root.musicRemoteQrSvg = "";
+                            root.musicRemoteConnected = false;
+                        }
+                    } else if (type === "music_remote_stopped") {
+                        root.musicRemoteUrl = "";
+                        root.musicRemoteQrSvg = "";
+                        root.musicRemoteConnected = false;
+                    } else if (type === "music_remote_connected") {
+                        root.musicRemoteConnected = true;
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);

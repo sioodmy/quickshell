@@ -15,6 +15,7 @@ mod sysctl;
 mod cliphist;
 mod bookmarks;
 mod fileshare;
+mod music_remote;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -136,6 +137,10 @@ enum DaemonRequest {
     FileShareRemove { id: String },
     #[serde(rename = "file_share_remove_all")]
     FileShareRemoveAll,
+    #[serde(rename = "music_remote_start")]
+    MusicRemoteStart,
+    #[serde(rename = "music_remote_stop")]
+    MusicRemoteStop,
 }
 
 #[derive(Serialize)]
@@ -185,6 +190,12 @@ enum DaemonEvent {
     },
     #[serde(rename = "file_share_progress")]
     FileShareProgress { shares: Vec<fileshare::ShareInfo> },
+    #[serde(rename = "music_remote_started")]
+    MusicRemoteStarted { status: String, error: Option<String>, url: Option<String>, qr_svg: Option<String> },
+    #[serde(rename = "music_remote_stopped")]
+    MusicRemoteStopped,
+    #[serde(rename = "music_remote_connected")]
+    MusicRemoteConnected,
 }
 
 #[derive(Serialize)]
@@ -318,6 +329,9 @@ async fn main() -> Result<()> {
             // tesseract OCR pass runs at a time (battery friendly).
             let cliphist_state = cliphist::new_state();
             let ocr_sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+            let file_share: Arc<tokio::sync::Mutex<Option<fileshare::FileShareHandle>>> = Arc::new(tokio::sync::Mutex::new(None));
+            let file_share_progress_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let music_remote_state: Arc<tokio::sync::Mutex<Option<(music_remote::MusicRemoteHandle, std::sync::Arc<music_remote::MusicRemoteState>)>>> = Arc::new(tokio::sync::Mutex::new(None));
 
             // Build file search index in background
             let file_index = filesearch::new_index();
@@ -343,11 +357,6 @@ async fn main() -> Result<()> {
 
             // Monotonic generation so stale file_search tasks can abort.
             let file_search_generation = Arc::new(AtomicU64::new(0));
-
-            // Lazy file share server — started on first share request.
-            let file_share: Arc<tokio::sync::Mutex<Option<fileshare::FileShareHandle>>> =
-                Arc::new(tokio::sync::Mutex::new(None));
-            let file_share_progress_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
             // Progress poller: emits share state at most every 500ms while active.
             {
@@ -382,8 +391,7 @@ async fn main() -> Result<()> {
             }
 
             // Stdin reading loop
-            let stdin = io::stdin();
-            let mut reader = BufReader::new(stdin).lines();
+            let mut reader = BufReader::new(tokio::io::stdin()).lines();
 
             while let Ok(Some(line)) = reader.next_line().await {
                 if line.trim().is_empty() { continue; }
@@ -392,14 +400,6 @@ async fn main() -> Result<()> {
                     Ok(r) => r,
                     Err(e) => {
                         eprintln!("Error deserializing: {} for line: {}", e, line);
-                        // Fallback parsing for old requests
-                        if let Ok(old_req) = serde_json::from_str::<serde_json::Value>(&line) {
-                            if let Some(query) = old_req.get("query").and_then(|v| v.as_str()) {
-                                let out = old_req.get("out").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                let color = old_req.get("color").and_then(|v| v.as_str()).map(|s| s.to_string());
-                                handle_math(query.to_string(), out, color, tx_event.clone()).await;
-                            }
-                        }
                         continue;
                     }
                 };
@@ -415,6 +415,7 @@ async fn main() -> Result<()> {
                 let ocr_sem = ocr_sem.clone();
                 let file_share = file_share.clone();
                 let file_share_progress_active = file_share_progress_active.clone();
+                let music_remote_state = music_remote_state.clone();
 
                 // Invalidate older searches synchronously so spawn order cannot race.
                 let assigned_search_gen = match &req {
@@ -727,6 +728,72 @@ async fn main() -> Result<()> {
                             let _ = tx
                                 .send(DaemonEvent::FileShareProgress { shares: vec![] })
                                 .await;
+                        }
+                        DaemonRequest::MusicRemoteStart => {
+                            let mut guard = music_remote_state.lock().await;
+                            if guard.is_none() {
+                                match music_remote::start_server().await {
+                                    Ok((handle, state)) => {
+                                        let _ = tx.send(DaemonEvent::MusicRemoteStarted {
+                                            status: "ok".into(),
+                                            error: None,
+                                            url: Some(handle.url.clone()),
+                                            qr_svg: Some(handle.qr_svg.clone()),
+                                        }).await;
+                                        
+                                        let state_clone = state.clone();
+                                        let tx_clone = tx.clone();
+                                        let remote_state_arc = std::sync::Arc::clone(&music_remote_state);
+                                        tokio::spawn(async move {
+                                            let mut notified_connected = false;
+                                            loop {
+                                                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                                                
+                                                if !notified_connected && state_clone.client_connected.load(Ordering::Relaxed) {
+                                                    notified_connected = true;
+                                                    let _ = tx_clone.send(DaemonEvent::MusicRemoteConnected).await;
+                                                }
+                                                
+                                                if !state_clone.is_active.load(Ordering::Relaxed) {
+                                                    let mut st = remote_state_arc.lock().await;
+                                                    if let Some((_, ref s)) = *st {
+                                                        if std::ptr::eq(s.as_ref(), state_clone.as_ref()) {
+                                                            *st = None;
+                                                        }
+                                                    }
+                                                    let _ = tx_clone.send(DaemonEvent::MusicRemoteStopped).await;
+                                                    break;
+                                                }
+                                            }
+                                        });
+                                        
+                                        *guard = Some((handle, state));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(DaemonEvent::MusicRemoteStarted {
+                                            status: "error".into(),
+                                            error: Some(e.to_string()),
+                                            url: None,
+                                            qr_svg: None,
+                                        }).await;
+                                    }
+                                }
+                            } else {
+                                let handle = &guard.as_ref().unwrap().0;
+                                let _ = tx.send(DaemonEvent::MusicRemoteStarted {
+                                    status: "ok".into(),
+                                    error: None,
+                                    url: Some(handle.url.clone()),
+                                    qr_svg: Some(handle.qr_svg.clone()),
+                                }).await;
+                            }
+                        }
+                        DaemonRequest::MusicRemoteStop => {
+                            let mut guard = music_remote_state.lock().await;
+                            if let Some((_, state)) = guard.take() {
+                                state.is_active.store(false, Ordering::Relaxed);
+                            }
+                            let _ = tx.send(DaemonEvent::MusicRemoteStopped).await;
                         }
                     }
                 });

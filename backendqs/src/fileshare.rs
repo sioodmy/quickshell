@@ -206,7 +206,7 @@ pub async fn start_server() -> Result<FileShareHandle> {
         .route("/s/{token}/{id}/dl", get(share_download))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 0)))
+    let listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], 45454)))
         .await
         .context("bind file share server")?;
     let port = listener.local_addr()?.port();
@@ -310,28 +310,37 @@ fn html_page(name: &str, size_label: &str, download_url: &str, qr_svg: &str) -> 
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 html,body{{height:100%}}
-body{{font-family:system-ui,-apple-system,"Google Sans",Roboto,sans-serif;color:#2c193b;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;background:#f5bde6}}
+body{{font-family:system-ui,-apple-system,"Google Sans",Roboto,sans-serif;color:#e6e1e5;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;overflow-x:hidden;background:#f5bde6}}
 .bg{{position:fixed;inset:0;z-index:-2;background:#f5bde6}}
-.orb{{position:absolute;border-radius:9999px;filter:blur(2px);transform:translate3d(0,0,0)}}
-.orb.one{{width:56vmax;height:56vmax;left:-8vmax;top:-10vmax;background:rgba(255,255,255,.38);animation:floatOne 24s ease-in-out infinite alternate}}
-.orb.two{{width:52vmax;height:52vmax;right:-10vmax;top:-9vmax;background:rgba(198,160,246,.55);animation:floatTwo 28s ease-in-out infinite alternate}}
-.orb.three{{width:34vmax;height:34vmax;left:14vmax;bottom:-9vmax;background:rgba(245,194,231,.38);animation:floatThree 30s ease-in-out infinite alternate}}
+.orb{{position:absolute;border-radius:9999px;transform:translate3d(0,0,0)}}
+.orb.one{{width:56vmax;height:56vmax;left:-8vmax;top:-10vmax;background:rgba(255,255,255,.40);animation:floatOne 8s ease-in-out infinite alternate}}
+.orb.two{{width:52vmax;height:52vmax;right:-10vmax;top:-9vmax;background:rgba(198,160,246,.55);animation:floatTwo 10s ease-in-out infinite alternate}}
+.orb.three{{width:34vmax;height:34vmax;left:14vmax;bottom:-9vmax;background:rgba(245,194,231,.35);animation:floatThree 12s ease-in-out infinite alternate}}
 @keyframes floatOne{{0%{{transform:translate(0,0) rotate(0deg)}}100%{{transform:translate(12vmax,10vmax) rotate(22deg)}}}}
 @keyframes floatTwo{{0%{{transform:translate(0,0) rotate(0deg)}}100%{{transform:translate(-14vmax,14vmax) rotate(-25deg)}}}}
 @keyframes floatThree{{0%{{transform:translate(0,0)}}100%{{transform:translate(10vmax,-12vmax)}}}}
-.scrim{{position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(18,16,26,.16),rgba(18,16,26,.08) 45%,rgba(18,16,26,.24))}}
-.card{{background:rgba(255,255,255,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.55);border-radius:30px;padding:24px;max-width:430px;width:100%;box-shadow:0 12px 34px rgba(47,23,62,.18);text-align:center}}
-.qr{{display:grid;place-items:center;width:180px;height:180px;margin:2px auto 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px rgba(108,68,148,.18)}}
+.scrim{{position:fixed;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(18,16,26,.18),rgba(18,16,26,.06) 45%,rgba(18,16,26,.28))}}
+.card{{background:#1c1b1f;border:1px solid #2b2930;border-radius:28px;padding:24px;max-width:420px;width:100%;box-shadow:0 10px 20px rgba(0,0,0,.31);text-align:center}}
+.qr{{display:grid;place-items:center;width:180px;height:180px;margin:2px auto 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px #2b2930}}
 .qr svg{{width:152px;height:152px}}
-h1{{font-size:17px;font-weight:650;margin-bottom:3px;word-break:break-word;color:#2f173e}}
-.meta{{font-size:13px;color:rgba(44,25,59,.78);margin-bottom:16px}}
+h1{{font-size:22px;font-weight:600;margin-bottom:3px;word-break:break-word;color:#e6e1e5}}
+.meta{{font-size:13px;color:#cac4d0;margin-bottom:16px}}
 .actions{{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}}
-.btn{{display:inline-flex;align-items:center;gap:8px;border:0;cursor:pointer;background:#6a4aa3;color:#fff;text-decoration:none;padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;transition:transform .12s ease,background .15s ease,box-shadow .15s ease;box-shadow:0 4px 12px rgba(73,42,117,.28)}}
+.btn{{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;background:#6750a4;color:#fff;text-decoration:none;padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;transition:transform .12s ease,background .15s ease,box-shadow .15s ease;box-shadow:0 4px 12px rgba(0,0,0,.15)}}
 .btn:hover{{transform:translateY(-1px);background:#5a3c91}}
-.btn.secondary{{background:rgba(255,255,255,.78);color:#3b2450;box-shadow:inset 0 0 0 1px rgba(104,70,144,.28)}}
-.btn.secondary:hover{{background:rgba(255,255,255,.9)}}
-.status{{margin-top:10px;min-height:16px;font-size:12px;color:rgba(59,36,80,.82)}}
-.footer{{margin-top:14px;font-size:11px;color:rgba(44,25,59,.62)}}
+.btn.secondary{{background:#36343b;color:#e6e1e5;box-shadow:inset 0 0 0 1px #49454f}}
+.btn.secondary:hover{{background:#49454f}}
+.status{{margin-top:10px;min-height:16px;font-size:13px;color:#cac4d0}}
+.footer{{margin-top:14px;font-size:11px;color:#cac4d0;opacity:0.6}}
+@media (max-width:480px){{
+body{{padding:16px}}
+.card{{padding:20px;border-radius:24px}}
+.qr{{width:150px;height:150px}}
+.qr svg{{width:126px;height:126px}}
+h1{{font-size:19px}}
+.actions{{flex-direction:column;gap:8px}}
+.btn{{width:100%;padding:13px 18px}}
+}}
 </style>
 </head>
 <body>

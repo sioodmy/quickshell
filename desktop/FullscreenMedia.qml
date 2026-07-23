@@ -8,65 +8,65 @@ import qs.services
 Variants {
     id: root
     model: Quickshell.screens
-    
+
     delegate: PanelWindow {
         required property var modelData
         screen: modelData
-        
+
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "fullscreen_media"
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive // Allow catching Escape
         WlrLayershell.exclusionMode: ExclusionMode.Ignore // Ignore bar margins to be TRULY fullscreen
-        
+
         anchors {
             top: true
             bottom: true
             left: true
             right: true
         }
-        
+
         color: "transparent"
         visible: Lyrics.showFullscreen || opacityAnim.running
-        
+
         // --- Animated Root Container ---
         Item {
             anchors.fill: parent
-            
+
             opacity: Lyrics.showFullscreen ? 1.0 : 0.0
             scale: Lyrics.showFullscreen ? 1.0 : 1.1
-            
+
             Behavior on opacity {
                 NumberAnimation { id: opacityAnim; duration: 400; easing.type: Easing.OutCubic }
             }
             Behavior on scale {
                 NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
             }
-            
+
             // Background
             Rectangle {
                 anchors.fill: parent
                 color: Theme.background
             }
-            
+
             // --- Escape Key to Close ---
             Item {
                 anchors.fill: parent
                 focus: true
                 Keys.onEscapePressed: Lyrics.showFullscreen = false
-                
+
                 // Allow clicking empty areas to close
                 MouseArea {
                     anchors.fill: parent
                     onClicked: Lyrics.showFullscreen = false
                 }
             }
-            
+
             // --- Floating Pastel Circles (Background) ---
             Item {
                 id: bgContainer
                 anchors.fill: parent
                 clip: true
-            
+
             Rectangle {
                 width: 900
                 height: 900
@@ -116,81 +116,129 @@ Variants {
             }
 
         }
-        
+
         // --- Main 50/50 Layout ---
         Row {
             id: mainRow
             property bool hasLyrics: Lyrics.parsedLyrics.length > 0
-            
+
             anchors.fill: parent
             anchors.margins: 40 // some padding from screen edges
             spacing: hasLyrics ? 40 : 0
-            
+
             Behavior on spacing { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
-            
+
             // LEFT SIDE: Media Controls
             Item {
                 width: mainRow.hasLyrics ? (parent.width - 40) / 2 : parent.width
                 height: parent.height
-                
+
                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
-                
+
                 MouseArea {
                     anchors.fill: controlsCol
                     // Prevent closing when clicking anywhere inside the album art / controls area
                 }
-                
+
                 Column {
                     id: controlsCol
                     anchors.centerIn: parent
                     spacing: 32 // reduced spacing
-                    
-                    // Album Art
-                    Rectangle {
+
+                    // Album Art & Remote QR
+                    Item {
                         width: Math.min(parent.parent.width * 0.5, parent.parent.height * 0.45) // smaller album art
                         height: width
                         anchors.horizontalCenter: parent.horizontalCenter
-                        radius: 24
-                        color: Theme.surface_container_highest
-                        
-                        Image {
-                            id: mainArt
+
+                        // --- Normal Album Art ---
+                        Rectangle {
                             anchors.fill: parent
-                            source: Playerctl.artUrl
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            visible: Playerctl.artUrl !== ""
-                            
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: artMask
+                            radius: 24
+                            color: Theme.surface_container_highest
+                            opacity: (BackendDaemon.musicRemoteUrl === "" || BackendDaemon.musicRemoteConnected) ? 1.0 : 0.0
+                            visible: opacity > 0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+
+                            Image {
+                                id: mainArt
+                                anchors.fill: parent
+                                source: Playerctl.artUrl
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                visible: Playerctl.artUrl !== ""
+
+                                layer.enabled: true
+                                layer.effect: MultiEffect {
+                                    maskEnabled: true
+                                    maskSource: artMask
+                                }
+                            }
+
+                            Rectangle {
+                                id: artMask
+                                anchors.fill: parent
+                                radius: parent.radius
+                                visible: false
+                                layer.enabled: true
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                visible: Playerctl.artUrl === ""
+                                text: "󰝚"
+                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 80 }
+                                color: Theme.on_surface_variant
                             }
                         }
-                        
+
+                        // --- Remote QR UI ---
                         Rectangle {
-                            id: artMask
                             anchors.fill: parent
-                            radius: parent.radius
-                            visible: false
-                            layer.enabled: true
-                        }
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            visible: Playerctl.artUrl === ""
-                            text: "󰝚"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 80 }
-                            color: Theme.on_surface_variant
+                            radius: 24
+                            color: Theme.surface_container_highest
+                            opacity: (BackendDaemon.musicRemoteUrl !== "" && !BackendDaemon.musicRemoteConnected) ? 1.0 : 0.0
+                            visible: opacity > 0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 16
+
+                                Rectangle {
+                                    width: 180
+                                    height: 180
+                                    radius: 22
+                                    color: "white"
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    clip: true
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 152
+                                        height: 152
+                                        source: BackendDaemon.musicRemoteQrSvg !== "" ? "data:image/svg+xml;utf8," + encodeURIComponent(BackendDaemon.musicRemoteQrSvg) : ""
+                                        fillMode: Image.PreserveAspectFit
+                                    }
+                                }
+
+                                Text {
+                                    text: "Scan to Control Music"
+                                    font { family: "Google Sans"; pixelSize: 20; weight: Font.Medium }
+                                    color: Theme.on_surface
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+
+                            }
                         }
                     }
-                    
+
                     // Title & Artist
                     Column {
                         width: Math.min(parent.parent.width * 0.9, 500)
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 8
-                        
+
                         Text {
                             width: parent.width
                             text: Playerctl.title !== "" ? Playerctl.title : "No Media"
@@ -199,7 +247,7 @@ Variants {
                             elide: Text.ElideRight
                             horizontalAlignment: Text.AlignHCenter
                         }
-                        
+
                         Text {
                             width: parent.width
                             text: Playerctl.artist !== "" ? Playerctl.artist : "Unknown Artist"
@@ -209,12 +257,12 @@ Variants {
                             horizontalAlignment: Text.AlignHCenter
                         }
                     }
-                    
+
                     // Controls
                     Row {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 24 // reduced spacing
-                        
+
                         // Previous
                         Rectangle {
                             width: 48 // smaller
@@ -222,14 +270,14 @@ Variants {
                             radius: 24
                             anchors.verticalCenter: parent.verticalCenter
                             color: prevMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                            
+
                             Text {
                                 anchors.centerIn: parent
-                                text: "󰒮" 
+                                text: "󰒮"
                                 font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 } // smaller
                                 color: Theme.on_surface_variant
                             }
-                            
+
                             MouseArea {
                                 id: prevMouse
                                 anchors.fill: parent
@@ -246,14 +294,14 @@ Variants {
                             radius: 36
                             anchors.verticalCenter: parent.verticalCenter
                             color: Playerctl.isPlaying ? Theme.primary : Theme.secondary_container
-                            
+
                             Text {
                                 anchors.centerIn: parent
-                                text: Playerctl.isPlaying ? "󰏤" : "󰐊" 
+                                text: Playerctl.isPlaying ? "󰏤" : "󰐊"
                                 font { family: "JetBrainsMono Nerd Font"; pixelSize: 36 } // smaller
                                 color: Playerctl.isPlaying ? Theme.on_primary : Theme.on_secondary_container
                             }
-                            
+
                             MouseArea {
                                 id: playMouse
                                 anchors.fill: parent
@@ -261,7 +309,7 @@ Variants {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: Playerctl.playPause()
                             }
-                            
+
                             scale: playMouse.pressed ? 0.9 : (playMouse.containsMouse ? 1.05 : 1.0)
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             Behavior on color { ColorAnimation { duration: 200 } }
@@ -274,14 +322,14 @@ Variants {
                             radius: 24
                             anchors.verticalCenter: parent.verticalCenter
                             color: nextMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                            
+
                             Text {
                                 anchors.centerIn: parent
-                                text: "󰒭" 
+                                text: "󰒭"
                                 font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 } // smaller
                                 color: Theme.on_surface_variant
                             }
-                            
+
                             MouseArea {
                                 id: nextMouse
                                 anchors.fill: parent
@@ -293,7 +341,7 @@ Variants {
                     }
                 }
             } // Close LEFT SIDE Item
-            
+
             // RIGHT SIDE: Lyrics (Big Rounded Box)
             Rectangle {
                 width: mainRow.hasLyrics ? (parent.width - 40) / 2 : 0
@@ -304,38 +352,38 @@ Variants {
                 scale: mainRow.hasLyrics ? 1.0 : 0.95
                 visible: opacity > 0 || width > 0
                 clip: true
-                
+
                 Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
                 Behavior on scale { NumberAnimation { duration: 500; easing.type: Easing.InOutQuint } }
-                
+
                 // Prevent closing when clicking on lyrics
                 MouseArea { anchors.fill: parent }
-                
+
                 ListView {
                     id: lyricsView
                     anchors.fill: parent
                     anchors.margins: 80 // MORE PADDING
                     clip: true
-                    
+
                     model: Lyrics.parsedLyrics
                     interactive: true // Allow scrolling manually if they want
-                    
+
                     // Keep the current item near the top of the view
                     preferredHighlightBegin: 0
                     preferredHighlightEnd: 40
                     highlightRangeMode: ListView.StrictlyEnforceRange
                     highlightMoveDuration: 500 // Smooth sliding animation
-                    
+
                     // Sync with our Lyrics service
                     currentIndex: Math.max(0, Lyrics.currentIndex)
-                    
+
                     delegate: Item {
                         width: ListView.view.width
                         height: contentCol.implicitHeight + 40
-                        
+
                         property bool isCurrent: index === lyricsView.currentIndex
-                        
+
                         MouseArea {
                             id: lyricMouse
                             anchors.fill: parent
@@ -345,30 +393,30 @@ Variants {
                                 Playerctl.setPosition(modelData.time);
                             }
                         }
-                        
+
                         Column {
                             id: contentCol
                             anchors.centerIn: parent
                             width: parent.width
                             spacing: 4
-                            
+
                             Text {
                                 id: textItem
                                 width: parent.width
                                 text: modelData.text
                                 color: Theme.on_surface
                                 wrapMode: Text.WordWrap
-                                
-                                font { 
+
+                                font {
                                     family: "Google Sans"
-                                    pixelSize: 32 
+                                    pixelSize: 32
                                     weight: isCurrent ? Font.Bold : Font.Medium
                                 }
-                                
+
                                 opacity: Math.min(1.0, (isCurrent ? 1.0 : 0.35) + (lyricMouse.containsMouse ? 0.25 : 0.0))
                                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                             }
-                            
+
                             Text {
                                 id: translitItem
                                 width: parent.width
@@ -376,20 +424,20 @@ Variants {
                                 visible: text !== ""
                                 color: Theme.on_surface_variant
                                 wrapMode: Text.WordWrap
-                                
-                                font { 
+
+                                font {
                                     family: "Google Sans"
-                                    pixelSize: 22 
+                                    pixelSize: 22
                                     weight: Font.Medium
                                 }
-                                
+
                                 opacity: Math.min(1.0, (isCurrent ? 0.8 : 0.25) + (lyricMouse.containsMouse ? 0.25 : 0.0))
                                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                             }
                         }
                     }
                 }
-                
+
                 // Overlay text if no lyrics
                 Text {
                     anchors.centerIn: parent
@@ -401,34 +449,34 @@ Variants {
                 }
             }
         }
-        
+
         // --- Full-Width Progress Bar ---
         Item {
             id: progressContainer
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 0
             anchors.horizontalCenter: parent.horizontalCenter
-            
+
             width: (!mainRow.hasLyrics && Playerctl.length > 0) ? parent.width : 0
             height: 48 // Very generous hitbox height since it's at the edge
-            
+
             opacity: (!mainRow.hasLyrics && Playerctl.length > 0) ? 1.0 : 0.0
             visible: opacity > 0 || width > 0
-            
+
             Behavior on width { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
             Behavior on opacity { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
-            
+
             // Prevent closing when clicking the progress bar
             MouseArea {
                 anchors.fill: parent
             }
-            
+
             MouseArea {
                 id: progressMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                
+
                 onClicked: (mouse) => {
                     if (width > 0) {
                         let percent = Math.max(0, Math.min(1, mouse.x / width));
@@ -436,7 +484,7 @@ Variants {
                     }
                 }
             }
-            
+
             // Background track
             Rectangle {
                 anchors.bottom: parent.bottom
@@ -444,11 +492,11 @@ Variants {
                 anchors.right: parent.right
                 height: progressMouse.containsMouse ? 12 : 4 // Even thicker when hovered
                 color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.15)
-                
+
                 // No radius since it touches the bottom and sides
-                
+
                 Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                
+
                 // Fill track
                 Rectangle {
                     anchors.bottom: parent.bottom
@@ -456,12 +504,50 @@ Variants {
                     height: parent.height
                     color: Theme.primary
                     width: parent.width * (Playerctl.length > 0 ? (Playerctl.position / Playerctl.length) : 0)
-                    
+
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.Linear } }
                 }
             }
         }
-        
+
+        // --- Remote Control Button ---
+        Rectangle {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 40
+            anchors.bottomMargin: 40
+            width: 56
+            height: 56
+            radius: 28
+            color: remoteMouse.containsMouse ? Theme.surface_variant : "transparent"
+            opacity: (!mainRow.hasLyrics && Playerctl.length > 0) ? 1.0 : (mainRow.hasLyrics ? 1.0 : 0.0)
+            visible: opacity > 0
+
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on opacity { NumberAnimation { duration: 300 } }
+
+            Text {
+                anchors.centerIn: parent
+                text: BackendDaemon.musicRemoteUrl !== "" ? "󰻄" : "󰑔"
+                font { family: "JetBrainsMono Nerd Font"; pixelSize: 28 }
+                color: Theme.on_surface_variant
+            }
+
+            MouseArea {
+                id: remoteMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (BackendDaemon.musicRemoteUrl !== "") {
+                        BackendDaemon.send({action: "music_remote_stop"});
+                    } else {
+                        BackendDaemon.send({action: "music_remote_start"});
+                    }
+                }
+            }
+        }
+
         } // Close animated container
     }
 }
