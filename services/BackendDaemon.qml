@@ -55,6 +55,8 @@ Singleton {
 
     Process {
         id: daemon
+        // TODO: Use backend daemon from path
+        // nixos-rebuild just take way too long
         command: ["/home/sioodmy/.config/quickshell/backendqs/target/release/backendqs", "daemon"]
         running: true
         stdinEnabled: true

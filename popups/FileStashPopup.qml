@@ -376,16 +376,6 @@ Variants {
                             required property string glyph
                             required property bool isImage
 
-                            // Cycle soft pride accents across chips
-                            readonly property var prideColors: [
-                                stashWindow.prideRed,
-                                stashWindow.prideOrange,
-                                stashWindow.prideYellow,
-                                stashWindow.prideGreen,
-                                stashWindow.prideBlue,
-                                stashWindow.prideViolet
-                            ]
-                            readonly property color accent: prideColors[index % 6]
 
                             width: 84
                             height: 96
@@ -413,16 +403,6 @@ Variants {
                                     }
                                 }
 
-                                // Tiny pride accent bar on each chip
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.top: parent.top
-                                    height: 2
-                                    radius: 1
-                                    color: chipRoot.accent
-                                    opacity: 0.85
-                                }
 
                                 Item {
                                     anchors.top: parent.top
