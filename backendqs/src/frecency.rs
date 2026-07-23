@@ -3,6 +3,26 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+
+pub struct FrecencyState {
+    pub data: FrecencyData,
+    pub scores: FrecencyScores,
+    pub app_scores: Arc<HashMap<String, f64>>,
+}
+
+impl FrecencyState {
+    pub fn new(data: FrecencyData) -> Self {
+        let scores = get_scores(&data);
+        let app_scores = Arc::new(scores.apps.clone());
+        Self { data, scores, app_scores }
+    }
+
+    pub fn refresh_scores(&mut self) {
+        self.scores = get_scores(&self.data);
+        self.app_scores = Arc::new(self.scores.apps.clone());
+    }
+}
 
 const LAMBDA: f64 = 0.95;
 const MAX_TIMESTAMPS: usize = 50;

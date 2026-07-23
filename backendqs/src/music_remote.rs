@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, ConnectInfo},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
     Router,
@@ -14,7 +14,35 @@ pub struct MusicRemoteState {
     pub token: String,
     pub is_active: AtomicBool,
     pub client_connected: AtomicBool,
+    pub client_ip: std::sync::Mutex<Option<std::net::IpAddr>>,
     pub cached_library: std::sync::Mutex<Option<music::Library>>,
+}
+
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        result |= x ^ y;
+    }
+    result == 0
+}
+
+fn check_auth(token: &str, addr: std::net::SocketAddr, state: &MusicRemoteState) -> bool {
+    if !constant_time_eq(token, &state.token) || !state.is_active.load(Ordering::Relaxed) {
+        return false;
+    }
+    let mut ip_lock = state.client_ip.lock().unwrap();
+    if let Some(existing_ip) = *ip_lock {
+        if existing_ip != addr.ip() {
+            return false;
+        }
+    } else {
+        *ip_lock = Some(addr.ip());
+        state.client_connected.store(true, Ordering::Relaxed);
+    }
+    true
 }
 
 #[derive(Serialize)]
@@ -65,6 +93,7 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
         token: token.clone(),
         is_active: AtomicBool::new(true),
         client_connected: AtomicBool::new(false),
+        client_ip: std::sync::Mutex::new(None),
         cached_library: std::sync::Mutex::new(None),
     });
 
@@ -84,7 +113,7 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
     tokio::spawn(async move {
         let addr = format!("0.0.0.0:{}", port);
         if let Ok(listener) = tokio::net::TcpListener::bind(&addr).await {
-            let _ = axum::serve(listener, app)
+            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
                 .with_graceful_shutdown(async move {
                     let _ = shutdown_rx.await;
                 })
@@ -124,22 +153,23 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
 }
 
 async fn serve_ui(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return Html("Not Found or inactive".to_string());
     }
-    state.client_connected.store(true, Ordering::Relaxed);
     Html(html_page(&token))
 }
 
 async fn seek_action(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
     axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return axum::http::StatusCode::NOT_FOUND.into_response();
     }
     if let Some(pct_str) = query.get("pct") {
@@ -158,10 +188,11 @@ async fn seek_action(
 }
 
 async fn cmd_action(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path((token, action)): Path<(String, String)>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return Json("error");
     }
 
@@ -194,10 +225,11 @@ async fn cmd_action(
 }
 
 async fn get_state(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return Json(RemoteStateDto {
             playing: false, title: String::new(), artist: String::new(), album: String::new(),
             duration_us: 0, position_us: 0, loop_album: false, has_player: false, art_url: String::new(),
@@ -226,10 +258,11 @@ async fn get_state(
 }
 
 async fn get_library(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return Json(music::Library { albums: vec![] });
     }
     
@@ -246,10 +279,11 @@ async fn get_library(
 }
 
 async fn get_cover(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path((token, index)): Path<(String, usize)>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response();
     }
     
@@ -275,10 +309,11 @@ async fn get_cover(
 }
 
 async fn get_current_art(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response();
     }
     let mut art_url = String::new();
@@ -297,10 +332,11 @@ async fn get_current_art(
 }
 
 async fn get_lyrics(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Path(token): Path<String>,
     State(state): State<Arc<MusicRemoteState>>,
 ) -> impl IntoResponse {
-    if token != state.token || !state.is_active.load(Ordering::Relaxed) {
+    if !check_auth(&token, addr, &state) {
         return Json(serde_json::json!({"lyrics": ""}));
     }
 

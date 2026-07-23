@@ -637,14 +637,4 @@ fn categorize_ext(ext: &str) -> &'static str {
     }
 }
 
-// ── Human-readable file size ──
 
-pub fn format_size(bytes: u64) -> String {
-    if bytes < 1024 { return format!("{bytes} B"); }
-    let kb = bytes as f64 / 1024.0;
-    if kb < 1024.0 { return format!("{kb:.1} KB"); }
-    let mb = kb / 1024.0;
-    if mb < 1024.0 { return format!("{mb:.1} MB"); }
-    let gb = mb / 1024.0;
-    format!("{gb:.2} GB")
-}

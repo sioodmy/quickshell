@@ -433,7 +433,7 @@ impl MprisPlayer {
 
 /// Spawn the MPRIS D-Bus server on the session bus.
 pub async fn start_mpris(state: SharedState) -> anyhow::Result<()> {
-    let conn = zbus::connection::Builder::session()?
+    let _conn = zbus::connection::Builder::session()?
         .name("org.mpris.MediaPlayer2.quickshell")?
         .serve_at("/org/mpris/MediaPlayer2", MprisRoot)?
         .serve_at("/org/mpris/MediaPlayer2", MprisPlayer::new(state))?

@@ -58,9 +58,7 @@ Singleton {
 
     Process {
         id: daemon
-        // TODO: Use backend daemon from path
-        // nixos-rebuild just take way too long
-        command: ["/home/sioodmy/.config/quickshell/backendqs/target/release/backendqs", "daemon"]
+        command: ["sh", "-c", "if command -v backendqs >/dev/null 2>&1; then exec backendqs daemon; else exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; fi"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.

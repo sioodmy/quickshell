@@ -71,7 +71,7 @@ pub fn parse_directory(dir: &Path) -> Result<Vec<AgendaItem>> {
                         rest = pcap[2].to_string();
                     }
 
-                    let mut new_rest = rest.clone();
+                    let new_rest;
                     if let Some(tcap) = re_tags.captures(&rest) {
                         new_rest = tcap[1].trim_end().to_string();
                         let tags_str = tcap[2].to_string();

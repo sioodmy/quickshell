@@ -79,13 +79,7 @@ pub struct FileShareHandle {
 }
 
 impl FileShareHandle {
-    pub fn local_ip(&self) -> &str {
-        &self.local_ip
-    }
 
-    pub fn port(&self) -> u16 {
-        self.port
-    }
 
     fn make_url(&self, share_id: &str) -> String {
         format!(
@@ -185,9 +179,7 @@ impl FileShareHandle {
             .collect()
     }
 
-    pub async fn active_count(&self) -> usize {
-        self.shares.read().await.len()
-    }
+
 }
 
 pub async fn start_server() -> Result<FileShareHandle> {
@@ -257,6 +249,17 @@ pub async fn start_server() -> Result<FileShareHandle> {
         shares,
         _shutdown_tx: shutdown_tx,
     })
+}
+
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        result |= x ^ y;
+    }
+    result == 0
 }
 
 fn validate_file_path(path: &str) -> Result<PathBuf> {
@@ -392,7 +395,7 @@ async fn share_page(
     State(state): State<AppState>,
     Path((token, id)): Path<(String, String)>,
 ) -> impl IntoResponse {
-    if token != state.token {
+    if !constant_time_eq(&token, &state.token) {
         return StatusCode::NOT_FOUND.into_response();
     }
     let shares = state.shares.read().await;
@@ -412,7 +415,7 @@ async fn share_download(
     State(state): State<AppState>,
     Path((token, id)): Path<(String, String)>,
 ) -> Response {
-    if token != state.token {
+    if !constant_time_eq(&token, &state.token) {
         return StatusCode::NOT_FOUND.into_response();
     }
 
