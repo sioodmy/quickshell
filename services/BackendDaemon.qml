@@ -58,7 +58,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["sh", "-c", "if command -v backendqs >/dev/null 2>&1; then exec backendqs daemon; else exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; fi"]
+        command: ["sh", "-c", "if [ -n \"$LENINSHELL_DEBUG\" ]; then exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; elif command -v backendqs >/dev/null 2>&1; then exec backendqs daemon; else exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; fi"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.
@@ -96,7 +96,6 @@ Singleton {
                             }
                             root.backendqsError = "";
                         } else {
-                            root.backendqsSvg = "";
                             root.backendqsError = parsed.error || "Unknown error";
                         }
                         root.backendqsStatus = parsed.status;

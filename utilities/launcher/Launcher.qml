@@ -25,6 +25,7 @@ PanelWindow {
     property bool shareModeActive: false
     property var shareData: null
     property real shareViewBlend: 0
+    property var wolframResultObj: null
 
     readonly property string trimmedQuery: ctrl.searchText.trim()
     readonly property string normalizedQuery: trimmedQuery.toLowerCase()
@@ -946,14 +947,17 @@ PanelWindow {
 
         // --- Fallback action: Open in WolframAlpha ---
         if (ctrl.looksLikeMath(query)) {
-            results.push({
-                type: "action",
-                actionId: "wolfram",
-                name: "Open in WolframAlpha",
-                description: query,
-                icon: "󰃬",
-                iconFamily: "JetBrainsMono Nerd Font"
-            });
+            if (!launcherWindow.wolframResultObj) {
+                launcherWindow.wolframResultObj = {
+                    type: "action",
+                    actionId: "wolfram",
+                    name: "Open in WolframAlpha",
+                    icon: "󰃬",
+                    iconFamily: "JetBrainsMono Nerd Font"
+                };
+            }
+            launcherWindow.wolframResultObj.description = query;
+            results.push(launcherWindow.wolframResultObj);
         }
 
         // --- Fallback action: Dictionary ---

@@ -31,6 +31,7 @@ Item {
     }
     
     Behavior on height {
+        enabled: !isWolfram
         NumberAnimation {
             duration: 250
             easing.type: Easing.OutCubic
@@ -133,14 +134,16 @@ Item {
 
         scale: itemMouseArea.pressed ? 0.98 : (delegateRoot.isSelected || delegateRoot.isHovered ? 1.015 : 1.0)
         Behavior on scale {
+            enabled: !isWolfram
             NumberAnimation {
                 duration: 120
                 easing.type: Easing.OutCubic
             }
         }
 
-        color: delegateRoot.isSelected ? Theme.secondary_container : (delegateRoot.isHovered ? Qt.lighter(Theme.surface_container_low, 1.08) : "transparent")
+        color: (delegateRoot.isSelected || isWolfram) ? Theme.secondary_container : (delegateRoot.isHovered ? Qt.lighter(Theme.surface_container_low, 1.08) : "transparent")
         Behavior on color {
+            enabled: !isWolfram
             ColorAnimation {
                 duration: 150
             }
@@ -639,23 +642,70 @@ Item {
                 color: Qt.rgba(0,0,0,0.1)
                 visible: delegateRoot.itemType === "action" && modelData.actionId === "wolfram"
                 
-                Image {
+                Item {
+                    id: mathPreviewContainer
                     anchors.centerIn: parent
-                    source: ctrl.backendqsSvg
-                    fillMode: Image.PreserveAspectFit
                     width: parent.width - 32
                     height: parent.height - 32
-                    sourceSize.width: width * 2
-                    sourceSize.height: height * 2
-                    smooth: true
-                    antialiasing: true
-                    opacity: ctrl.backendqsStatus === "ok" ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    clip: true
+                    
+                    property string previousSvg: ""
+                    property string activeSvg: ""
+                    
+                    Component.onCompleted: {
+                        if (ctrl.backendqsSvg !== "") {
+                            activeSvg = ctrl.backendqsSvg;
+                        }
+                    }
+
+                    Connections {
+                        target: ctrl
+                        function onBackendqsSvgChanged() {
+                            if (ctrl.backendqsSvg !== "") {
+                                if (mathImg.status === Image.Ready && mathPreviewContainer.activeSvg !== "") {
+                                    mathPreviewContainer.previousSvg = mathPreviewContainer.activeSvg;
+                                }
+                                mathPreviewContainer.activeSvg = ctrl.backendqsSvg;
+                            }
+                        }
+                    }
+
+                    property real targetScale: 0.35
+                    property real constrainedScale: {
+                        if (mathImg.implicitWidth === 0 || mathImg.implicitHeight === 0) return targetScale;
+                        var maxW = width;
+                        var maxH = height;
+                        var requiredScaleW = maxW / mathImg.implicitWidth;
+                        var requiredScaleH = maxH / mathImg.implicitHeight;
+                        return Math.min(targetScale, Math.min(requiredScaleW, requiredScaleH));
+                    }
+
+                    Image {
+                        id: mathImgOld
+                        anchors.centerIn: parent
+                        source: mathPreviewContainer.previousSvg
+                        fillMode: Image.Pad
+                        scale: mathPreviewContainer.constrainedScale
+                        smooth: true
+                        antialiasing: true
+                        opacity: mathImg.status !== Image.Ready ? 1.0 : 0.0
+                    }
+
+                    Image {
+                        id: mathImg
+                        anchors.centerIn: parent
+                        source: mathPreviewContainer.activeSvg
+                        fillMode: Image.Pad
+                        scale: mathPreviewContainer.constrainedScale
+                        smooth: true
+                        antialiasing: true
+                        opacity: status === Image.Ready ? 1.0 : 0.0
+                    }
                 }
 
                 Item {
                     anchors.fill: parent
-                    visible: ctrl.backendqsStatus === "loading" || ctrl.backendqsStatus === "error"
+                    visible: ctrl.backendqsSvg === "" && (ctrl.backendqsStatus === "loading" || ctrl.backendqsStatus === "error")
                     opacity: visible ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 200 } }
 

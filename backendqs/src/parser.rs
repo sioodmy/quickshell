@@ -445,6 +445,7 @@ impl<'a> Parser<'a> {
     }
 }
 
+#[allow(dead_code)]
 pub fn to_latex(expr: &Expr) -> String {
     match expr {
         Expr::Number(n) => n.clone(),
@@ -558,6 +559,7 @@ pub fn to_latex(expr: &Expr) -> String {
     }
 }
 
+#[allow(dead_code)]
 pub fn parse_and_convert(input: &str) -> Result<String, String> {
     let mut parser = Parser::new(input);
     let expr = parser.parse()?;
