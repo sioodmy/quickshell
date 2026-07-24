@@ -7,6 +7,7 @@ import Quickshell.Services.UPower
 
 import qs.theme
 import qs.services
+import "../history.js" as History
 
 /**
  * Lock surface — pink launcher-style ambient background with a Material 3
@@ -247,11 +248,11 @@ WlSessionLockSurface {
         readonly property real fontPx: Math.round(surface.height * 0.14)
         readonly property real colonGap: 2
         readonly property real colonOpacity: 1
-        readonly property real rowW: hoursMetrics.width + colonMetrics.width * colonOpacity + minsMetrics.width + colonGap * 4
+        readonly property real rowW: hoursMetrics.width + colonMetrics.width * colonOpacity + minsMetrics.width + colonGap * 2
         readonly property real rowH: fontPx * 1.15
 
         // Settled clock target: top-center
-        readonly property real toX: (surface.width - rowW) / 2
+        readonly property real toX: (surface.width - width) / 2
         readonly property real toY: surface.height * 0.12
 
         width: Math.max(rowW, dateMetrics.width)
@@ -265,6 +266,7 @@ WlSessionLockSurface {
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
             font.weight: Font.Bold
+            font.letterSpacing: -2
             text: morphClock.hours
         }
         TextMetrics {
@@ -272,6 +274,7 @@ WlSessionLockSurface {
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
             font.weight: Font.Bold
+            font.letterSpacing: -2
             text: morphClock.mins
         }
         TextMetrics {
@@ -279,6 +282,7 @@ WlSessionLockSurface {
             font.family: "Google Sans"
             font.pixelSize: morphClock.fontPx
             font.weight: Font.Bold
+            font.letterSpacing: -2
             text: ":"
         }
         TextMetrics {
@@ -1034,7 +1038,42 @@ WlSessionLockSurface {
         }
     }
 
+    // Historical event text
+    Column {
+        id: historyBox
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.margins: 48
+        spacing: 4
+        visible: text1.text !== ""
+        opacity: 0.55
+        
+        Text {
+            id: text1
+            font { family: "Google Sans"; pixelSize: 18; weight: Font.Bold }
+            color: Theme.on_surface
+            text: ""
+            horizontalAlignment: Text.AlignRight
+            anchors.right: parent.right
+        }
+        Text {
+            id: text2
+            font { family: "Google Sans"; pixelSize: 16 }
+            color: Theme.on_surface_variant
+            text: ""
+            horizontalAlignment: Text.AlignRight
+            anchors.right: parent.right
+        }
+
+        Component.onCompleted: {
+            const ev = History.getTodayEvent();
+            text1.text = ev[0];
+            text2.text = ev[1];
+        }
+    }
+
     } // end lockContent
+
 
     // ========================================================================
     //  Behaviour glue
