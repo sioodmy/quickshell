@@ -45,6 +45,12 @@ Singleton {
         function area(): void {
             root.startArea();
         }
+        function launch_area(geom: string): void {
+            if (geom && geom.length > 0) {
+                root.geometry = geom;
+                root._launchRecorder(geom);
+            }
+        }
         function toggle_audio(): void {
             root.recordAudio = !root.recordAudio;
         }
@@ -90,20 +96,6 @@ Singleton {
         }
     }
 
-    Process {
-        id: slurpProc
-        command: ["slurp"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const geom = text.trim();
-                if (geom.length === 0)
-                    return;
-                root.geometry = geom;
-                root._launchRecorder(geom);
-            }
-        }
-        stderr: StdioCollector {}
-    }
 
     Process {
         id: pidCheck
@@ -303,16 +295,9 @@ Singleton {
         if (root.recording)
             return;
         Screenshot.overlayActive = false;
-        areaDelay.restart();
-    }
-
-    Timer {
-        id: areaDelay
-        interval: 250
-        onTriggered: {
-            slurpProc.running = false;
-            slurpProc.running = true;
-        }
+        Quickshell.execDetached({ command: ["bash", "-c",
+            "sleep 0.25; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && quickshell ipc call screenrecord launch_area \"$GEOM\""
+        ] });
     }
 
     function stop() {
