@@ -278,6 +278,14 @@ PanelWindow {
         var commands = ["stop", "pause", "play", "resume", "next", "prev", "previous"];
         if (commands.indexOf(rest) !== -1)
             return { filter: "", command: rest };
+            
+        var volMatch = rest.match(/^(?:vol|volume)\s+(\d+)$/);
+        if (volMatch) {
+            var num = parseInt(volMatch[1]);
+            if (!isNaN(num) && num >= 0 && num <= 100)
+                return { filter: "", command: "vol", value: num };
+        }
+            
         return { filter: rest, command: null };
     }
 
@@ -414,7 +422,8 @@ PanelWindow {
         return { command: null };
     }
 
-    function executeMusicCommand(command) {
+    function executeMusicCommand(mq) {
+        var command = typeof mq === "string" ? mq : mq.command;
         if (command === "stop" || command === "pause") {
             if (Playerctl.isPlaying)
                 Playerctl.playPause();
@@ -425,6 +434,9 @@ PanelWindow {
             Playerctl.next();
         } else if (command === "prev" || command === "previous") {
             Playerctl.previous();
+        } else if (command === "vol") {
+            var val = typeof mq !== "string" ? mq.value : 50;
+            MusicService.setVolume(val / 100.0);
         }
     }
 
@@ -1159,7 +1171,7 @@ PanelWindow {
                     if (!mq)
                         return false;
                     if (mq.command) {
-                        launcherWindow.executeMusicCommand(mq.command);
+                        launcherWindow.executeMusicCommand(mq);
                         return true;
                     }
                     if (mq.filter !== "")

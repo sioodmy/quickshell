@@ -60,7 +60,7 @@ impl Default for PlaybackState {
             playlist_index: 0,
             position_at: Instant::now(),
             position_snapshot_us: 0,
-            volume: 1.0,
+            volume: 0.3,
             loop_album: false,
         }
     }
@@ -101,7 +101,7 @@ impl Player {
                 }
             };
             let player = rodio::Player::connect_new(&device_handle.mixer());
-            player.set_volume(1.0);
+            player.set_volume(0.3);
 
             // Helper: load metadata for a file path
             let load_meta = |path: &str| -> (String, String, String, String, i64) {

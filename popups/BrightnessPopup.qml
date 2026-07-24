@@ -55,7 +55,7 @@ Variants {
 
         Timer {
             id: hideTimer
-            interval: 2000
+            interval: 1000
 
             onTriggered: {
                 brightnessOsdPopup.showOsd = false;
