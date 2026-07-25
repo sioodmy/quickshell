@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.services
+import Quickshell.Services.UPower
 import "../theme"
 
 Variants {
@@ -108,6 +109,60 @@ Variants {
                     return;
                 }
             }
+        }
+
+        property bool warned20: false
+        property bool warned10: false
+        property int batteryRemaining: 0
+
+        Connections {
+            target: UPower
+            function onOnBatteryChanged() {
+                notificationPopup.checkBattery();
+            }
+        }
+        
+        Connections {
+            target: UPower.displayDevice
+            function onPercentageChanged() {
+                notificationPopup.checkBattery();
+            }
+        }
+
+        function checkBattery() {
+            if (!UPower.displayDevice) return;
+            var percentage = UPower.displayDevice.percentage;
+            var batPercent = percentage <= 1.0 ? Math.round(percentage * 100) : Math.round(percentage);
+            
+            if (!UPower.onBattery || batPercent > 20) {
+                warned20 = false;
+                warned10 = false;
+                notificationPopup.disposeNotification("low_battery_id");
+                return;
+            }
+            if (batPercent === 0) return; // Ignore uninitialized state
+            if (batPercent <= 10 && !warned10) {
+                warned10 = true;
+                warned20 = true;
+                batteryRemaining = batPercent;
+                notificationPopup.addLowBatteryNotif();
+            } else if (batPercent <= 20 && batPercent > 10 && !warned20) {
+                warned20 = true;
+                batteryRemaining = batPercent;
+                notificationPopup.addLowBatteryNotif();
+            }
+        }
+
+        function addLowBatteryNotif() {
+            for (let i = 0; i < notifModel.count; i++) {
+                if (notifModel.get(i).notifType === "low_battery") {
+                    return;
+                }
+            }
+            notifModel.insert(0, {
+                notifId: "low_battery_id",
+                notifType: "low_battery"
+            });
         }
 
         visible: true
@@ -330,11 +385,12 @@ Variants {
                     readonly property string applicationName: {
                         if (notifType === "screenshot") return "Screenshot";
                         if (notifType === "recording") return "Recording";
+                        if (notifType === "low_battery") return "Battery";
                         if (!notificationEntry) return "Notification";
                         return notificationEntry.appName || "Notification";
                     }
                     readonly property var applicationIcon: {
-                        if (notifType === "screenshot" || notifType === "recording") return "";
+                        if (notifType === "screenshot" || notifType === "recording" || notifType === "low_battery") return "";
                         if (!notificationEntry) return "";
                         if (notificationEntry.image && notificationEntry.image.length > 0) return notificationEntry.image;
                         if (notificationEntry.appIcon && notificationEntry.appIcon.length > 0) return Quickshell.iconPath(notificationEntry.appIcon, true) || "";
@@ -408,7 +464,7 @@ Variants {
                         from: 1.0
                         to: 0.0
                         duration: 7000
-                        running: true // Both standard notifications and screenshots have auto-close
+                        running: notifType !== "low_battery" // Both standard notifications and screenshots have auto-close, battery stays
 
                         onRunningChanged: {
                             if (running) {
@@ -552,17 +608,17 @@ Variants {
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: width / 2
-                                        color: notifType === "recording" ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22) : Theme.primary_container
-                                        visible: notifType === "screenshot" || notifType === "recording" || !cardDelegate.applicationIcon
+                                        color: (notifType === "recording" || notifType === "low_battery") ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22) : Theme.primary_container
+                                        visible: notifType === "screenshot" || notifType === "recording" || notifType === "low_battery" || !cardDelegate.applicationIcon
 
                                         Text {
                                             anchors.centerIn: parent
-                                            text: notifType === "screenshot" ? "󰹑" : (notifType === "recording" ? "󰕧" : "!")
-                                            color: notifType === "recording" ? Theme.critical : Theme.on_primary_container
+                                            text: notifType === "screenshot" ? "󰹑" : (notifType === "recording" ? "󰕧" : (notifType === "low_battery" ? "󰂃" : "!"))
+                                            color: (notifType === "recording" || notifType === "low_battery") ? Theme.critical : Theme.on_primary_container
                                             font {
-                                                family: (notifType === "screenshot" || notifType === "recording") ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
+                                                family: (notifType === "screenshot" || notifType === "recording" || notifType === "low_battery") ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
                                                 pixelSize: 13
-                                                bold: notifType !== "screenshot" && notifType !== "recording"
+                                                bold: notifType !== "screenshot" && notifType !== "recording" && notifType !== "low_battery"
                                             }
                                         }
                                     }
@@ -581,7 +637,7 @@ Variants {
                                         anchors.fill: parent
                                         source: cardDelegate.applicationIcon
                                         fillMode: Image.PreserveAspectCrop
-                                        visible: !!cardDelegate.applicationIcon && notifType !== "screenshot" && notifType !== "recording"
+                                        visible: !!cardDelegate.applicationIcon && notifType !== "screenshot" && notifType !== "recording" && notifType !== "low_battery"
                                         asynchronous: true
                                         sourceSize: Qt.size(64, 64)
                                         layer.enabled: true
@@ -721,6 +777,11 @@ Variants {
                                                 return;
                                             }
 
+                                            if (notifType === "low_battery") {
+                                                notificationPopup.disposeNotification("low_battery_id");
+                                                return;
+                                            }
+
                                             if (notificationEntry && typeof notificationEntry.dismiss === "function") {
                                                 notificationEntry.dismiss();
                                             }
@@ -736,8 +797,43 @@ Variants {
                                         return screenshotContent;
                                     if (notifType === "recording")
                                         return recordingContent;
+                                    if (notifType === "low_battery")
+                                        return lowBatteryContent;
                                     return notificationContent;
                                 }
+                            }
+                        }
+                    }
+
+                    Component {
+                        id: lowBatteryContent
+                        Column {
+                            width: layoutContent.width
+                            spacing: 4
+
+                            Text {
+                                text: "Low Battery"
+                                color: Theme.on_surface
+                                font {
+                                    family: "Google Sans Medium"
+                                    pixelSize: 16
+                                    bold: true
+                                }
+                                width: parent.width
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                text: notificationPopup.batteryRemaining + "% battery remaining."
+                                color: Theme.on_surface_variant
+                                font {
+                                    family: "Google Sans"
+                                    pixelSize: 14
+                                }
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 3
+                                elide: Text.ElideRight
                             }
                         }
                     }
