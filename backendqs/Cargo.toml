@@ -7,7 +7,6 @@ edition = "2021"
 rustflags = ["-C", "target-cpu=native"]
 
 [dependencies]
-
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.4", features = ["derive"] }
@@ -46,6 +45,14 @@ tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"
 qrcode = "0.14"
 uuid = { version = "1", features = ["v4"] }
+librqbit = { version = "8.1.1", default-features = false, features = ["rust-tls", "http-api-client"] }
+rink-core = { version = "0.9.0", features = ["bundle-files"] }
+notify-rust = "4.18.0"
+wl-clipboard-rs = "0.9.3"
+open = "5.4.0"
+wayland-client = "0.31.2"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+lazy_static = "1.5.0"
 
 [profile.release]
 opt-level = 3

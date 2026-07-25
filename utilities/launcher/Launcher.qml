@@ -2,7 +2,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Pipewire
-
+import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
@@ -63,6 +63,15 @@ PanelWindow {
     readonly property var recQuery: parseRecQuery(trimmedQuery)
     readonly property bool recModeActive: recQuery !== null
 
+    readonly property var cocQuery: parseCocQuery(trimmedQuery)
+    readonly property bool cocModeActive: cocQuery !== null
+
+    readonly property var torrentQuery: parseTorrentQuery(trimmedQuery)
+    readonly property bool torrentModeActive: torrentQuery !== null || normalizedQuery === "torrent" || (BackendDaemon.activeTorrents && BackendDaemon.activeTorrents.length > 0 && normalizedQuery.startsWith("torrent"))
+
+    readonly property var bringQuery: parseBringQuery(trimmedQuery)
+    readonly property bool bringModeActive: bringQuery !== null
+
     readonly property bool captureModeActive: ssModeActive || recModeActive
 
     property int appActionIndex: -1
@@ -70,7 +79,7 @@ PanelWindow {
     // scroll/cycle. Cleared only by Tab/arrows or mouse hover selection.
     property bool pinSelectionToBest: true
 
-    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
+    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive || torrentModeActive
 
     readonly property var pipewireSink: Pipewire.defaultAudioSink
     PwObjectTracker { objects: launcherWindow.pipewireSink ? [launcherWindow.pipewireSink] : [] }
@@ -79,6 +88,7 @@ PanelWindow {
     onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onColorPickerModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onNightModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+    onTorrentModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onClipModeActiveChanged: {
         fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0;
         if (clipModeActive && contentLoader.item)
@@ -248,6 +258,14 @@ PanelWindow {
         return null;
     }
 
+    function parseBringQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "bring" && !q.startsWith("bring "))
+            return null;
+        var rest = q === "bring" ? "" : query.trim().substring(6).trim();
+        return { filter: rest };
+    }
+
     function parseSliderQuery(query) {
         var q = query.trim().toLowerCase();
         if (q === "vol" || q.startsWith("vol ")) {
@@ -271,6 +289,15 @@ PanelWindow {
         return null;
     }
 
+    function parseTorrentQuery(query) {
+        var q = query.trim();
+        if (q.startsWith("magnet:"))
+            return { mode: "add", magnet: q };
+        if (q.toLowerCase() === "torrent")
+            return { mode: "view" };
+        return null;
+    }
+
     function parseMusicQuery(query) {
         var q = query.trim().toLowerCase();
         if (!q.startsWith("music"))
@@ -279,14 +306,14 @@ PanelWindow {
         var commands = ["stop", "pause", "play", "resume", "next", "prev", "previous"];
         if (commands.indexOf(rest) !== -1)
             return { filter: "", command: rest };
-            
+
         var volMatch = rest.match(/^(?:vol|volume)\s+(\d+)$/);
         if (volMatch) {
             var num = parseInt(volMatch[1]);
             if (!isNaN(num) && num >= 0 && num <= 100)
                 return { filter: "", command: "vol", value: num };
         }
-            
+
         return { filter: rest, command: null };
     }
 
@@ -314,6 +341,25 @@ PanelWindow {
         if (q !== "dnd" && !q.startsWith("dnd "))
             return null;
         var rest = q === "dnd" ? "" : q.substring(4).trim();
+        if (rest === "")
+            return { command: null };
+        if (rest === "on" || rest === "enable")
+            return { command: "on" };
+        if (rest === "off" || rest === "disable")
+            return { command: "off" };
+        if (rest === "toggle")
+            return { command: "toggle" };
+        return { command: null };
+    }
+
+    function parseCocQuery(query) {
+        var q = query.trim().toLowerCase();
+        if (q !== "cocaine" && !q.startsWith("cocaine ") && q !== "caffeine" && !q.startsWith("caffeine "))
+            return null;
+        var rest = "";
+        if (q.startsWith("cocaine ")) rest = q.substring(8).trim();
+        else if (q.startsWith("caffeine ")) rest = q.substring(9).trim();
+
         if (rest === "")
             return { command: null };
         if (rest === "on" || rest === "enable")
@@ -475,6 +521,12 @@ PanelWindow {
         }
     }
 
+    function executeCocCommand() {
+        var dq = launcherWindow.cocQuery;
+        if (!dq || !dq.command) return;
+        ctrl.executeSystemCommand("coc_" + dq.command);
+    }
+
     function executePomCommand() {
         var pq = launcherWindow.pomQuery;
         if (!pq || !pq.command) return;
@@ -569,6 +621,32 @@ PanelWindow {
         if (launcherWindow.clipModeActive)
             return [];
 
+        if (launcherWindow.bringModeActive) {
+            var bq = launcherWindow.bringQuery;
+            var bringResults = ctrl.getBringWindows(bq.filter);
+            for (var i = 0; i < bringResults.length; i++) {
+                var w = bringResults[i];
+                var entry = ctrl.findDesktopEntry(w.appId);
+                results.push({
+                    type: "focus",
+                    actionId: "bring",
+                    entry: entry,
+                    windowId: w.id,
+                    windowTitle: w.title || ""
+                });
+            }
+            if (results.length === 0) {
+                results.push({
+                    type: "system_command",
+                    actionId: "bring_empty",
+                    name: "No windows found",
+                    description: "No windows on other workspaces match your query.",
+                    icon: "󰀹"
+                });
+            }
+            return results;
+        }
+
         if (launcherWindow.dndModeActive) {
             var dq = launcherWindow.dndQuery;
             var dndResults = [];
@@ -585,6 +663,24 @@ PanelWindow {
                     icon: DoNotDisturb.enabled ? "󰂛" : "󰂚"
                 });
             return dndResults;
+        }
+
+        if (launcherWindow.cocModeActive) {
+            var dq = launcherWindow.cocQuery;
+            var cocResults = [];
+            if (!dq.command || dq.command === "on")
+                cocResults.push({ type: "system_command", actionId: "coc_on", name: "Snort Cocaine", description: "Keep the computer from sleeping", icon: "󰐂" });
+            if (!dq.command || dq.command === "off")
+                cocResults.push({ type: "system_command", actionId: "coc_off", name: "Sober Up", description: "Allow the computer to sleep normally", icon: "󰾆" });
+            if (dq.command === "toggle")
+                cocResults.push({
+                    type: "system_command",
+                    actionId: "coc_toggle",
+                    name: "Toggle Cocaine",
+                    description: "Toggle idle inhibitor",
+                    icon: "󰐂"
+                });
+            return cocResults;
         }
 
         if (launcherWindow.pomModeActive) {
@@ -1002,7 +1098,7 @@ PanelWindow {
                         emoji: emojiResults[ei].emoji,
                         display: emojiResults[ei].display
                     };
-                    
+
                     if (isEmojiQuery) {
                         emojiItemsToInsert.push(eItem);
                     } else {
@@ -1401,6 +1497,18 @@ PanelWindow {
                         anchors.right: parent.right
                         height: 200
 
+                        weatherModeActive: launcherWindow.weatherModeActive
+                        colorPickerModeActive: launcherWindow.colorPickerModeActive
+                        nightModeActive: launcherWindow.nightModeActive
+                        menuOpen: launcherWindow.openProgress > 0
+
+                        weatherCode: launcherWeatherData.info.weatherCode || ""
+                        temperature: Number(launcherWeatherData.info.temp) || 0
+                        gradTop: launcherWeatherData.gradTop
+                        gradBottom: launcherWeatherData.gradBottom
+
+                        selectedColor: launcherWindow.colorPickerModeActive ? colorPickerView.selectedColor : "transparent"
+
                         LauncherWeatherHeader {
                             anchors.fill: parent
                             anchors.margins: 24
@@ -1520,6 +1628,8 @@ PanelWindow {
                                     launcherWindow.executeNightCommand();
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
                                     launcherWindow.executeDndCommand();
+                                } else if (launcherWindow.cocModeActive && launcherWindow.cocQuery.command) {
+                                    launcherWindow.executeCocCommand();
                                 } else if (launcherWindow.pomModeActive && launcherWindow.pomQuery.command) {
                                     launcherWindow.executePomCommand();
                                 } else if (launcherWindow.musicModeActive) {
@@ -1528,6 +1638,12 @@ PanelWindow {
                                     lazyContentRoot.activateConnectivitySelection();
                                 } else if (launcherWindow.colorPickerModeActive) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
+                                    BackendDaemon.send({
+                                        "action": "torrent_add",
+                                        "magnet": launcherWindow.torrentQuery.magnet
+                                    });
+                                    torrentView.triggerSuccess();
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem)
                                         listView.currentItem.activate(false);
@@ -1548,6 +1664,9 @@ PanelWindow {
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
                                     launcherWindow.executeDndCommand();
                                     event.accepted = true;
+                                } else if (launcherWindow.cocModeActive && launcherWindow.cocQuery.command) {
+                                    launcherWindow.executeCocCommand();
+                                    event.accepted = true;
                                 } else if (launcherWindow.pomModeActive && launcherWindow.pomQuery.command) {
                                     launcherWindow.executePomCommand();
                                     event.accepted = true;
@@ -1559,6 +1678,13 @@ PanelWindow {
                                     event.accepted = true;
                                 } else if (launcherWindow.colorPickerModeActive) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    event.accepted = true;
+                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
+                                    BackendDaemon.send({
+                                        "action": "torrent_add",
+                                        "magnet": launcherWindow.torrentQuery.magnet
+                                    });
+                                    torrentView.triggerSuccess();
                                     event.accepted = true;
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem) {
@@ -1611,6 +1737,9 @@ PanelWindow {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
                                 } else if (launcherWindow.sliderModeActive) {
+                                    launcherWindow.hasFileSelected = false;
+                                    launcherWindow.selectedFileData = null;
+                                } else if (launcherWindow.bringModeActive) {
                                     launcherWindow.hasFileSelected = false;
                                     launcherWindow.selectedFileData = null;
                                 } else if (launcherWindow.dndModeActive) {
@@ -1705,6 +1834,13 @@ PanelWindow {
                                 } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
                                     event.accepted = true;
+                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add" && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
+                                    BackendDaemon.send({
+                                        "action": "torrent_add",
+                                        "magnet": launcherWindow.torrentQuery.magnet
+                                    });
+                                    torrentView.triggerSuccess();
+                                    event.accepted = true;
                                 } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
                                     lazyContentRoot.cycleListSelection(true);
                                     event.accepted = true;
@@ -1722,7 +1858,7 @@ PanelWindow {
                         calcResult: ctrl.calcResult
                         calcExpression: ctrl.calcExpression
                         onCopyRequested: ctrl.copyResult()
-                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive && !launcherWindow.pomModeActive
+                        visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive && !launcherWindow.pomModeActive && !launcherWindow.cocModeActive
                         anchors.top: searchArea.bottom
                         anchors.topMargin: 12
                         anchors.left: parent.left
@@ -1758,7 +1894,7 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 height: sliderWidgetArea.visible ? implicitHeight : 0
-                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive || launcherWindow.pomModeActive
+                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive || launcherWindow.pomModeActive || launcherWindow.cocModeActive
                                 spacing: 8
                                 topPadding: 8
                                 bottomPadding: 4
@@ -1840,6 +1976,17 @@ PanelWindow {
                                     id: dndWidget
                                     width: parent.width
                                     active: launcherWindow.dndModeActive
+                                }
+
+                                LauncherCocaineWidget {
+                                    id: cocWidget
+                                    width: parent.width
+                                    active: launcherWindow.cocModeActive
+                                    caffeineEnabled: ctrl.cocaineEnabled
+                                    onToggled: enabled => {
+                                        ctrl.cocaineEnabled = enabled;
+                                        BackendDaemon.send({ action: enabled ? "cocaine_enable" : "cocaine_disable" });
+                                    }
                                 }
 
                                 LauncherPomodoroWidget {
@@ -1969,6 +2116,33 @@ PanelWindow {
                             onCopyRequested: function(text, label) {
                                 ctrl.copyColorText(text);
                             }
+                        }
+
+                        LauncherTorrentView {
+                            id: torrentView
+                            z: launcherWindow.torrentModeActive ? 2 : 0
+                            enabled: launcherWindow.torrentModeActive
+                            isAddMode: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.mode === "add" : false
+                            magnetUrl: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.magnet || "" : ""
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: 32
+                            anchors.rightMargin: 32
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 20
+
+                            onAddedAnimationFinished: {
+                                ctrl.setQuery("");
+                            }
+                            opacity: launcherWindow.torrentModeActive ? 1 : 0
+                            visible: opacity > 0.02
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
+                            }
+
                         }
 
                         Item {
@@ -3036,6 +3210,23 @@ PanelWindow {
                 } // End of previewPanel
                 } // End of mainUi
             }
+        }
+    }
+
+    IpcHandler {
+        target: "launcher"
+
+        function toggle(): void {
+            if (launcherWindow.visible)
+                launcherWindow.closeMenu();
+            else
+                launcherWindow.openMenu();
+        }
+        function open(): void {
+            launcherWindow.openMenu();
+        }
+        function close(): void {
+            launcherWindow.closeMenu();
         }
     }
 }

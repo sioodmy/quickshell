@@ -155,7 +155,7 @@ pub fn get_history(state: &SharedState) -> Result<(Vec<ClipItem>, Vec<OcrJob>)> 
             let needs_decode = fs::metadata(path).map(|m| m.len() == 0).unwrap_or(true);
             if needs_decode {
                 if let Err(e) = decode_entry(line, path) {
-                    eprintln!("cliphist: decode failed for {id}: {e}");
+                    crate::debug_log!("cliphist: decode failed for {id}: {e}");
                     continue;
                 }
             }
@@ -280,23 +280,17 @@ pub fn copy_item(raw: &str, image_path: &str) -> Result<()> {
             if meta.len() > 0 {
                 let mime = mime_for_path(image_path);
                 let bytes = fs::read(image_path)?;
-                let mut child = Command::new("wl-copy")
-                    .arg("--type")
-                    .arg(mime)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn()?;
-                if let Some(mut stdin) = child.stdin.take() {
-                    stdin.write_all(&bytes)?;
-                }
-                // wl-copy daemonises itself; don't wait for it.
+                let opts = wl_clipboard_rs::copy::Options::new();
+                opts.copy(
+                    wl_clipboard_rs::copy::Source::Bytes(bytes.into()),
+                    wl_clipboard_rs::copy::MimeType::Specific(mime.to_string()),
+                ).map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
                 return Ok(());
             }
         }
     }
 
-    // Text path: cliphist decode <raw>  |  wl-copy
+    // Text path: cliphist decode <raw> -> wl_clipboard_rs
     let mut decode = Command::new("cliphist")
         .arg("decode")
         .stdin(Stdio::piped())
@@ -309,14 +303,11 @@ pub fn copy_item(raw: &str, image_path: &str) -> Result<()> {
     }
     let decoded = decode.wait_with_output()?;
 
-    let mut copy = Command::new("wl-copy")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-    if let Some(mut stdin) = copy.stdin.take() {
-        stdin.write_all(&decoded.stdout)?;
-    }
+    let opts = wl_clipboard_rs::copy::Options::new();
+    opts.copy(
+        wl_clipboard_rs::copy::Source::Bytes(decoded.stdout.into()),
+        wl_clipboard_rs::copy::MimeType::Text,
+    ).map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
     Ok(())
 }
 

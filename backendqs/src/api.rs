@@ -69,6 +69,14 @@ pub enum DaemonRequest {
     MusicRemoteStart,
     #[serde(rename = "music_remote_stop")]
     MusicRemoteStop,
+    #[serde(rename = "torrent_add")]
+    TorrentAdd { magnet: String },
+    #[serde(rename = "torrent_cancel")]
+    TorrentCancel { id: usize },
+    #[serde(rename = "cocaine_enable")]
+    CocaineEnable,
+    #[serde(rename = "cocaine_disable")]
+    CocaineDisable,
 }
 
 #[derive(Serialize)]
@@ -118,6 +126,8 @@ pub enum DaemonEvent {
     },
     #[serde(rename = "file_share_progress")]
     FileShareProgress { shares: Vec<crate::fileshare::ShareInfo> },
+    #[serde(rename = "torrent_progress")]
+    TorrentProgress { torrents: serde_json::Value },
     #[serde(rename = "music_remote_started")]
     MusicRemoteStarted { status: String, error: Option<String>, url: Option<String>, qr_svg: Option<String> },
     #[serde(rename = "music_remote_stopped")]

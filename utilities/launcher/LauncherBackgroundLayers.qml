@@ -4,7 +4,7 @@ import "../../theme"
 import "../../popups/weather"
 
 Item {
-    id: edgeBanner
+    id: bgLayersRoot
     
     property bool weatherModeActive: false
     property bool colorPickerModeActive: false
@@ -32,6 +32,10 @@ Item {
     Behavior on colorBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
     Behavior on nightBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
 
+    onBannerBlendChanged: {
+        console.log("BannerBlend changed:", bannerBlend, "weather:", weatherModeActive, "color:", colorPickerModeActive);
+    }
+
     onWeatherModeActiveChanged: {
         bannerShimmer.restart();
     }
@@ -43,8 +47,8 @@ Item {
     Item {
         id: pinkLayer
         anchors.fill: parent
-        opacity: 1 - edgeBanner.bannerBlend
-        scale: 1 - 0.05 * edgeBanner.bannerBlend
+        opacity: 1 - bgLayersRoot.bannerBlend
+        scale: 1 - 0.05 * bgLayersRoot.bannerBlend
         transformOrigin: Item.Center
 
         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
@@ -67,21 +71,21 @@ Item {
 
             SequentialAnimation on x {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
                 NumberAnimation { to: 180; duration: 16000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -60; duration: 18000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -20; duration: 15000; easing.type: Easing.InOutSine }
             }
             SequentialAnimation on y {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
                 NumberAnimation { to: -100; duration: 17000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 40; duration: 16000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -50; duration: 16000; easing.type: Easing.InOutSine }
             }
             NumberAnimation on rotation {
                 from: 0; to: 360; duration: 30000; loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
             }
         }
 
@@ -97,21 +101,21 @@ Item {
 
             SequentialAnimation on x {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
                 NumberAnimation { to: 150; duration: 18000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 480; duration: 19000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 350; duration: 17000; easing.type: Easing.InOutSine }
             }
             SequentialAnimation on y {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
                 NumberAnimation { to: 60; duration: 16000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -120; duration: 18000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -40; duration: 16000; easing.type: Easing.InOutSine }
             }
             NumberAnimation on rotation {
                 from: 360; to: 0; duration: 35000; loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || edgeBanner.weatherModeActive
+                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
             }
         }
     }
@@ -120,8 +124,8 @@ Item {
     Item {
         id: weatherBannerLayer
         anchors.fill: parent
-        opacity: edgeBanner.weatherBlend
-        scale: 1.04 - 0.04 * edgeBanner.weatherBlend
+        opacity: bgLayersRoot.weatherBlend
+        scale: 1.04 - 0.04 * bgLayersRoot.weatherBlend
         transformOrigin: Item.Center
 
         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
@@ -132,12 +136,12 @@ Item {
             gradient: Gradient {
                 GradientStop {
                     position: 0.0
-                    color: edgeBanner.gradTop
+                    color: bgLayersRoot.gradTop
                     Behavior on color { ColorAnimation { duration: 700; easing.type: Easing.InOutCubic } }
                 }
                 GradientStop {
                     position: 1.0
-                    color: edgeBanner.gradBottom
+                    color: bgLayersRoot.gradBottom
                     Behavior on color { ColorAnimation { duration: 700; easing.type: Easing.InOutCubic } }
                 }
             }
@@ -146,9 +150,9 @@ Item {
         WeatherBackground {
             id: bannerWeatherAnim
             anchors.fill: parent
-            weatherCode: edgeBanner.weatherCode
-            temperature: edgeBanner.temperature
-            visible: edgeBanner.weatherBlend > 0.02
+            weatherCode: bgLayersRoot.weatherCode
+            temperature: bgLayersRoot.temperature
+            visible: bgLayersRoot.weatherBlend > 0.02
         }
 
         Rectangle {
@@ -165,8 +169,8 @@ Item {
     Item {
         id: colorPickerBannerLayer
         anchors.fill: parent
-        opacity: edgeBanner.colorBlend
-        scale: 1.04 - 0.04 * edgeBanner.colorBlend
+        opacity: bgLayersRoot.colorBlend
+        scale: 1.04 - 0.04 * bgLayersRoot.colorBlend
         transformOrigin: Item.Center
         visible: opacity > 0.02
 
@@ -175,7 +179,7 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            color: edgeBanner.selectedColor
+            color: bgLayersRoot.selectedColor
         }
     }
 
@@ -183,8 +187,8 @@ Item {
     Item {
         id: nightBannerLayer
         anchors.fill: parent
-        opacity: edgeBanner.nightBlend
-        scale: 1.04 - 0.04 * edgeBanner.nightBlend
+        opacity: bgLayersRoot.nightBlend
+        scale: 1.04 - 0.04 * bgLayersRoot.nightBlend
         transformOrigin: Item.Center
         visible: opacity > 0.02
 
@@ -212,7 +216,7 @@ Item {
 
             SequentialAnimation on opacity {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || !edgeBanner.nightModeActive
+                paused: !bgLayersRoot.menuOpen || !bgLayersRoot.nightModeActive
                 NumberAnimation { to: 0.20; duration: 3000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 0.08; duration: 3000; easing.type: Easing.InOutSine }
             }
@@ -229,7 +233,7 @@ Item {
 
             SequentialAnimation on opacity {
                 loops: Animation.Infinite
-                paused: !edgeBanner.menuOpen || !edgeBanner.nightModeActive
+                paused: !bgLayersRoot.menuOpen || !bgLayersRoot.nightModeActive
                 NumberAnimation { to: 0.18; duration: 4000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 0.06; duration: 3500; easing.type: Easing.InOutSine }
             }
@@ -277,7 +281,7 @@ Item {
                 target: shimmerBar
                 property: "x"
                 from: -shimmerBar.width
-                to: edgeBanner.width + shimmerBar.width
+                to: bgLayersRoot.width + shimmerBar.width
                 duration: 420
                 easing.type: Easing.InOutQuad
             }

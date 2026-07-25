@@ -205,7 +205,7 @@ pub async fn build_index(index: FileIndex) {
             }
         }
         
-        eprintln!("File index built: {} entries", local_map.len());
+        crate::debug_log!("File index built: {} entries", local_map.len());
         
         let mut idx = index_clone.write().unwrap();
         idx.map = local_map;

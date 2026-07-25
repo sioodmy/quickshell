@@ -32,28 +32,13 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                             }
                         }
                         api::DaemonRequest::Calc { query } => {
-                            let res = tokio::task::spawn_blocking(move || {
-                                std::process::Command::new("rink")
-                                    .arg(&query)
-                                    .output()
-                            }).await.unwrap();
-
-                            if let Ok(out) = res {
-                                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                                let lines: Vec<&str> = stdout.trim().split('\n').collect();
-                                let mut result_str = String::new();
-                                for l in lines.iter().rev() {
-                                    let trimmed = l.trim();
-                                    if !trimmed.is_empty() && !trimmed.starts_with('>') {
-                                        result_str = trimmed.to_string();
-                                        break;
-                                    }
+                            let mut rink = ctx.rink_ctx.lock().await;
+                            match rink_core::one_line(&mut rink, &query) {
+                                Ok(res) => {
+                                    let _ = ctx.tx.send(api::DaemonEvent::CalcResult { status: "ok".into(), error: None, result: Some(res), query: query.clone() }).await;
                                 }
-                                
-                                if result_str.contains("No such") || result_str.contains("Expected") || result_str.contains("error") {
-                                    let _ = ctx.tx.send(api::DaemonEvent::CalcResult { status: "error".into(), error: Some(result_str), result: None, query: "".into() }).await;
-                                } else {
-                                    let _ = ctx.tx.send(api::DaemonEvent::CalcResult { status: "ok".into(), error: None, result: Some(result_str), query: "".into() }).await;
+                                Err(e) => {
+                                    let _ = ctx.tx.send(api::DaemonEvent::CalcResult { status: "error".into(), error: Some(e), result: None, query: query.clone() }).await;
                                 }
                             }
                         }
@@ -196,17 +181,13 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                             let _ = ctx.tx.send(api::DaemonEvent::FilePreviewResult(result)).await;
                         }
                         api::DaemonRequest::FileOpen { path } => {
-                            let _ = tokio::task::spawn_blocking(move || {
-                                std::process::Command::new("xdg-open")
-                                    .arg(&path)
-                                    .spawn()
-                            }).await;
+                            let _ = tokio::task::spawn_blocking(move || open::that(path));
                         }
                         api::DaemonRequest::SysctlList { kind } => {
                             let devices = if kind == "bluetooth" {
-                                sysctl::get_bluetooth_devices()
+                                sysctl::get_bluetooth_devices().await
                             } else if kind == "wifi" || kind == "net" {
-                                sysctl::get_wifi_networks()
+                                sysctl::get_wifi_networks().await
                             } else {
                                 vec![]
                             };
@@ -374,6 +355,20 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                             }
                             let _ = ctx.tx.send(api::DaemonEvent::MusicRemoteStopped).await;
                         }
+                        api::DaemonRequest::TorrentAdd { magnet } => {
+                            if let Err(e) = ctx.torrent_manager.add(&magnet).await {
+                                crate::debug_log!("Failed to add torrent: {}", e);
+                            }
+                        }
+                        api::DaemonRequest::TorrentCancel { id } => {
+                            let _ = ctx.torrent_manager.cancel(id).await;
+                        }
+                        api::DaemonRequest::CocaineEnable => {
+                            crate::idle_manager::set_cocaine_enabled(true);
+                        }
+                        api::DaemonRequest::CocaineDisable => {
+                            crate::idle_manager::set_cocaine_enabled(false);
+                        }
                     }
 }
 
@@ -388,15 +383,16 @@ async fn handle_cliphist_list(
     let (items, jobs) = match res {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => {
-            eprintln!("cliphist list error: {e}");
+            crate::debug_log!("cliphist list error: {e}");
             (Vec::new(), Vec::new())
         }
         Err(e) => {
-            eprintln!("cliphist list join error: {e}");
+            crate::debug_log!("cliphist list join error: {e}");
             (Vec::new(), Vec::new())
         }
     };
 
+    crate::debug_log!("Sending cliphist_list_result with {} items", items.len());
     let _ = tx.send(api::DaemonEvent::CliphistListResult { items }).await;
 
     // Kick off any pending OCR passes. They are serialized by the semaphore so

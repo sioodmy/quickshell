@@ -94,7 +94,11 @@ Item {
         if (itemType === "app") {
             ctrl.launchApp(modelData.entry);
         } else if (itemType === "focus") {
-            ctrl.focusWindow(modelData.windowId);
+            if (modelData.actionId === "bring") {
+                ctrl.bringWindow(modelData.windowId);
+            } else {
+                ctrl.focusWindow(modelData.windowId);
+            }
         } else if (itemType === "emoji") {
             ctrl.copyEmoji(modelData.emoji, shiftHeld || false);
         } else if (itemType === "action") {
@@ -226,6 +230,8 @@ Item {
                                 ? "file://" + modelData.album.cover_path 
                                 : ""
                         fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        sourceSize: Qt.size(128, 128)
                         
                         layer.enabled: true
                         layer.effect: MultiEffect {
@@ -380,6 +386,8 @@ Item {
                             height: 16
                             source: delegateRoot.itemType === "bookmark" && modelData.bookmark ? "file://" + modelData.bookmark.icon_path : ""
                             fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            sourceSize: Qt.size(32, 32)
                             visible: status === Image.Ready
                         }
 
@@ -477,7 +485,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: {
                             if (delegateRoot.itemType === "focus")
-                                return "Focus";
+                                return modelData.actionId === "bring" ? "Bring" : "Focus";
                             if (delegateRoot.itemType === "emoji")
                                 return "Copy";
                             if (delegateRoot.itemType === "action") {
@@ -521,7 +529,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: {
                             if (delegateRoot.itemType === "focus")
-                                return "󰇧";
+                                return modelData.actionId === "bring" ? "󰀹" : "󰇧";
                             if (delegateRoot.itemType === "emoji")
                                 return "󰆏";
                             if (delegateRoot.itemType === "action") {
@@ -688,6 +696,7 @@ Item {
                         scale: mathPreviewContainer.constrainedScale
                         smooth: true
                         antialiasing: true
+                        asynchronous: true
                         opacity: mathImg.status !== Image.Ready ? 1.0 : 0.0
                     }
 
@@ -699,6 +708,7 @@ Item {
                         scale: mathPreviewContainer.constrainedScale
                         smooth: true
                         antialiasing: true
+                        asynchronous: true
                         opacity: status === Image.Ready ? 1.0 : 0.0
                     }
                 }

@@ -100,4 +100,16 @@ ShellRoot {
             Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"] });
         }
     }
+    IpcHandler {
+        target: "cocaine"
+        function enable() {
+            BackendDaemon.send({ action: "cocaine_enable" });
+        }
+        function disable() {
+            BackendDaemon.send({ action: "cocaine_disable" });
+        }
+        function toggle() {
+            BackendDaemon.send({ action: "cocaine_enable" });
+        }
+    }
 }

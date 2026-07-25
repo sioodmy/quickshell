@@ -420,25 +420,74 @@ WlSessionLockSurface {
             width: parent.width - 48
             spacing: 16
 
-            // Greeting — no avatar
-            Column {
-                width: parent.width
-                spacing: 2
+            // Profile and Greeting Row
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 16
 
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Welcome back"
-                    color: Theme.on_surface_variant
-                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium; letterSpacing: 0.4 }
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: {
-                        const u = Quickshell.env("USER") || "user";
-                        return u.charAt(0).toUpperCase() + u.slice(1);
+                Rectangle {
+                    width: 64
+                    height: 64
+                    radius: width / 2
+                    color: Theme.surface_container_highest
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Image {
+                        id: avatarImg
+                        anchors.fill: parent
+                        source: "../based.png"
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        sourceSize: Qt.size(128, 128)
+                        layer.enabled: true
+                        layer.smooth: true
+                        layer.mipmap: true
+                        layer.effect: MultiEffect {
+                            maskEnabled: true
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1.0
+                            maskSource: ShaderEffectSource {
+                                hideSource: true
+                                sourceItem: Rectangle { 
+                                    width: avatarImg.width
+                                    height: avatarImg.height
+                                    radius: width / 2
+                                    color: "black"
+                                    antialiasing: true
+                                }
+                            }
+                        }
                     }
-                    color: Theme.on_surface
-                    font { family: "Google Sans"; pixelSize: 22; weight: Font.DemiBold }
+
+                    // Material 3 style subtle avatar border overlay
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: "transparent"
+                        border.color: Theme.outline_variant
+                        border.width: 1
+                        antialiasing: true
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        text: "Welcome back"
+                        color: Theme.on_surface_variant
+                        font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium; letterSpacing: 0.4 }
+                    }
+                    Text {
+                        text: {
+                            const u = Quickshell.env("USER") || "user";
+                            const capitalized = u.charAt(0).toUpperCase() + u.slice(1);
+                            return capitalized.split('').join(' ');
+                        }
+                        color: Theme.on_surface
+                        font { family: "Noto Serif"; pixelSize: 24; italic: true; weight: Font.Medium; letterSpacing: 4.0 }
+                    }
                 }
             }
 

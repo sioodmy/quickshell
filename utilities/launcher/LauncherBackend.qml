@@ -12,6 +12,12 @@ Item {
     signal openMenuRequested
     signal closeMenuRequested
 
+    Timer {
+        id: delayedCloseTimer
+        interval: 1500
+        onTriggered: backend.closeMenuRequested()
+    }
+
     property string searchText: ""
     property string calcExpression: backend.searchText.trim()
 
@@ -21,7 +27,9 @@ Item {
     property string dictDefinition: BackendDaemon.dictDefinition
     property string dictStatus: BackendDaemon.dictStatus
 
-    property string calcResult: BackendDaemon.calcResult
+    property bool cocaineEnabled: false
+
+    property string calcResult: (backend.searchText.trim() !== "" && BackendDaemon.calcResultQuery === backend.searchText.trim()) ? BackendDaemon.calcResult : ""
     property string backendqsSvg: BackendDaemon.backendqsSvg
     property string backendqsError: BackendDaemon.backendqsError
     property string backendqsStatus: BackendDaemon.backendqsStatus
@@ -206,19 +214,132 @@ Item {
         backend.closeMenuRequested();
     }
 
-    function getRunningWindows() {
-        var windows = [];
-        var model = NiriService.windows;
-        if (!model) return windows;
-        for (var i = 0; i < model.count; i++) {
-            var idx = model.index(i, 0);
-            windows.push({
-                id: model.data(idx, 257),       // IdRole = Qt::UserRole + 1
-                title: model.data(idx, 258),     // TitleRole
-                appId: model.data(idx, 259),     // AppIdRole
-            });
+    property int currentWorkspaceId: -1
+    Instantiator {
+        model: NiriService.workspaces
+        delegate: QtObject {
+            property int wsId: model.id !== undefined ? model.id : -1
+            property bool isFocused: model.isFocused !== undefined ? model.isFocused : false
+            
+            onIsFocusedChanged: {
+                if (isFocused && wsId !== -1) {
+                    backend.currentWorkspaceId = wsId;
+                }
+            }
+            Component.onCompleted: {
+                if (isFocused && wsId !== -1) {
+                    backend.currentWorkspaceId = wsId;
+                }
+            }
         }
-        return windows;
+    }
+
+    function getCurrentWorkspaceId() {
+        return backend.currentWorkspaceId;
+    }
+
+    function getBringWindows(query) {
+        var results = [];
+        var term = query.toLowerCase();
+        var wins = backend.getRunningWindows();
+        var currentWsId = backend.getCurrentWorkspaceId();
+        
+        for (var i = 0; i < wins.length; i++) {
+            var w = wins[i];
+            
+            if (Number(w.workspaceId) === Number(currentWsId)) {
+                continue;
+            }
+            
+            if (term !== "") {
+                var title = (w.title || "").toLowerCase();
+                var appId = (w.appId || "").toLowerCase();
+                if (title.indexOf(term) === -1 && appId.indexOf(term) === -1) {
+                    continue;
+                }
+            }
+            results.push(w);
+        }
+        return results;
+    }
+
+    function findDesktopEntry(appId) {
+        if (!appId) return null;
+        var allApps = DesktopEntries.applications.values;
+        for (var i = 0; i < allApps.length; i++) {
+            if (allApps[i].id === appId) return allApps[i];
+        }
+        var lower = appId.toLowerCase();
+        for (var i = 0; i < allApps.length; i++) {
+            if (allApps[i].id && allApps[i].id.toLowerCase() === lower) return allApps[i];
+        }
+        return null;
+    }
+
+    function bringWindow(windowId) {
+        var targetWsId = backend.getCurrentWorkspaceId();
+        if (targetWsId === -1) return;
+        NiriService.sendRawAction({
+            "MoveWindowToWorkspace": {
+                "window_id": Number(windowId),
+                "reference": { "Id": Number(targetWsId) },
+                "focus": true
+            }
+        });
+        NiriService.focusWindow(windowId);
+        backend.closeMenuRequested();
+    }
+
+    property var _runningWindowsMap: ({})
+    Instantiator {
+        model: NiriService.windows
+        delegate: QtObject {
+            property string winId: model.id || ""
+            property string winTitle: model.title || ""
+            property string winAppId: model.appId || ""
+            property int winWorkspaceId: model.workspaceId !== undefined ? model.workspaceId : -1
+            
+            Component.onCompleted: {
+                var map = Object.assign({}, backend._runningWindowsMap);
+                map[winId] = {
+                    id: winId,
+                    title: winTitle,
+                    appId: winAppId,
+                    workspaceId: winWorkspaceId
+                };
+                backend._runningWindowsMap = map;
+            }
+            onWinTitleChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].title = winTitle;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            onWinAppIdChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].appId = winAppId;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            onWinWorkspaceIdChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].workspaceId = winWorkspaceId;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            Component.onDestruction: {
+                var map = Object.assign({}, backend._runningWindowsMap);
+                delete map[winId];
+                backend._runningWindowsMap = map;
+            }
+        }
+    }
+
+    function getRunningWindows() {
+        return Object.values(backend._runningWindowsMap);
     }
 
     // --- Emoji functions ---
@@ -288,6 +409,10 @@ Item {
         onTriggered: {
             var query = backend.searchText.trim();
             if (query === "" || query.indexOf(" ") !== -1) {
+                BackendDaemon.dictWord = "";
+                BackendDaemon.dictPhonetic = "";
+                BackendDaemon.dictDefinition = "";
+                BackendDaemon.dictStatus = "";
                 return;
             }
             BackendDaemon.send({"action": "dictionary", "query": query});
@@ -308,6 +433,8 @@ Item {
         onTriggered: {
             var query = backend.searchText.trim();
             if (query === "") {
+                BackendDaemon.calcResult = "";
+                BackendDaemon.calcStatus = "";
                 return;
             }
             if (backend.looksLikeMath(query)) {
@@ -317,6 +444,9 @@ Item {
                     colStr = "#" + colStr.substring(3);
                 }
                 BackendDaemon.send({"action": "math", "query": query, "out": "/tmp/quickshell_math.svg", "color": colStr});
+            } else {
+                BackendDaemon.calcResult = "";
+                BackendDaemon.calcStatus = "";
             }
         }
     }
@@ -578,6 +708,21 @@ Item {
             DoNotDisturb.disable();
         } else if (actionId === "dnd_toggle") {
             DoNotDisturb.toggle();
+        } else if (actionId === "coc_on") {
+            backend.cocaineEnabled = true;
+            BackendDaemon.send({ action: "cocaine_enable" });
+            delayedCloseTimer.restart();
+            return;
+        } else if (actionId === "coc_off") {
+            backend.cocaineEnabled = false;
+            BackendDaemon.send({ action: "cocaine_disable" });
+            delayedCloseTimer.restart();
+            return;
+        } else if (actionId === "coc_toggle") {
+            backend.cocaineEnabled = !backend.cocaineEnabled;
+            BackendDaemon.send({ action: backend.cocaineEnabled ? "cocaine_enable" : "cocaine_disable" });
+            delayedCloseTimer.restart();
+            return;
         } else if (actionId === "pom_start") {
             if (!Pomodoro.isRunning)
                 Pomodoro.isRunning = true;

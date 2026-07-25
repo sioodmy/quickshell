@@ -231,6 +231,8 @@ Item {
                         anchors.fill: parent
                         source: modelData.cover_path ? "file://" + modelData.cover_path : ""
                         fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        sourceSize: Qt.size(104, 104)
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             maskEnabled: true
@@ -398,15 +400,17 @@ Item {
                             clip: true
 
                             Image {
-                                id: detailArt
+                                id: headerCoverImg
                                 anchors.fill: parent
-                                source: (root.selectedAlbum && root.selectedAlbum.cover_path) ? "file://" + root.selectedAlbum.cover_path : ""
+                                source: root.selectedAlbum && root.selectedAlbum.cover_path ? "file://" + root.selectedAlbum.cover_path : ""
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                sourceSize: Qt.size(160, 160)
                                 layer.enabled: true
                                 layer.effect: MultiEffect {
                                     maskEnabled: true
                                     maskSource: ShaderEffectSource {
-                                        sourceItem: Rectangle { width: detailArt.width; height: detailArt.height; radius: 12 }
+                                        sourceItem: Rectangle { width: headerCoverImg.width; height: headerCoverImg.height; radius: 12 }
                                     }
                                 }
                             }

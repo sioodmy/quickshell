@@ -208,7 +208,7 @@ pub async fn start_server() -> Result<FileShareHandle> {
         tokio::select! {
             res = server => {
                 if let Err(e) = res {
-                    eprintln!("file share server error: {e}");
+                    crate::debug_log!("file share server error: {e}");
                 }
             }
             _ = shutdown_rx => {}

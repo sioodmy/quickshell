@@ -60,6 +60,8 @@ Item {
             height: root.effectiveIconSize
             fillMode: Image.PreserveAspectFit
             mipmap: true
+            asynchronous: true
+            sourceSize: Qt.size(64, 64)
 
             property var tryIcons: {
                 var icon = root.appIcon;

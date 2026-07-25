@@ -1,5 +1,7 @@
+mod idle_manager;
 mod music;
 mod parser;
+mod logind_listener;
 mod math;
 mod dictionary;
 mod agenda;
@@ -19,7 +21,16 @@ mod music_remote;
 mod api;
 mod context;
 mod handler;
+mod torrent;
 
+#[macro_export]
+macro_rules! debug_log {
+    ($($arg:tt)*) => {
+        if std::env::var_os("LENINSHELL_DEBUG").is_some() {
+            eprintln!($($arg)*);
+        }
+    }
+}
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -73,18 +84,24 @@ async fn main() -> Result<()> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error: {:?}", e);
+                    crate::debug_log!("Error: {:?}", e);
                     std::process::exit(1);
                 }
             }
         }
         Commands::Daemon => {
+            idle_manager::spawn_idle_manager();
+            
+            tokio::spawn(async move {
+                logind_listener::start_logind_listener().await;
+            });
+            
             let player = music::PLAYER.get_or_init(music::Player::new);
             // Start MPRIS D-Bus server
             let mpris_state = player.state.clone();
             tokio::spawn(async move {
                 if let Err(e) = music::start_mpris(mpris_state).await {
-                    eprintln!("MPRIS init error: {}", e);
+                    crate::debug_log!("MPRIS init error: {}", e);
                 }
             });
             let client = Client::new();
@@ -236,6 +253,13 @@ async fn main() -> Result<()> {
                 });
             }
 
+            // Setup torrent manager
+            let torrent_manager = Arc::new(torrent::TorrentManager::new().await.unwrap());
+
+            // Setup rink
+            let mut rink = rink_core::Context::new();
+            let rink_ctx = Arc::new(tokio::sync::Mutex::new(rink));
+
             // Stdin reading loop
             let mut reader = BufReader::new(tokio::io::stdin()).lines();
 
@@ -245,7 +269,7 @@ async fn main() -> Result<()> {
                 let req: api::DaemonRequest = match serde_json::from_str(&line) {
                     Ok(r) => r,
                     Err(e) => {
-                        eprintln!("Error deserializing: {} for line: {}", e, line);
+                        crate::debug_log!("Error deserializing: {} for line: {}", e, line);
                         continue;
                     }
                 };
@@ -271,6 +295,8 @@ async fn main() -> Result<()> {
                     file_share: file_share.clone(),
                     file_share_progress_active: file_share_progress_active.clone(),
                     music_remote_state: music_remote_state.clone(),
+                    torrent_manager: torrent_manager.clone(),
+                    rink_ctx: rink_ctx.clone(),
                 };
 
                 tokio::spawn(async move {
@@ -279,7 +305,5 @@ async fn main() -> Result<()> {
             }
         }
     }
-
-    Ok(())
+    std::process::exit(0);
 }
-

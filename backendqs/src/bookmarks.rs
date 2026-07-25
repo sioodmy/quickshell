@@ -50,7 +50,7 @@ pub async fn build_index(client: Client, index: BookmarkIndex) {
     let content = match fs::read_to_string(&path) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("Failed to read bookmarks: {}", e);
+            crate::debug_log!("Failed to read bookmarks: {}", e);
             return;
         },
     };
@@ -58,12 +58,12 @@ pub async fn build_index(client: Client, index: BookmarkIndex) {
     let parsed: serde_json::Value = match serde_json::from_str(&content) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Failed to parse bookmarks: {}", e);
+            crate::debug_log!("Failed to parse bookmarks: {}", e);
             return;
         },
     };
     
-    eprintln!("Bookmarks loaded and parsed successfully.");
+    crate::debug_log!("Bookmarks loaded and parsed successfully.");
     
     let mut new_list = Vec::new();
     let cache_dir = get_cache_dir();
@@ -126,7 +126,7 @@ pub async fn build_index(client: Client, index: BookmarkIndex) {
         });
     }
     
-    eprintln!("Bookmarks index built with {} entries", new_list.len());
+    crate::debug_log!("Bookmarks index built with {} entries", new_list.len());
     let mut idx = index.write().unwrap();
     *idx = new_list;
 }

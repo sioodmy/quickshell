@@ -96,7 +96,7 @@ impl Player {
             let device_handle = match rodio::DeviceSinkBuilder::open_default_sink() {
                 Ok(h) => h,
                 Err(e) => {
-                    eprintln!("rodio: failed to open audio output: {}", e);
+                    crate::debug_log!("rodio: failed to open audio output: {}", e);
                     return;
                 }
             };

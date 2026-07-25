@@ -582,6 +582,8 @@ Variants {
                                         source: cardDelegate.applicationIcon
                                         fillMode: Image.PreserveAspectCrop
                                         visible: !!cardDelegate.applicationIcon && notifType !== "screenshot" && notifType !== "recording"
+                                        asynchronous: true
+                                        sourceSize: Qt.size(64, 64)
                                         layer.enabled: true
                                         layer.smooth: true
                                         layer.effect: MultiEffect {
@@ -795,6 +797,7 @@ Variants {
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     cache: false
+                                    sourceSize.width: 800
 
                                     layer.enabled: true
                                     layer.effect: MultiEffect {
@@ -943,6 +946,7 @@ Variants {
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     cache: false
+                                    sourceSize.width: 800
                                     visible: status === Image.Ready
 
                                     layer.enabled: true

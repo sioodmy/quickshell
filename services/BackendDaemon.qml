@@ -13,6 +13,7 @@ Singleton {
     property string dictWord: ""
     property string dictPhonetic: ""
     property string dictDefinition: ""
+    property string calcResultQuery: ""
     property string calcResult: ""
     property string calcStatus: ""
     property string backendqsStatus: ""
@@ -37,6 +38,7 @@ Singleton {
     property string musicRemoteUrl: ""
     property string musicRemoteQrSvg: ""
     property bool musicRemoteConnected: false
+    property var activeTorrents: []
 
     // Emitted when a new share is ready with QR data for the launcher.
     signal fileShareReady(var data)
@@ -58,7 +60,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["sh", "-c", "if [ -n \"$LENINSHELL_DEBUG\" ]; then exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; elif command -v backendqs >/dev/null 2>&1; then exec backendqs daemon; else exec ~/.config/quickshell/backendqs/target/release/backendqs daemon; fi"]
+        command: ["sh", "-c", "exec ~/.config/quickshell/backendqs/target/release/backendqs daemon"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.
@@ -100,6 +102,7 @@ Singleton {
                         }
                         root.backendqsStatus = parsed.status;
                     } else if (type === "calc_result") {
+                        root.calcResultQuery = parsed.query || "";
                         if (parsed.status === "ok") {
                             root.calcResult = parsed.result || "";
                         } else {
@@ -154,7 +157,9 @@ Singleton {
                             root.wifiNetworks = parsed.devices || [];
                         }
                     } else if (type === "cliphist_list_result") {
+                        console.log("Received cliphist_list_result with items: ", parsed.items ? parsed.items.length : 0);
                         root.cliphistItems = parsed.items || [];
+                        root.cliphistUpdated();
                     } else if (type === "cliphist_ocr_update") {
                         // Patch the matching entry with freshly recognised OCR
                         // text so the launcher can fuzzy-match it immediately.
@@ -212,6 +217,8 @@ Singleton {
                         root.musicRemoteUrl = "";
                         root.musicRemoteQrSvg = "";
                         root.musicRemoteConnected = false;
+                    } else if (type === "torrent_progress") {
+                        root.activeTorrents = parsed.torrents || [];
                     } else if (type === "music_remote_connected") {
                         root.musicRemoteConnected = true;
                     }

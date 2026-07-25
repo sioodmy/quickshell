@@ -31,11 +31,10 @@ Item {
     Connections {
         target: BackendDaemon
         function onCliphistCopied() { root.closeRequested(); }
-    }
-
-    onEntriesChanged: {
-        root.loading = false;
-        clampSelection();
+        function onCliphistUpdated() {
+            root.loading = false;
+            clampSelection();
+        }
     }
 
     // ─────────────────────────────────────────────
