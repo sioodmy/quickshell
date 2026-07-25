@@ -5,7 +5,7 @@ import qs.theme
 
 Rectangle {
     id: root
-    
+
     implicitWidth: 28
     implicitHeight: layout.implicitHeight + 20
     radius: width / 2
@@ -31,7 +31,7 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             DockNetwork { id: netIcon; anchors.centerIn: parent }
         }
-        
+
         // --- Bluetooth ---
         Item {
             width: btIcon.width; height: btIcon.height
@@ -48,7 +48,7 @@ Rectangle {
 
             property real _v: root.volumeLevel
             property bool _m: root.isMuted
-            
+
             on_VChanged: requestPaint()
             on_MChanged: requestPaint()
             Component.onCompleted: requestPaint()
@@ -59,13 +59,13 @@ Rectangle {
                 var cx = width / 2;
                 var cy = height / 2;
                 var r = (width / 2) - 1.5;
-                
+
                 ctx.beginPath();
                 ctx.arc(cx, cy, r, 0, 2 * Math.PI);
                 ctx.lineWidth = 2.5;
                 ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
                 ctx.stroke();
-                
+
                 if (root.volumeLevel > 0) {
                     ctx.beginPath();
                     var startAngle = -Math.PI / 2;
@@ -118,8 +118,10 @@ Rectangle {
                 color: "transparent"
                 border.width: 1
                 border.color: {
-                    if (batteryIconItem.capacity <= 20 && !batteryIconItem.isCharging)
+                    if (batteryIconItem.capacity <= 10 && !batteryIconItem.isCharging)
                         return Theme.critical;
+                    if (batteryIconItem.capacity <= 20 && !batteryIconItem.isCharging)
+                        return "#ea999c";
                     if (batteryIconItem.isCharging)
                         return "#259b50";
                     return Theme.primary;
