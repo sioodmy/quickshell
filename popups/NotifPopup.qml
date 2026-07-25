@@ -790,6 +790,15 @@ Variants {
                                 color: Theme.surface_container_high
                                 clip: true
 
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        FileStash.addPath(Screenshot.imagePath);
+                                        Screenshot.dismiss();
+                                    }
+                                }
+
                                 Image {
                                     id: previewImg
                                     anchors.fill: parent
@@ -938,6 +947,15 @@ Variants {
                                 radius: 16
                                 color: Theme.surface_container_high
                                 clip: true
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        FileStash.addPath(ScreenRecord.videoPath);
+                                        ScreenRecord.dismiss();
+                                    }
+                                }
 
                                 Image {
                                     id: recPreviewImg

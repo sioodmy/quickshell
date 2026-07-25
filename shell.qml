@@ -60,6 +60,10 @@ ShellRoot {
         id: brightnessPopupWindow
     }
 
+    SpeakerWarningPopup {
+        id: speakerWarningPopupWindow
+    }
+
     ChargePopup {
         id: chargePopupWindow
     }
