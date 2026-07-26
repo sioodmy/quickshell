@@ -76,7 +76,7 @@ Variants {
 
         Timer {
             id: hideTimer
-            interval: 1000
+            interval: 2000
 
             onTriggered: {
                 volumeOsdPopup.showOsd = false;
@@ -144,7 +144,7 @@ Variants {
                                     anchors.fill: parent
                                     source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
                                     fillMode: Image.PreserveAspectCrop
-                                    
+
                                     layer.enabled: true
                                     layer.effect: MultiEffect {
                                         maskEnabled: true
@@ -157,7 +157,7 @@ Variants {
                                         }
                                     }
                                 }
-                                
+
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰝚"
@@ -286,9 +286,9 @@ Variants {
                                     width: Math.max(height, parent.width * visualVolume)
 
                                     Behavior on width {
-                                        NumberAnimation {
-                                            duration: 150
-                                            easing.type: Easing.OutCubic
+                                        SpringAnimation {
+                                            spring: 6
+                                            damping: 1.0
                                         }
                                     }
                                 }

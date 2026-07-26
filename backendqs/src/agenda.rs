@@ -173,3 +173,78 @@ fn effective_date(item: &AgendaItem) -> String {
         "9999-12-31".to_string()
     }
 }
+
+pub fn toggle_todo(dir: &Path, file: &str, title: &str) -> Result<()> {
+    let path = dir.join(file).with_extension("org");
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&path)?;
+    let mut lines: Vec<String> = content.lines().map(String::from).collect();
+    let re_heading = Regex::new(r"^(\*+)\s+(.*)").unwrap();
+    let re_state = Regex::new(r"^(TODO|DONE|WAITING|CANCELLED|NEXT|HOLD)\s+(.*)").unwrap();
+    let re_priority = Regex::new(r"^\[#([A-C])\]\s+(.*)").unwrap();
+    let re_tags = Regex::new(r"^(.*?)\s+(:[a-zA-Z0-9_:]+:)\s*$").unwrap();
+
+    let mut found = false;
+    for line in lines.iter_mut() {
+        if let Some(cap) = re_heading.captures(line) {
+            let stars = cap[1].to_string();
+            let mut rest = cap[2].to_string();
+            
+            let mut state = String::new();
+            if let Some(scap) = re_state.captures(&rest) {
+                state = scap[1].to_string();
+                rest = scap[2].to_string();
+            }
+            
+            let mut priority = String::new();
+            if let Some(pcap) = re_priority.captures(&rest) {
+                priority = format!("[#{}]", &pcap[1]);
+                rest = pcap[2].to_string();
+            }
+            
+            let new_rest;
+            let mut tags = String::new();
+            if let Some(tcap) = re_tags.captures(&rest) {
+                new_rest = tcap[1].trim_end().to_string();
+                tags = tcap[2].to_string();
+            } else {
+                new_rest = rest.trim_end().to_string();
+            }
+
+            if new_rest == title {
+                let new_state = match state.as_str() {
+                    "TODO" | "NEXT" | "WAITING" | "HOLD" => "DONE",
+                    "DONE" | "CANCELLED" => "TODO",
+                    _ => "TODO",
+                };
+                
+                let mut new_line = format!("{} {}", stars, new_state);
+                if !priority.is_empty() {
+                    new_line.push_str(&format!(" {}", priority));
+                }
+                if !new_rest.is_empty() {
+                    new_line.push_str(&format!(" {}", new_rest));
+                }
+                if !tags.is_empty() {
+                    new_line.push_str(&format!(" {}", tags));
+                }
+                *line = new_line;
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if found {
+        let mut out = lines.join("\n");
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        fs::write(&path, out)?;
+    }
+    
+    Ok(())
+}

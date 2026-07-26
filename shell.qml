@@ -86,24 +86,7 @@ ShellRoot {
         id: fullscreenMedia
     }
 
-    IpcHandler {
-        target: "volume"
-        function up() {
-            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.1+"] });
-            volumePopupWindow.osdTriggered();
-        }
-        function down() {
-            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.1-"] });
-            volumePopupWindow.osdTriggered();
-        }
-        function mute() {
-            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] });
-            volumePopupWindow.osdTriggered();
-        }
-        function micMute() {
-            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"] });
-        }
-    }
+
     IpcHandler {
         target: "cocaine"
         function enable() {

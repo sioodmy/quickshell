@@ -1,5 +1,6 @@
 import QtQuick
 import qs.theme
+import qs.services
 
 /**
  * Material Design 3 styled card for a single org agenda entry.
@@ -123,6 +124,15 @@ Rectangle {
                         return Theme.on_surface_variant;
                     }
                     font { family: "Google Sans"; pointSize: 7; weight: Font.Bold }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: {
+                        OrgAgenda.toggleTodo(root._file, root._title)
+                    }
                 }
             }
 

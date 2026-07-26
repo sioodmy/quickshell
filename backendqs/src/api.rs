@@ -19,6 +19,8 @@ pub enum DaemonRequest {
     WeatherRefresh,
     #[serde(rename = "agenda_refresh")]
     AgendaRefresh,
+    #[serde(rename = "agenda_toggle_todo")]
+    AgendaToggleTodo { file: String, title: String },
     #[serde(rename = "music_library")]
     MusicLibrary,
     #[serde(rename = "music_play_album")]

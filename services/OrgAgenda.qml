@@ -68,6 +68,10 @@ Singleton {
         BackendDaemon.send({"action": "agenda_refresh"});
     }
 
+    function toggleTodo(file, title) {
+        BackendDaemon.send({"action": "agenda_toggle_todo", "file": file, "title": title});
+    }
+
     onItemsChanged: {
         let dates = {};
         for (let i = 0; i < items.length; i++) {

@@ -73,6 +73,13 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                                 let _ = ctx.tx.send(api::DaemonEvent::AgendaUpdate { data: items }).await;
                             }
                         }
+                        api::DaemonRequest::AgendaToggleTodo { file, title } => {
+                            if let Ok(()) = agenda::toggle_todo(&ctx.notes_dir, &file, &title) {
+                                if let Ok(items) = agenda::parse_directory(&ctx.notes_dir) {
+                                    let _ = ctx.tx.send(api::DaemonEvent::AgendaUpdate { data: items }).await;
+                                }
+                            }
+                        }
                         api::DaemonRequest::MusicLibrary => {
                             let res = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap();
                             match res {

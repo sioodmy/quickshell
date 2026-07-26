@@ -40,42 +40,56 @@ Rectangle {
         }
 
         // --- Audio ---
-        Canvas {
-            id: audioIcon
+        Item {
             width: 12
             height: 12
             anchors.horizontalCenter: parent.horizontalCenter
 
-            property real _v: root.volumeLevel
-            property bool _m: root.isMuted
+            Canvas {
+                id: audioIcon
+                anchors.fill: parent
+                visible: !(root.isMuted || root.volumeLevel <= 0.0)
 
-            on_VChanged: requestPaint()
-            on_MChanged: requestPaint()
-            Component.onCompleted: requestPaint()
+                property real _v: root.volumeLevel
+                property bool _m: root.isMuted
 
-            onPaint: {
-                var ctx = getContext("2d");
-                ctx.clearRect(0, 0, width, height);
-                var cx = width / 2;
-                var cy = height / 2;
-                var r = (width / 2) - 1.5;
+                on_VChanged: requestPaint()
+                on_MChanged: requestPaint()
+                Component.onCompleted: requestPaint()
 
-                ctx.beginPath();
-                ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                ctx.lineWidth = 2.5;
-                ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
-                ctx.stroke();
+                onPaint: {
+                    var ctx = getContext("2d");
+                    ctx.clearRect(0, 0, width, height);
+                    var cx = width / 2;
+                    var cy = height / 2;
+                    var r = (width / 2) - 1.5;
 
-                if (root.volumeLevel > 0) {
                     ctx.beginPath();
-                    var startAngle = -Math.PI / 2;
-                    var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
-                    ctx.arc(cx, cy, r, startAngle, endAngle);
+                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
                     ctx.lineWidth = 2.5;
-                    ctx.lineCap = "round";
-                    ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
+                    ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
                     ctx.stroke();
+
+                    if (root.volumeLevel > 0) {
+                        ctx.beginPath();
+                        var startAngle = -Math.PI / 2;
+                        var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
+                        ctx.arc(cx, cy, r, startAngle, endAngle);
+                        ctx.lineWidth = 2.5;
+                        ctx.lineCap = "round";
+                        ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
+                        ctx.stroke();
+                    }
                 }
+            }
+
+            Text {
+                anchors.centerIn: parent
+                visible: root.isMuted || root.volumeLevel <= 0.0
+                text: "󰖁"
+                font.family: "JetBrainsMono Nerd Font"
+                font.pixelSize: 11
+                color: Theme.on_surface_variant
             }
         }
 
