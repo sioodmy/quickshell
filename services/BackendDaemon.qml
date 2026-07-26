@@ -45,6 +45,7 @@ Singleton {
 
     // Emitted once a clipboard copy has been written to the Wayland selection.
     signal cliphistCopied()
+    signal cliphistUpdated()
     property var musicState: {
         "playing": false,
         "title": "",
