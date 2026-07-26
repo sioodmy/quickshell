@@ -158,7 +158,7 @@ PanelWindow {
             anchors.margins: 4
             width: parent.width - 44
             radius: 26
-            color: "black"
+            color: Theme.surface
             visible: false
         }
 
@@ -181,15 +181,18 @@ PanelWindow {
             layer.smooth: true
 
             Rectangle {
-                anchors.fill: parent
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                x: 44
+                width: parent.width - 44
                 radius: 28
                 color: "black"
             }
             Rectangle {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                width: 48
+                x: 44
+                width: 28
                 color: "black"
             }
         }
