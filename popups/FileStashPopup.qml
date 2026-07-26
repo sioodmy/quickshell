@@ -204,10 +204,24 @@ Variants {
                 spacing: 10
                 visible: panelVisible || dropArea.containsDrag
 
-                // Header chips
+                // Thick pride bar with header chips overlaid
                 Item {
                     width: parent.width
                     height: 36
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 12
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.00; color: stashWindow.prideRed }
+                            GradientStop { position: 0.20; color: stashWindow.prideOrange }
+                            GradientStop { position: 0.40; color: stashWindow.prideYellow }
+                            GradientStop { position: 0.60; color: stashWindow.prideGreen }
+                            GradientStop { position: 0.80; color: stashWindow.prideBlue }
+                            GradientStop { position: 1.00; color: stashWindow.prideViolet }
+                        }
+                    }
 
                     Rectangle {
                         id: statusChip
