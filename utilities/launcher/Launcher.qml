@@ -1417,9 +1417,9 @@ PanelWindow {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.margins: 4
-                    width: Math.max(0, (728 - 44) * launcherWindow.openProgress)
+                    width: Math.max(0, 728 * launcherWindow.openProgress - 44)
                     radius: 26
-                    color: "black"
+                    color: Theme.surface
                     visible: false
                 }
 
@@ -1446,8 +1446,8 @@ PanelWindow {
                     Rectangle {
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        x: 0
-                        width: Math.max(0, parent.width * launcherWindow.openProgress)
+                        x: 44
+                        width: Math.max(0, parent.width * launcherWindow.openProgress - 44)
                         radius: 28
                         color: "black"
                     }
@@ -1455,8 +1455,8 @@ PanelWindow {
                     Rectangle {
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        x: 0
-                        width: Math.min(48, Math.max(0, parent.width * launcherWindow.openProgress))
+                        x: 44
+                        width: Math.min(28, Math.max(0, parent.width * launcherWindow.openProgress - 44))
                         color: "black"
                     }
                 }

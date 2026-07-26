@@ -25,7 +25,7 @@ Variants {
         screen: modelData
 
         // --- Layer Shell ---
-        WlrLayershell.layer: WlrLayer.Overlay // Changed to Overlay so it floats above fake bezels
+        WlrLayershell.layer: WlrLayer.Top // Changed to Top so it doesn't overlap fullscreen videos
         WlrLayershell.namespace: "quickshell-dock"
         // Reserve space for the dock on the left edge
         WlrLayershell.exclusiveZone: 48
