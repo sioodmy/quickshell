@@ -471,8 +471,10 @@ fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> Prev
                 Some(highlight_qt_html(&plain_content, &ext))
             };
 
+            let preview_type = "text".to_string();
+
             return PreviewResult {
-                path: path.into(), preview_type: "text".into(),
+                path: path.into(), preview_type,
                 preview_path: None, content, line_count, size, modified, mime_cat: cat.into(),
             };
         }

@@ -275,8 +275,8 @@ Variants {
                     id: workspaceBar
                     anchors.top: clockModule.bottom
                     anchors.topMargin: 12
-                    anchors.bottom: statsModule.top
-                    anchors.bottomMargin: 12
+                    anchors.bottom: dockShareIcon.top
+                    anchors.bottomMargin: 0
                     anchors.horizontalCenter: parent.horizontalCenter
 
                     runningApps: dockContent.runningApps
@@ -310,6 +310,13 @@ Variants {
                         dockContent.draggingWinId = ""
                         dockContent.dragVY = 0
                     }
+                }
+
+                DockFileShare {
+                    id: dockShareIcon
+                    anchors.bottom: statsModule.top
+                    anchors.bottomMargin: 12
+                    anchors.horizontalCenter: parent.horizontalCenter
                 }
 
                 // 3. Sys/Net Stats

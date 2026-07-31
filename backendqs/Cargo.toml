@@ -53,6 +53,7 @@ open = "5.4.0"
 wayland-client = "0.31.2"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 lazy_static = "1.5.0"
+orgize = "0.9.0"
 
 [profile.release]
 opt-level = 3

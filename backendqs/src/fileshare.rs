@@ -228,6 +228,9 @@ pub async fn start_server() -> Result<FileShareHandle> {
                     if entry.cancelled.load(Ordering::Relaxed) {
                         return false;
                     }
+                    if entry.name.ends_with(".org") {
+                        return now.duration_since(entry.created_at) < Duration::from_secs(3600);
+                    }
                     match entry.status {
                         ShareStatus::Waiting => now.duration_since(entry.created_at) < STALE_WAIT_TIMEOUT,
                         ShareStatus::Complete => entry
@@ -407,6 +410,11 @@ async fn share_page(
     }
     let size_label = format_size(entry.size);
     let download_url = format!("/s/{}/{}/dl", token, id);
+    if entry.name.ends_with(".org") {
+        if let Ok(content) = tokio::fs::read_to_string(&entry.path).await {
+            return Html(crate::org_renderer::render_org_share_page(&entry.name, &content)).into_response();
+        }
+    }
     let qr_svg = generate_qr_svg(&download_url).unwrap_or_default();
     Html(html_page(&entry.name, &size_label, &download_url, &qr_svg)).into_response()
 }

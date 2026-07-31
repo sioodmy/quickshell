@@ -42,10 +42,7 @@ ShellRoot {
         id: fileStashOverlay
     }
 
-    // Top-center WiFi file share indicator
-    FileShareNotch {
-        id: fileShareNotch
-    }
+
 
     // Application Launcher
     Launcher {

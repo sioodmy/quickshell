@@ -22,6 +22,7 @@ mod api;
 mod context;
 mod handler;
 mod torrent;
+pub mod org_renderer;
 
 #[macro_export]
 macro_rules! debug_log {
