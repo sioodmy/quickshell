@@ -67,7 +67,8 @@ Variants {
         // While empty, only a small corner hotspot receives input so normal
         // clicks still reach windows. During an external drag into that corner
         // (or when Drag Queen has files) the panel expands and takes a full hitbox.
-        readonly property int emptySensorSize: 88
+        // Reduced to 2px to prevent blocking top-right window buttons (like Close).
+        readonly property int emptySensorSize: 2
 
         implicitWidth: contentWidth + barRadius + 16
         implicitHeight: panelVisible
