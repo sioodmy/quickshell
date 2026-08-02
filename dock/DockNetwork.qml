@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Networking
 import qs.theme
+import qs.components
 
 Item {
     id: root
@@ -26,20 +27,17 @@ Item {
         return null
     }
 
-    Text {
+    MaterialIcon {
         id: icon
         anchors.centerIn: parent
-        text: {
+        icon: {
             if (!Networking.wifiEnabled)
-                return "󰤭"
+                return "signal_wifi_off"
             if (root.activeNetwork)
-                return "󰤨"
-            return "󰤯"
+                return "signal_wifi_4_bar"
+            return "signal_wifi_0_bar"
         }
-        font {
-            family: "JetBrainsMono Nerd Font"
-            pixelSize: 11
-        }
+        font.pixelSize: 11
         color: Networking.wifiEnabled ? Theme.primary : Theme.on_surface_variant
     }
 }

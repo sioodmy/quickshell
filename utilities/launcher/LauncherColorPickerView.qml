@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "../../theme"
+import qs.components
 import "LauncherColorLogic.js" as ColorLogic
 
 Item {
@@ -120,7 +121,7 @@ Item {
                         Text {
                             text: hexValue
                             color: Theme.on_surface
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 20; weight: Font.Medium }
+                            font { family: "JetBrains Mono"; pixelSize: 20; weight: Font.Medium }
                         }
 
                         Text {
@@ -396,7 +397,7 @@ Item {
             color: Theme.on_surface
             elide: Text.ElideRight
             font {
-                family: valueRow.label === "HEX" ? "JetBrainsMono Nerd Font" : "Google Sans"
+                family: valueRow.label === "HEX" ? "JetBrains Mono" : "Google Sans"
                 pixelSize: 14
                 weight: Font.Medium
             }
@@ -418,10 +419,10 @@ Item {
                 anchors.centerIn: parent
                 spacing: 3
 
-                Text {
-                    text: "󰆏"
+                MaterialIcon {
+                    icon: "content_copy"
                     color: copyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 12 }
+                    font.pixelSize: 12
                 }
 
                 Text {

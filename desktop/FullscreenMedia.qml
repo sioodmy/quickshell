@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.theme
 import qs.services
+import qs.components
 
 Variants {
     id: root
@@ -183,11 +184,11 @@ Variants {
                                 layer.enabled: true
                             }
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
                                 visible: Playerctl.artUrl === ""
-                                text: "󰝚"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 80 }
+                                icon: "music_note"
+                                font.pixelSize: 80
                                 color: Theme.on_surface_variant
                             }
                         }
@@ -271,10 +272,10 @@ Variants {
                             anchors.verticalCenter: parent.verticalCenter
                             color: prevMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰒮"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 } // smaller
+                                icon: "skip_previous"
+                                font.pixelSize: 24
                                 color: Theme.on_surface_variant
                             }
 
@@ -295,10 +296,10 @@ Variants {
                             anchors.verticalCenter: parent.verticalCenter
                             color: Playerctl.isPlaying ? Theme.primary : Theme.secondary_container
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: Playerctl.isPlaying ? "󰏤" : "󰐊"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 36 } // smaller
+                                icon: Playerctl.isPlaying ? "pause" : "play_arrow"
+                                font.pixelSize: 36
                                 color: Playerctl.isPlaying ? Theme.on_primary : Theme.on_secondary_container
                             }
 
@@ -323,10 +324,10 @@ Variants {
                             anchors.verticalCenter: parent.verticalCenter
                             color: nextMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰒭"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 } // smaller
+                                icon: "skip_next"
+                                font.pixelSize: 24
                                 color: Theme.on_surface_variant
                             }
 
@@ -526,10 +527,10 @@ Variants {
             Behavior on color { ColorAnimation { duration: 150 } }
             Behavior on opacity { NumberAnimation { duration: 300 } }
 
-            Text {
+            MaterialIcon {
                 anchors.centerIn: parent
-                text: BackendDaemon.musicRemoteUrl !== "" ? "󰻄" : "󰑔"
-                font { family: "JetBrainsMono Nerd Font"; pixelSize: 28 }
+                icon: BackendDaemon.musicRemoteUrl !== "" ? "cast" : "sync"
+                font.pixelSize: 28
                 color: Theme.on_surface_variant
             }
 

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import qs.theme
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -74,10 +75,9 @@ Item {
                             }
                         }
 
-                        Text {
+                        MaterialIcon {
                             anchors.centerIn: parent
-                            text: "󰝚"
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: "music_note"
                             font.pixelSize: root.artSize * 0.32
                             color: Theme.on_surface_variant
                             visible: albumArt.status !== Image.Ready
@@ -236,10 +236,9 @@ Item {
                         : (loopHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent")
                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰑖"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "repeat"
                         font.pixelSize: 18
                         color: BackendDaemon.musicState.loopAlbum ? Theme.on_secondary_container : Theme.on_surface_variant
                     }
@@ -262,10 +261,9 @@ Item {
                     color: prevHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰒮"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "skip_previous"
                         font.pixelSize: 22
                         color: Theme.on_surface
                     }
@@ -290,15 +288,14 @@ Item {
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 200 } }
 
-                    Text {
+                    MaterialIcon {
                         id: ppIcon
                         anchors.centerIn: parent
-                        text: BackendDaemon.musicState.playing ? "󰏤" : "󰐊"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: BackendDaemon.musicState.playing ? "pause" : "play_arrow"
                         font.pixelSize: 26
                         color: BackendDaemon.musicState.playing ? Theme.on_primary : Theme.on_primary_container
                         scale: 1.0
-                        onTextChanged: ppBounce.restart()
+                        onIconChanged: ppBounce.restart()
                         SequentialAnimation {
                             id: ppBounce
                             NumberAnimation { target: ppIcon; property: "scale"; to: 0.7; duration: 80; easing.type: Easing.OutCubic }
@@ -324,10 +321,9 @@ Item {
                     color: nextHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰒭"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "skip_next"
                         font.pixelSize: 22
                         color: Theme.on_surface
                     }
@@ -350,10 +346,9 @@ Item {
                     color: lyricsHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰨖"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "lyrics"
                         font.pixelSize: 18
                         color: Theme.on_surface_variant
                     }
@@ -377,12 +372,11 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: 10
 
-                Text {
+                MaterialIcon {
                     id: volIcon
                     anchors.verticalCenter: parent.verticalCenter
-                    text: BackendDaemon.musicState.volume >= 0.5 ? "󰕾"
-                        : (BackendDaemon.musicState.volume > 0 ? "󰖀" : "󰕿")
-                    font.family: "JetBrainsMono Nerd Font"
+                    icon: BackendDaemon.musicState.volume >= 0.5 ? "volume_up"
+                        : (BackendDaemon.musicState.volume > 0 ? "volume_down" : "volume_mute")
                     font.pixelSize: 16
                     color: Theme.on_surface_variant
                 }

@@ -3,6 +3,7 @@ import Quickshell.Wayland
 import Quickshell.Services.UPower
 import QtQuick
 import "../theme"
+import qs.components
 
 Variants {
     id: root
@@ -75,13 +76,12 @@ Variants {
                 }
             }
 
-            Text {
+            MaterialIcon {
                 id: chargeIcon
                 anchors.centerIn: parent
-                font.family: "JetBrainsMono Nerd Font"
                 font.pixelSize: 160
                 color: Theme.on_surface
-                text: ""
+                icon: "bolt"
                 opacity: 0.0
                 scale: 0.5
                 

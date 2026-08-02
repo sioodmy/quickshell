@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import qs.theme
+import qs.components
 
 Rectangle {
     id: root
@@ -83,11 +84,10 @@ Rectangle {
                 }
             }
 
-            Text {
+            MaterialIcon {
                 anchors.centerIn: parent
                 visible: root.isMuted || root.volumeLevel <= 0.0
-                text: "󰖁"
-                font.family: "JetBrainsMono Nerd Font"
+                icon: "volume_off"
                 font.pixelSize: 11
                 color: Theme.on_surface_variant
             }
@@ -160,13 +160,12 @@ Rectangle {
                 Behavior on color { ColorAnimation { duration: 250 } }
             }
 
-            Text {
+            MaterialIcon {
                 visible: batteryIconItem.isCharging
                 anchors.centerIn: batteryBody
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                text: ""
-                font.family: "JetBrainsMono Nerd Font"
+                icon: "bolt"
                 font.pixelSize: 7
                 color: Theme.on_surface
             }

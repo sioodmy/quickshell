@@ -1,6 +1,7 @@
 import QtQuick
 import qs.theme
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -112,15 +113,15 @@ Item {
                     }
                 }
 
-                Text {
+                MaterialIcon {
                     id: ringIcon
                     anchors.centerIn: parent
-                    text: {
+                    icon: {
                         if (ringMouse.containsMouse)
-                            return Pomodoro.isRunning ? "󰏤" : "󰐊";
+                            return Pomodoro.isRunning ? "pause" : "play_arrow";
                         return Pomodoro.modeIcon;
                     }
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 11 }
+                    font.pixelSize: 11
                     color: Pomodoro.isRunning ? root.accentOn : root.accent
                     scale: ringMouse.containsMouse ? 1.12 : 1.0
 

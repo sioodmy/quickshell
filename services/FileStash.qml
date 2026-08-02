@@ -68,20 +68,20 @@ Singleton {
     function mimeGlyph(name) {
         const ext = extensionOf(name);
         if (isImageName(name))
-            return "󰋩";
+            return "image";
         if (["mp4", "mkv", "webm", "mov", "avi", "gif"].indexOf(ext) !== -1)
-            return "󰕧";
+            return "videocam";
         if (["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus"].indexOf(ext) !== -1)
-            return "󰝚";
+            return "music_note";
         if (ext === "pdf")
-            return "󰈦";
+            return "picture_as_pdf";
         if (["zip", "tar", "gz", "xz", "7z", "rar", "bz2"].indexOf(ext) !== -1)
-            return "󰀼";
+            return "folder_zip";
         if (["doc", "docx", "odt", "rtf", "pages"].indexOf(ext) !== -1)
-            return "󱎒";
+            return "description";
         if (["txt", "md", "json", "xml", "yml", "yaml", "toml", "csv", "log"].indexOf(ext) !== -1)
-            return "󰈙";
-        return "󰈔";
+            return "article";
+        return "draft";
     }
 
     function addPath(pathOrUrl) {

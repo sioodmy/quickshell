@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Effects
 import "../theme"
 import qs.services
+import qs.components
 
 /**
  * Vertical application dock functioning as a LeftBar.
@@ -211,17 +212,6 @@ Variants {
                                 }
                             }
 
-                            Text {
-                                anchors.centerIn: parent
-                                text: ""
-                                font {
-                                    family: "JetBrainsMono Nerd Font"
-                                    pixelSize: 14
-                                }
-                                color: "#301a40"
-                                opacity: Math.max(0, 1.0 - LauncherState.openProgress * 2.5)
-                            }
-
                             Rectangle {
                                 anchors.fill: parent
                                 radius: parent.radius
@@ -393,10 +383,10 @@ Variants {
                             anchors.leftMargin: 12
                             spacing: 10
 
-                            Text {
+                            MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: (dockContent.contextIsPinned !== undefined ? dockContent.contextIsPinned : false) ? "󰤃" : "󰤂"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                                icon: (dockContent.contextIsPinned !== undefined ? dockContent.contextIsPinned : false) ? "keep" : "push_pin"
+                                font.pixelSize: 16
                                 color: Theme.on_surface_variant
                             }
                             Text {
@@ -436,10 +426,10 @@ Variants {
                             anchors.leftMargin: 12
                             spacing: 10
 
-                            Text {
+                            MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "󰐕"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                                icon: "add"
+                                font.pixelSize: 16
                                 color: Theme.on_surface_variant
                             }
                             Text {

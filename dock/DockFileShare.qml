@@ -1,6 +1,7 @@
 import QtQuick
 import "../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -29,10 +30,9 @@ Item {
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on border.color { ColorAnimation { duration: 150 } }
 
-        Text {
+        MaterialIcon {
             anchors.centerIn: parent
-            text: hoverArea.hovered ? "󰅖" : "" // share icon or X
-            font.family: "JetBrainsMono Nerd Font"
+            icon: hoverArea.hovered ? "close" : "share"
             font.pixelSize: 14
             color: hoverArea.hovered ? "#11111b" : "#cdd6f4"
             Behavior on color { ColorAnimation { duration: 150 } }

@@ -1,6 +1,7 @@
 import QtQuick
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -48,14 +49,14 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: DoNotDisturb.enabled ? "󰂛" : "󰂚"
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 20 }
+                    icon: DoNotDisturb.enabled ? "notifications_off" : "notifications"
+                    font.pixelSize: 20
                     color: DoNotDisturb.enabled ? accent : Theme.on_surface_variant
 
                     scale: 1.0
-                    onTextChanged: iconPulse.restart()
+                    onIconChanged: iconPulse.restart()
                     SequentialAnimation {
                         id: iconPulse
                         NumberAnimation { target: parent; property: "scale"; to: 1.05; duration: 100; easing.type: Easing.OutCubic }

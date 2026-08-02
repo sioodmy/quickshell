@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import Quickshell.Services.Pipewire
 import QtQuick.Effects
 import "../theme"
+import qs.components
 
 Variants {
     id: root
@@ -142,10 +143,9 @@ Variants {
                             radius: 22
                             color: Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22)
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰓃" // Speaker icon
-                                font.family: "JetBrainsMono Nerd Font"
+                                icon: "volume_up"
                                 font.pixelSize: 24
                                 color: Theme.critical
                             }
@@ -207,9 +207,8 @@ Variants {
                                 anchors.centerIn: parent
                                 spacing: 8
 
-                                Text {
-                                    text: ""
-                                    font.family: "JetBrainsMono Nerd Font"
+                                MaterialIcon {
+                                    icon: "volume_up"
                                     font.pixelSize: 16
                                     color: Theme.on_primary
                                     anchors.verticalCenter: parent.verticalCenter
@@ -242,9 +241,8 @@ Variants {
                                 anchors.centerIn: parent
                                 spacing: 8
 
-                                Text {
-                                    text: ""
-                                    font.family: "JetBrainsMono Nerd Font"
+                                MaterialIcon {
+                                    icon: "volume_off"
                                     font.pixelSize: 16
                                     color: Theme.on_surface_variant
                                     anchors.verticalCenter: parent.verticalCenter

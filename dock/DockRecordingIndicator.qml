@@ -1,6 +1,7 @@
 import QtQuick
 import qs.theme
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -46,10 +47,10 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 120 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: "󰓛"
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 12 }
+                    icon: "stop"
+                    font.pixelSize: 12
                     color: Theme.on_critical
                 }
 

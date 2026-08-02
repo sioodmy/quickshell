@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Effects
 import "../theme"
 import qs.services
+import qs.components
 
 Variants {
     id: root
@@ -103,33 +104,29 @@ Variants {
                         radius: 24
                         color: Theme.primary_container
 
-                        Text {
+                        MaterialIcon {
                             id: brightnessIcon
                             anchors.centerIn: parent
 
                             color: Theme.on_primary_container
-
-                            font {
-                                family: "JetBrainsMono Nerd Font"
-                                pixelSize: 22
-                            }
+                            font.pixelSize: 22
 
                             // Dynamic bounce on icon change
                             scale: 1.0
-                            onTextChanged: bounceAnim.restart()
+                            onIconChanged: bounceAnim.restart()
                             SequentialAnimation {
                                 id: bounceAnim
                                 NumberAnimation { target: brightnessIcon; property: "scale"; to: 1.3; duration: 100; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: brightnessIcon; property: "scale"; to: 1.0; duration: 250; easing.type: Easing.OutBounce }
                             }
 
-                            text: {
+                            icon: {
                                 if (brightnessOsdPopup.brightnessLevel >= 0.7)
-                                    return "󰃠";
+                                    return "light_mode";
                                 if (brightnessOsdPopup.brightnessLevel >= 0.3)
-                                    return "󰃝";
+                                    return "brightness_5";
 
-                                return "󰃞";
+                                return "brightness_6";
                             }
                         }
                     }

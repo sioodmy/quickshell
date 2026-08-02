@@ -349,12 +349,8 @@ async fn get_lyrics(
             return Json(serde_json::json!({"lyrics": ""}));
         }
         
-        let cache_dir = std::env::var("HOME").map(|h| std::path::PathBuf::from(h).join(".cache").join("quickshell").join("lyrics"))
-            .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/quickshell_lyrics"));
-        let filename = format!("{}-{}.lrc", artist.replace(|c: char| !c.is_alphanumeric(), "_"), title.replace(|c: char| !c.is_alphanumeric(), "_"));
-        let cache_file = cache_dir.join(&filename);
-        
-        if let Ok(content) = std::fs::read_to_string(&cache_file) {
+        let client = reqwest::Client::new();
+        if let Ok(content) = crate::lyrics::fetch_lyrics(&client, &artist, &title).await {
             return Json(serde_json::json!({"lyrics": content}));
         }
     }

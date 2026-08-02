@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Effects
 import "../theme"
 import qs.services
+import qs.components
 
 /**
  * Top-right Drag Queen dropzone (Dropzone-style file holding tray).
@@ -239,13 +240,10 @@ Variants {
                             anchors.centerIn: parent
                             spacing: 6
 
-                            Text {
+                            MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "󰆥"
-                                font {
-                                    family: "JetBrainsMono Nerd Font"
-                                    pixelSize: 13
-                                }
+                                icon: "draft"
+                                font.pixelSize: 13
                                 color: stashWindow.prideViolet
                             }
 
@@ -337,13 +335,10 @@ Variants {
                         anchors.centerIn: parent
                         spacing: 4
 
-                        Text {
+                        MaterialIcon {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: dropArea.containsDrag ? "󰛒" : "󰇚"
-                            font {
-                                family: "JetBrainsMono Nerd Font"
-                                pixelSize: 20
-                            }
+                            icon: dropArea.containsDrag ? "downloading" : "download"
+                            font.pixelSize: 20
                             color: dropArea.containsDrag ? stashWindow.prideViolet : Theme.on_surface_variant
                         }
 
@@ -438,14 +433,11 @@ Variants {
                                             }
                                         }
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.centerIn: parent
                                             visible: !chipRoot.isImage || thumb.status !== Image.Ready
-                                            text: chipRoot.glyph
-                                            font {
-                                                family: "JetBrainsMono Nerd Font"
-                                                pixelSize: 22
-                                            }
+                                            icon: chipRoot.glyph
+                                            font.pixelSize: 22
                                             color: Theme.on_surface_variant
                                         }
                                     }
@@ -518,13 +510,10 @@ Variants {
                                 radius: 10
                                 color: removeMouse.containsMouse ? Theme.critical : Theme.surface_container_highest
 
-                                Text {
+                                MaterialIcon {
                                     anchors.centerIn: parent
-                                    text: "󰅖"
-                                    font {
-                                        family: "JetBrainsMono Nerd Font"
-                                        pixelSize: 11
-                                    }
+                                    icon: "close"
+                                    font.pixelSize: 11
                                     color: removeMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
                                 }
 

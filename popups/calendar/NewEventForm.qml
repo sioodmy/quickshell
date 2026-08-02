@@ -4,6 +4,7 @@ import QtQuick.Effects
 import qs.theme
 import Quickshell.Io
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -148,11 +149,11 @@ Item {
                 border.color: useTime ? "transparent" : Theme.outline_variant
                 border.width: 1
                 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: "󰥔"
+                    icon: "schedule"
                     color: useTime ? Theme.on_primary : Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 13 }
+                    font.pixelSize: 16
                 }
                 
                 MouseArea {

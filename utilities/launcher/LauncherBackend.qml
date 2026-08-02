@@ -96,12 +96,18 @@ Item {
         // Wrap the launch in UWSM so systemd tracks the app properly
         finalCommand.push("run-as-service");
 
+        var cmdToRun = [];
         if (desktopEntry.runInTerminal) {
-            finalCommand.push(myTerminal);
-            finalCommand.push("--");
+            cmdToRun.push(myTerminal);
+            cmdToRun.push("--");
         }
-
-        finalCommand = finalCommand.concat(desktopEntry.command);
+        cmdToRun = cmdToRun.concat(desktopEntry.command);
+        
+        var escapedCmd = cmdToRun.map(function(arg) {
+            return "'" + String(arg).replace(/'/g, "'\\''") + "'";
+        }).join(" ");
+        
+        finalCommand.push(escapedCmd);
 
         Quickshell.execDetached({
             command: finalCommand,
@@ -124,12 +130,21 @@ Item {
         var finalCommand = [];
         finalCommand.push("run-as-service");
         
+        var cmdToRun = [];
         if (actionObj.command) {
-            finalCommand = finalCommand.concat(actionObj.command);
+            cmdToRun = cmdToRun.concat(actionObj.command);
+        } else if (actionObj.exec) {
+            cmdToRun = cmdToRun.concat(actionObj.exec);
         } else if (actionObj.execString) {
             // Fallback if Quickshell only provides execString
-            finalCommand = ["bash", "-c", actionObj.execString];
+            cmdToRun = ["bash", "-c", actionObj.execString];
         }
+        
+        var escapedCmd = cmdToRun.map(function(arg) {
+            return "'" + String(arg).replace(/'/g, "'\\''") + "'";
+        }).join(" ");
+        
+        finalCommand.push(escapedCmd);
 
         Quickshell.execDetached({
             command: finalCommand,
@@ -631,14 +646,14 @@ Item {
     }
 
     function mimeIcon(cat) {
-        if (cat === "image") return "󰋩";
-        if (cat === "video") return "󰕧";
-        if (cat === "audio") return "󰝚";
-        if (cat === "pdf") return "󰈦";
-        if (cat === "archive") return "󰀼";
-        if (cat === "document") return "󱎒";
-        if (cat === "text") return "󰈙";
-        return "󰈔";
+        if (cat === "image") return "image";
+        if (cat === "video") return "videocam";
+        if (cat === "audio") return "music_note";
+        if (cat === "pdf") return "picture_as_pdf";
+        if (cat === "archive") return "folder_zip";
+        if (cat === "document") return "description";
+        if (cat === "text") return "article";
+        return "draft";
     }
 
     IpcHandler {

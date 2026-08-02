@@ -1,5 +1,6 @@
 import QtQuick
 import "../../theme"
+import qs.components
 
 Item {
     id: root
@@ -32,10 +33,10 @@ Item {
                 width: parent.width
                 spacing: 10
 
-                Text {
+                MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "󰹑"
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 20 }
+                    icon: "crop_free"
+                    font.pixelSize: 20
                     color: Theme.primary
                 }
 
@@ -62,10 +63,10 @@ Item {
 
                 Repeater {
                     model: [
-                        { id: "fullscreen", icon: "󰊓", label: "Full" },
-                        { id: "area", icon: "󰆞", label: "Area" },
-                        { id: "window", icon: "󰖯", label: "Window" },
-                        { id: "menu", icon: "󰍜", label: "Menu" }
+                        { id: "fullscreen", icon: "fullscreen", label: "Full" },
+                        { id: "area", icon: "crop", label: "Area" },
+                        { id: "window", icon: "web_asset", label: "Window" },
+                        { id: "menu", icon: "menu", label: "Menu" }
                     ]
 
                     delegate: Rectangle {
@@ -84,10 +85,10 @@ Item {
                             anchors.centerIn: parent
                             spacing: 4
 
-                            Text {
+                            MaterialIcon {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: modelData.icon
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 18 }
+                                icon: modelData.icon
+                                font.pixelSize: 18
                                 color: btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface
                             }
                             Text {

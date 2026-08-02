@@ -1,6 +1,7 @@
 import QtQuick
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -42,10 +43,10 @@ Item {
                         ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22)
                         : Theme.surface_variant
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: ScreenRecord.recording ? "󰻃" : "󰕧"
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                        icon: ScreenRecord.recording ? "videocam" : "videocam_off"
+                        font.pixelSize: 16
                         color: ScreenRecord.recording ? Theme.critical : Theme.on_surface_variant
                     }
                 }
@@ -90,10 +91,10 @@ Item {
                         anchors.centerIn: parent
                         spacing: 6
 
-                        Text {
+                        MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: ScreenRecord.recordAudio ? "󰄲" : "󰄱"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                            icon: ScreenRecord.recordAudio ? "check_box" : "check_box_outline_blank"
+                            font.pixelSize: 14
                             color: ScreenRecord.recordAudio ? Theme.primary : Theme.on_surface_variant
                         }
                         Text {
@@ -118,10 +119,10 @@ Item {
 
                 Repeater {
                     model: ScreenRecord.recording
-                        ? [{ id: "stop", icon: "󰓛", label: "Stop" }]
+                        ? [{ id: "stop", icon: "stop", label: "Stop" }]
                         : [
-                            { id: "fullscreen", icon: "󰊓", label: "Full screen" },
-                            { id: "area", icon: "󰆞", label: "Area" }
+                            { id: "fullscreen", icon: "fullscreen", label: "Full screen" },
+                            { id: "area", icon: "crop", label: "Area" }
                         ]
 
                     delegate: Rectangle {
@@ -147,10 +148,10 @@ Item {
                             anchors.centerIn: parent
                             spacing: 10
 
-                            Text {
+                            MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.icon
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 18 }
+                                icon: modelData.icon
+                                font.pixelSize: 18
                                 color: {
                                     if (modelData.id === "stop")
                                         return stopMouse.containsMouse ? Theme.on_critical : Theme.critical;

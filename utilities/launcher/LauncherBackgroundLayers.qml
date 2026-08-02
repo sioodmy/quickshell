@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Widgets
 import "../../theme"
 import "../../popups/weather"
+import qs.components
 
 Item {
     id: bgLayersRoot
@@ -239,13 +240,13 @@ Item {
             }
         }
 
-        Text {
+        MaterialIcon {
             anchors.right: parent.right
             anchors.rightMargin: 40
             anchors.verticalCenter: parent.verticalCenter
             anchors.verticalCenterOffset: -10
-            text: "󰖔"
-            font { family: "JetBrainsMono Nerd Font"; pixelSize: 64 }
+            icon: "bedtime"
+            font.pixelSize: 64
             color: Qt.rgba(1, 0.72, 0.3, 0.35)
         }
     }

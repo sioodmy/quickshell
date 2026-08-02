@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.services
 import qs.theme
+import qs.components
 
 PanelWindow {
     id: root
@@ -64,12 +65,11 @@ PanelWindow {
                         height: Math.max(iconText.implicitHeight, labelText.implicitHeight)
                         anchors.centerIn: parent
 
-                        Text {
+                        MaterialIcon {
                             id: iconText
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            text: parent.parent.icon
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: parent.parent.icon
                             font.pixelSize: 22
                             color: m.containsMouse ? Theme.on_primary_container : Theme.on_surface
                         }
@@ -96,17 +96,17 @@ PanelWindow {
                 }
 
                 MenuBtn {
-                    icon: "󰊓"
+                    icon: "fullscreen"
                     label: "Fullscreen"
                     onClicked: Screenshot.finishFullscreen()
                 }
                 MenuBtn {
-                    icon: "󰆞"
+                    icon: "crop"
                     label: "Area"
                     onClicked: Screenshot.finishArea()
                 }
                 MenuBtn {
-                    icon: "󰖯"
+                    icon: "window"
                     label: "Window"
                     onClicked: Screenshot.finishWindow()
                 }
@@ -127,10 +127,9 @@ PanelWindow {
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰅖"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "close"
                         font.pixelSize: 24
                         color: Theme.on_surface_variant
                     }
@@ -177,11 +176,10 @@ PanelWindow {
                         anchors.centerIn: parent
                         spacing: 10
 
-                        Text {
+                        MaterialIcon {
                             id: recIcon
                             anchors.verticalCenter: parent.verticalCenter
-                            text: parent.parent.icon
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: parent.parent.icon
                             font.pixelSize: 18
                             color: {
                                 if (parent.parent.danger)
@@ -215,19 +213,19 @@ PanelWindow {
 
                 RecBtn {
                     visible: !ScreenRecord.recording
-                    icon: "󰕧"
+                    icon: "videocam"
                     label: "Record Full"
                     onClicked: ScreenRecord.startFullscreen()
                 }
                 RecBtn {
                     visible: !ScreenRecord.recording
-                    icon: "󰆞"
+                    icon: "crop"
                     label: "Record Area"
                     onClicked: ScreenRecord.startArea()
                 }
                 RecBtn {
                     visible: ScreenRecord.recording
-                    icon: "󰓛"
+                    icon: "stop"
                     label: "Stop · " + ScreenRecord.elapsedText
                     danger: true
                     onClicked: ScreenRecord.stop()
@@ -251,10 +249,9 @@ PanelWindow {
                         anchors.centerIn: parent
                         spacing: 8
 
-                        Text {
+                        MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: ScreenRecord.recordAudio ? "󰄲" : "󰄱"
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: ScreenRecord.recordAudio ? "check_box" : "check_box_outline_blank"
                             font.pixelSize: 16
                             color: ScreenRecord.recordAudio ? Theme.primary : Theme.on_surface_variant
                         }

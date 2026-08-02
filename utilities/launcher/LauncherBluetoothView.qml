@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
+import qs.components
 
 Item {
     id: root
@@ -8,10 +9,28 @@ Item {
     property string filterQuery: ""
     property real revealProgress: 1.0
     property int selectedIndex: 0
-    property int connectingIndex: -1
+    property string selectedDeviceAddress: ""
     property var connectingDevice: null
     property string connectingDeviceAddress: ""
     property int connectionWatchStartMs: 0
+
+    onFilteredDevicesChanged: {
+        if (selectedDeviceAddress !== "") {
+            for (var i = 0; i < filteredDevices.length; i++) {
+                if (filteredDevices[i].address === selectedDeviceAddress) {
+                    if (selectedIndex !== i) selectedIndex = i;
+                    return;
+                }
+            }
+        }
+        clampSelectedIndex();
+    }
+
+    onSelectedIndexChanged: {
+        if (selectedDevice) {
+            selectedDeviceAddress = selectedDevice.address || "";
+        }
+    }
 
     signal refocusSearchRequested()
     signal connectionSucceeded(string deviceLabel)
@@ -89,22 +108,24 @@ Item {
         selectedIndex = selectedIndex <= 0 ? filteredDevices.length - 1 : selectedIndex - 1;
     }
 
-    function activateSelected() {
-        if (!selectedDevice) return false;
-        if (selectedDevice.connected || selectedDevice.pairing) return false;
-        connectingIndex = selectedIndex;
-        connectingDevice = selectedDevice;
-        connectingDeviceAddress = selectedDevice.address || "";
+    function activateDevice(dev) {
+        if (!dev) return false;
+        if (dev.connected || dev.pairing) return false;
+        connectingDevice = dev;
+        connectingDeviceAddress = dev.address || "";
         connectionWatchStartMs = Date.now();
         connectionWatchTimer.restart();
-        if (!selectedDevice.paired)
-            selectedDevice.pair();
-        selectedDevice.connect();
+        if (!dev.paired)
+            dev.pair();
+        dev.connect();
         return true;
     }
 
+    function activateSelected() {
+        return activateDevice(selectedDevice);
+    }
+
     function resetConnecting() {
-        connectingIndex = -1;
         connectingDevice = null;
         connectingDeviceAddress = "";
         connectionWatchStartMs = 0;
@@ -114,7 +135,6 @@ Item {
     function activateTopMatch() { return activateSelected(); }
 
     onFilterQueryChanged: selectedIndex = 0
-    onFilteredDevicesChanged: clampSelectedIndex()
 
     Component.onCompleted: {
         if (adapter && adapter.enabled)
@@ -150,7 +170,6 @@ Item {
             if (currentDevice && currentDevice.connected) {
                 var label = currentDevice.name || currentDevice.address || "Bluetooth device";
                 // Stop UI spinner; launcher will reset state as part of closeMenu().
-                connectingIndex = -1;
                 connectingDevice = null;
                 connectingDeviceAddress = "";
                 connectionWatchStartMs = 0;
@@ -161,8 +180,8 @@ Item {
 
             // Avoid leaving the launcher stuck in "Connecting…" forever.
             if (connectionWatchStartMs > 0 && (Date.now() - connectionWatchStartMs) > 12000) {
-                connectingIndex = -1;
                 connectingDevice = null;
+                connectingDeviceAddress = "";
                 connectionWatchStartMs = 0;
                 stop();
             }
@@ -170,19 +189,19 @@ Item {
     }
 
     function btDeviceIcon(device) {
-        if (!device) return "󰂯";
+        if (!device) return "bluetooth";
         var name = (device.name || "").toLowerCase();
         if (name.indexOf("headphone") !== -1 || name.indexOf("airpod") !== -1 || name.indexOf("buds") !== -1)
-            return "󰋋";
+            return "headphones";
         if (name.indexOf("keyboard") !== -1 || name.indexOf("keeb") !== -1)
-            return "󰌌";
+            return "keyboard";
         if (name.indexOf("mouse") !== -1 || name.indexOf("trackpad") !== -1)
-            return "󰍽";
+            return "mouse";
         if (name.indexOf("controller") !== -1 || name.indexOf("gamepad") !== -1 || name.indexOf("joystick") !== -1)
-            return "󰊗";
+            return "sports_esports";
         if (name.indexOf("phone") !== -1 || name.indexOf("pixel") !== -1 || name.indexOf("iphone") !== -1)
-            return "󰏲";
-        return "󰂯";
+            return "smartphone";
+        return "bluetooth";
     }
 
     // ─── Status Header ───
@@ -219,10 +238,10 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 200 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: (root.adapter && root.adapter.enabled) ? "󰂯" : "󰂲"
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 20 }
+                    icon: (root.adapter && root.adapter.enabled) ? "bluetooth" : "bluetooth_disabled"
+                    font.pixelSize: 20
                     color: (root.adapter && root.adapter.enabled) ? Theme.primary : Theme.on_surface_variant
                 }
             }
@@ -318,7 +337,7 @@ Item {
             required property int index
 
             property bool isSelected: index === root.selectedIndex
-            property bool isConnecting: index === root.connectingIndex
+            property bool isConnecting: root.connectingDeviceAddress !== "" && modelData.address === root.connectingDeviceAddress
 
             width: ListView.view.width
             height: 56
@@ -392,10 +411,10 @@ Item {
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: root.btDeviceIcon(devDelegate.modelData)
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                        icon: root.btDeviceIcon(devDelegate.modelData)
+                        font.pixelSize: 16
                         color: devDelegate.isConnecting || devDelegate.modelData.connected
                             ? Theme.primary : Theme.on_surface_variant
 
@@ -467,10 +486,8 @@ Item {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.connectingIndex = devDelegate.index;
-                                if (!devDelegate.modelData.paired)
-                                    devDelegate.modelData.pair();
-                                devDelegate.modelData.connect();
+                                root.selectedIndex = devDelegate.index;
+                                root.activateDevice(devDelegate.modelData);
                             }
                         }
                     }
@@ -570,10 +587,10 @@ Item {
             anchors.centerIn: parent
             spacing: 12
 
-            Text {
+            MaterialIcon {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "󰂲"
-                font { family: "JetBrainsMono Nerd Font"; pixelSize: 48 }
+                icon: "bluetooth_disabled"
+                font.pixelSize: 48
                 color: Theme.on_surface_variant
                 opacity: 0.4
             }

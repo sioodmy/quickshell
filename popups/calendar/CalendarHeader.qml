@@ -1,5 +1,6 @@
 import QtQuick
 import qs.theme
+import qs.components
 
 Item {
     id: root
@@ -126,11 +127,11 @@ Item {
                 }
             }
 
-            Text {
+            MaterialIcon {
                 anchors.centerIn: parent
-                text: "❮"
+                icon: "chevron_left"
                 color: Theme.on_surface
-                font.pointSize: 10
+                font.pixelSize: 14
             }
             MouseArea {
                 id: prevMouse
@@ -161,11 +162,11 @@ Item {
                 }
             }
 
-            Text {
+            MaterialIcon {
                 anchors.centerIn: parent
-                text: "❯"
+                icon: "chevron_right"
                 color: Theme.on_surface
-                font.pointSize: 10
+                font.pixelSize: 14
             }
             MouseArea {
                 id: nextMouse

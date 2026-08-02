@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import qs.theme
+import qs.components
 
 Item {
     id: root
@@ -111,11 +112,11 @@ Item {
                     color: backMouse.containsMouse ? Theme.surface_container_high : "transparent"
                     Behavior on color { ColorAnimation { duration: 150 } }
                     
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰁍" // mdi-arrow-left
+                        icon: "arrow_back"
                         color: Theme.on_surface
-                        font { family: "JetBrainsMono Nerd Font"; pointSize: 16 }
+                        font.pixelSize: 20
                     }
                     
                     MouseArea {
@@ -212,7 +213,7 @@ Item {
                             Row {
                                 spacing: 10
                                 visible: !!root.entryData.state
-                                Text { text: "󰡖"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
+                                MaterialIcon { icon: "label"; color: Theme.on_surface_variant; font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
                                 Rectangle {
                                     width: stateText.implicitWidth + 16
                                     height: 24
@@ -243,7 +244,7 @@ Item {
                             Row {
                                 visible: !!root.entryData.scheduled
                                 spacing: 10
-                                Text { text: "󰸗"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
+                                MaterialIcon { icon: "calendar_today"; color: Theme.on_surface_variant; font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
                                 Text { 
                                     text: (root.entryData.scheduled || "") + (root.entryData.scheduled_time ? " at " + root.entryData.scheduled_time : "")
                                     color: Theme.on_surface_variant
@@ -256,7 +257,7 @@ Item {
                             Row {
                                 visible: !!root.entryData.deadline
                                 spacing: 10
-                                Text { text: "󰃰"; color: Theme.critical; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
+                                MaterialIcon { icon: "schedule"; color: Theme.critical; font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
                                 Text { 
                                     text: (root.entryData.deadline || "") + (root.entryData.deadline_time ? " at " + root.entryData.deadline_time : "")
                                     color: Theme.critical
@@ -269,7 +270,7 @@ Item {
                             Row {
                                 visible: !!root.entryData.file
                                 spacing: 10
-                                Text { text: "󰈔"; color: Theme.on_surface_variant; font { family: "JetBrainsMono Nerd Font"; pointSize: 16 } anchors.verticalCenter: parent.verticalCenter }
+                                MaterialIcon { icon: "description"; color: Theme.on_surface_variant; font.pixelSize: 20; anchors.verticalCenter: parent.verticalCenter }
                                 Text {
                                     text: root.entryData.file || ""
                                     color: Theme.on_surface_variant

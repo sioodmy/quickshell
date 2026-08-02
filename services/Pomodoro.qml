@@ -53,10 +53,10 @@ Singleton {
 
     readonly property string modeIcon: {
         if (mode === 1)
-            return "󰅶";
+            return "coffee";
         if (mode === 2)
-            return "󰒲";
-        return "󱎫";
+            return "bedtime";
+        return "timer";
     }
 
     readonly property bool shouldShow: isRunning

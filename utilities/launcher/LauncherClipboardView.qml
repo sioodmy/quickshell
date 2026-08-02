@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.services
 import "../../theme"
+import qs.components
 
 Item {
     id: root
@@ -190,10 +191,10 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
 
-            Text {
+            MaterialIcon {
                 anchors.centerIn: parent
-                text: "󰅍"
-                font { family: "JetBrainsMono Nerd Font"; pixelSize: 18 }
+                icon: "content_paste"
+                font.pixelSize: 18
                 color: Theme.primary
             }
         }
@@ -244,10 +245,10 @@ Item {
                 anchors.centerIn: parent
                 spacing: 6
 
-                Text {
+                MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "󰩹"
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                    icon: "delete_sweep"
+                    font.pixelSize: 14
                     color: clearMouse.containsMouse ? Theme.critical : Theme.on_surface_variant
                 }
                 Text {
@@ -348,13 +349,13 @@ Item {
                     }
 
                     // Placeholder while decoding
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
                         visible: previewImage.status !== Image.Ready
-                        text: "󰋩"
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 40 }
+                        icon: "image"
+                        font.pixelSize: 40
                         color: Theme.on_surface_variant
-                        opacity: 0.4
+                        opacity: 0.5
                     }
                 }
 
@@ -397,10 +398,10 @@ Item {
                                 ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18)
                                 : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰩹"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                icon: "delete"
+                                font.pixelSize: 14
                                 color: imgDeleteMouse.containsMouse ? Theme.critical : Theme.on_secondary_container
                             }
                             MouseArea {
@@ -420,10 +421,10 @@ Item {
                                 id: imgCopyRow
                                 anchors.centerIn: parent
                                 spacing: 5
-                                Text {
+                                MaterialIcon {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: "󰆏"
-                                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                    icon: "content_copy"
+                                    font.pixelSize: 13
                                     color: imgCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
                                 }
                                 Text {
@@ -472,10 +473,10 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰊄"
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                        icon: "notes"
+                        font.pixelSize: 18
                         color: Theme.primary
                     }
                 }
@@ -509,10 +510,10 @@ Item {
                             ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18)
                             : "transparent"
                         Behavior on color { ColorAnimation { duration: 100 } }
-                        Text {
+                        MaterialIcon {
                             anchors.centerIn: parent
-                            text: "󰩹"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                            icon: "delete"
+                            font.pixelSize: 14
                             color: txtDeleteMouse.containsMouse ? Theme.critical : Theme.on_secondary_container
                         }
                         MouseArea {
@@ -532,10 +533,10 @@ Item {
                             id: txtCopyRow
                             anchors.centerIn: parent
                             spacing: 5
-                            Text {
+                            MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "󰆏"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                icon: "content_copy"
+                                font.pixelSize: 13
                                 color: txtCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
                             }
                             Text {
@@ -574,10 +575,10 @@ Item {
         spacing: 12
         visible: root.filteredEntries.length === 0
 
-        Text {
+        MaterialIcon {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: root.loading ? "󰔟" : "󰅍"
-            font { family: "JetBrainsMono Nerd Font"; pixelSize: 44 }
+            icon: root.loading ? "schedule" : "content_paste_off"
+            font.pixelSize: 44
             color: Theme.on_surface_variant
             opacity: 0.4
         }

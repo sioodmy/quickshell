@@ -3,6 +3,7 @@ import Quickshell.Wayland
 import QtQuick
 import "../theme"
 import qs.services
+import qs.components
 
 /**
  * Minimal single-file share notch:
@@ -129,10 +130,10 @@ Variants {
                         anchors.centerIn: parent
                         spacing: 6
 
-                        Text {
+                        MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "󰖩"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                            icon: "share"
+                            font.pixelSize: 13
                             color: Theme.primary
                         }
                         Text {
@@ -155,11 +156,11 @@ Variants {
 
                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰅖"
+                        icon: "close"
                         color: cancelMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                        font.pixelSize: 13
                     }
 
                     MouseArea {

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell.Networking
 import "../../theme"
+import qs.components
 
 Item {
     id: root
@@ -173,10 +174,10 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 200 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: !Networking.wifiEnabled ? "󰤭" : (root.activeNetwork ? "󰤨" : "󰤯")
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 20 }
+                    icon: !Networking.wifiEnabled ? "wifi_off" : (root.activeNetwork ? "wifi" : "wifi_find")
+                    font.pixelSize: 20
                     color: Networking.wifiEnabled ? Theme.primary : Theme.on_surface_variant
                 }
             }
@@ -359,20 +360,19 @@ Item {
                         onClicked: root.selectedIndex = netDelegate.index
                     }
 
-                    Text {
-                        id: signalIcon
+                    MaterialIcon {
                         anchors.left: parent.left
                         anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            if (netDelegate.isConnecting) return "󰤭";
-                            const s = netDelegate.modelData.signalStrength;
-                            if (s >= 0.75) return "󰤨";
-                            if (s >= 0.5) return "󰤥";
-                            if (s >= 0.25) return "󰤢";
-                            return "󰤟";
+                        icon: {
+                            if (!netDelegate.modelData.enabled) return "wifi_off";
+                            var s = netDelegate.modelData.signalStrength || 0;
+                            if (s >= 0.75) return "wifi";
+                            if (s >= 0.5) return "wifi_2_bar";
+                            if (s >= 0.25) return "wifi_1_bar";
+                            return "wifi_1_bar";
                         }
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                        font.pixelSize: 16
                         color: netDelegate.isConnecting || netDelegate.modelData.connected
                             ? Theme.primary : Theme.on_surface_variant
 
@@ -608,10 +608,10 @@ Item {
             anchors.centerIn: parent
             spacing: 12
 
-            Text {
+            MaterialIcon {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "󰤭"
-                font { family: "JetBrainsMono Nerd Font"; pixelSize: 48 }
+                icon: "wifi_off"
+                font.pixelSize: 48
                 color: Theme.on_surface_variant
                 opacity: 0.4
             }

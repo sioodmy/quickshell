@@ -3,6 +3,7 @@ import QtQuick.Effects
 import Quickshell.Widgets
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: delegateRoot
@@ -153,6 +154,18 @@ Item {
             }
         }
 
+        MouseArea {
+            id: itemMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: {
+                launcherWindow.pinSelectionToBest = false;
+                delegateRoot.ListView.view.currentIndex = index;
+            }
+            onClicked: mouse => delegateRoot.activate(mouse.modifiers & Qt.ShiftModifier)
+        }
+
         Rectangle {
             id: activeIndicator
             width: 4
@@ -246,10 +259,9 @@ Item {
                         }
                     }
                     
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰝚"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "music_note"
                         font.pixelSize: 18
                         color: Theme.on_surface_variant
                         visible: !parent.children[0].status || parent.children[0].status === Image.Error
@@ -269,14 +281,11 @@ Item {
                 }
 
                 // Action icon — nerd font glyph or icon theme icon
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
                     visible: delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__"
-                    text: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
-                    font {
-                        family: "JetBrainsMono Nerd Font"
-                        pixelSize: 26
-                    }
+                    icon: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
+                    font.pixelSize: 26
                     color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                 }
 
@@ -300,14 +309,11 @@ Item {
                 }
 
                 // System command icon (nerd font glyph)
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
                     visible: delegateRoot.itemType === "system_command"
-                    text: delegateRoot.itemType === "system_command" ? modelData.icon : ""
-                    font {
-                        family: "JetBrainsMono Nerd Font"
-                        pixelSize: 26
-                    }
+                    icon: delegateRoot.itemType === "system_command" ? modelData.icon : ""
+                    font.pixelSize: 26
                     color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                 }
 
@@ -318,13 +324,10 @@ Item {
                     visible: delegateRoot.itemType === "file"
                     color: Theme.surface_container_highest
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: delegateRoot.itemType === "file" && modelData.file ? ctrl.mimeIcon(modelData.file.mime_cat) : ""
-                        font {
-                            family: "JetBrainsMono Nerd Font"
-                            pixelSize: 22
-                        }
+                        icon: delegateRoot.itemType === "file" && modelData.file ? ctrl.mimeIcon(modelData.file.mime_cat) : ""
+                        font.pixelSize: 22
                         color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                     }
 
@@ -391,10 +394,9 @@ Item {
                             visible: status === Image.Ready
                         }
 
-                        Text {
+                        MaterialIcon {
                             anchors.centerIn: parent
-                            text: ""
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: "bookmark"
                             font.pixelSize: 14
                             color: Theme.on_surface_variant
                             visible: faviconImage.status !== Image.Ready
@@ -523,27 +525,27 @@ Item {
                         }
                     }
 
-                    Text {
+                    MaterialIcon {
                         anchors.verticalCenter: parent.verticalCenter
                         topPadding: 2
                         verticalAlignment: Text.AlignVCenter
-                        text: {
+                        icon: {
                             if (delegateRoot.itemType === "focus")
-                                return modelData.actionId === "bring" ? "󰀹" : "󰇧";
+                                return modelData.actionId === "bring" ? "desktop_windows" : "arrow_forward";
                             if (delegateRoot.itemType === "emoji")
-                                return "󰆏";
+                                return "content_copy";
                             if (delegateRoot.itemType === "action") {
                                 if (modelData.actionId === "dictionary")
-                                    return "󰆏";
-                                return "󰇧";
+                                    return "content_copy";
+                                return "arrow_forward";
                             }
                             if (delegateRoot.itemType === "system_command") {
-                                return "󰐍";
+                                return "play_arrow";
                             }
                             if (delegateRoot.itemType === "bookmark") {
-                                return "";
+                                return "bookmark";
                             }
-                            return "󰌑";
+                            return "keyboard_return";
                         }
                         color: {
                             if (delegateRoot.itemType === "emoji")
@@ -558,10 +560,7 @@ Item {
                                 return Theme.on_secondary;
                             return Theme.on_primary;
                         }
-                        font {
-                            family: "JetBrainsMono Nerd Font"
-                            pixelSize: 16
-                        }
+                        font.pixelSize: 16
                     }
                 }
             }
@@ -826,18 +825,6 @@ Item {
                     }
                 }
             }
-        }
-
-        MouseArea {
-            id: itemMouseArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onEntered: {
-                launcherWindow.pinSelectionToBest = false;
-                delegateRoot.ListView.view.currentIndex = index;
-            }
-            onClicked: mouse => delegateRoot.activate(mouse.modifiers & Qt.ShiftModifier)
         }
     }
 }

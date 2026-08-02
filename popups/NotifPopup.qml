@@ -7,6 +7,7 @@ import QtQuick.Shapes
 import qs.services
 import Quickshell.Services.UPower
 import "../theme"
+import qs.components
 
 Variants {
     id: root
@@ -611,15 +612,20 @@ Variants {
                                         color: (notifType === "recording" || notifType === "low_battery") ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22) : Theme.primary_container
                                         visible: notifType === "screenshot" || notifType === "recording" || notifType === "low_battery" || !cardDelegate.applicationIcon
 
+                                        MaterialIcon {
+                                            anchors.centerIn: parent
+                                            visible: notifType === "screenshot" || notifType === "recording" || notifType === "low_battery"
+                                            icon: notifType === "screenshot" ? "screenshot_monitor" : (notifType === "recording" ? "videocam" : "battery_alert")
+                                            color: (notifType === "recording" || notifType === "low_battery") ? Theme.critical : Theme.on_primary_container
+                                            font.pixelSize: 13
+                                        }
+
                                         Text {
                                             anchors.centerIn: parent
-                                            text: notifType === "screenshot" ? "󰹑" : (notifType === "recording" ? "󰕧" : (notifType === "low_battery" ? "󰂃" : "!"))
-                                            color: (notifType === "recording" || notifType === "low_battery") ? Theme.critical : Theme.on_primary_container
-                                            font {
-                                                family: (notifType === "screenshot" || notifType === "recording" || notifType === "low_battery") ? "JetBrainsMono Nerd Font" : "Google Sans Medium"
-                                                pixelSize: 13
-                                                bold: notifType !== "screenshot" && notifType !== "recording" && notifType !== "low_battery"
-                                            }
+                                            visible: notifType !== "screenshot" && notifType !== "recording" && notifType !== "low_battery" && !cardDelegate.applicationIcon
+                                            text: "!"
+                                            color: Theme.on_primary_container
+                                            font { family: "Google Sans Medium"; pixelSize: 13; bold: true }
                                         }
                                     }
 
@@ -954,10 +960,10 @@ Variants {
                                         anchors.centerIn: parent
                                         spacing: 6
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: pill.done ? "󰄬" : (pill.busy ? "󰦖" : pill.icon)
-                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                            icon: pill.done ? "check" : (pill.busy ? "sync" : pill.icon)
+                                            font.pixelSize: 13
                                             color: pill.done ? Theme.primary : Theme.on_surface_variant
 
                                             RotationAnimation on rotation {
@@ -995,7 +1001,7 @@ Variants {
                                 }
 
                                 ActionPill {
-                                    icon: "󰆏"
+                                    icon: "content_copy"
                                     label: "Copy"
                                     done: Screenshot.wasCopied
                                     onTriggered: {
@@ -1005,7 +1011,7 @@ Variants {
                                 }
 
                                 ActionPill {
-                                    icon: "󰈝"
+                                    icon: "save"
                                     label: "Save"
                                     done: Screenshot.wasSaved
                                     onTriggered: {
@@ -1015,13 +1021,13 @@ Variants {
                                 }
 
                                 ActionPill {
-                                    icon: "󰏫"
+                                    icon: "edit"
                                     label: "Draw"
                                     onTriggered: Screenshot.editorActive = true
                                 }
 
                                 ActionPill {
-                                    icon: "󰊄"
+                                    icon: "text_fields"
                                     label: "OCR Text"
                                     done: Screenshot.wasOcred
                                     busy: Screenshot.ocring
@@ -1085,10 +1091,10 @@ Variants {
                                     spacing: 6
                                     visible: recPreviewImg.status !== Image.Ready
 
-                                    Text {
+                                    MaterialIcon {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "󰕧"
-                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 28 }
+                                        icon: "videocam"
+                                        font.pixelSize: 28
                                         color: Theme.on_surface_variant
                                     }
                                     Text {
@@ -1158,10 +1164,10 @@ Variants {
                                         anchors.centerIn: parent
                                         spacing: 6
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: recPill.done ? "󰄬" : recPill.icon
-                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 13 }
+                                            icon: recPill.done ? "check" : recPill.icon
+                                            font.pixelSize: 13
                                             color: {
                                                 if (recPill.done) return Theme.primary;
                                                 if (recPill.danger) return Theme.critical;
@@ -1197,7 +1203,7 @@ Variants {
                                 }
 
                                 RecActionPill {
-                                    icon: "󰈈"
+                                    icon: "open_in_new"
                                     label: "Open"
                                     done: ScreenRecord.wasOpened
                                     onTriggered: {
@@ -1207,7 +1213,7 @@ Variants {
                                 }
 
                                 RecActionPill {
-                                    icon: "󰆴"
+                                    icon: "delete"
                                     label: "Remove"
                                     danger: true
                                     done: ScreenRecord.wasRemoved

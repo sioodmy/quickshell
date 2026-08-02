@@ -13,6 +13,7 @@ use std::thread;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+use rusqlite::Connection;
 
 // ── Player commands ──────────────────────────────────────────────────
 
@@ -93,11 +94,13 @@ impl Player {
         let state_clone = state.clone();
 
         thread::spawn(move || {
-            let device_handle = match rodio::DeviceSinkBuilder::open_default_sink() {
-                Ok(h) => h,
-                Err(e) => {
-                    crate::debug_log!("rodio: failed to open audio output: {}", e);
-                    return;
+            let device_handle = loop {
+                match rodio::DeviceSinkBuilder::open_default_sink() {
+                    Ok(h) => break h,
+                    Err(e) => {
+                        crate::debug_log!("rodio: failed to open audio output: {}, retrying...", e);
+                        thread::sleep(Duration::from_secs(2));
+                    }
                 }
             };
             let player = rodio::Player::connect_new(&device_handle.mixer());
@@ -433,19 +436,34 @@ impl MprisPlayer {
 
 /// Spawn the MPRIS D-Bus server on the session bus.
 pub async fn start_mpris(state: SharedState) -> anyhow::Result<()> {
-    let _conn = zbus::connection::Builder::session()?
-        .name("org.mpris.MediaPlayer2.quickshell")?
-        .serve_at("/org/mpris/MediaPlayer2", MprisRoot)?
-        .serve_at("/org/mpris/MediaPlayer2", MprisPlayer::new(state))?
-        .build()
-        .await?;
+    loop {
+        let res = zbus::connection::Builder::session()
+            .unwrap()
+            .name("org.mpris.MediaPlayer2.quickshell")
+            .unwrap()
+            .serve_at("/org/mpris/MediaPlayer2", MprisRoot)
+            .unwrap()
+            .serve_at("/org/mpris/MediaPlayer2", MprisPlayer::new(state.clone()))
+            .unwrap()
+            .build()
+            .await;
 
-    // Keep connection alive
-    std::future::pending::<()>().await;
+        match res {
+            Ok(_conn) => {
+                // Keep connection alive
+                std::future::pending::<()>().await;
+                break;
+            }
+            Err(e) => {
+                crate::debug_log!("MPRIS init error: {}, retrying in 2s...", e);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
     Ok(())
 }
 
-// ── Library scanning (unchanged) ─────────────────────────────────────
+// ── Library scanning ──────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Track {
@@ -453,6 +471,7 @@ pub struct Track {
     pub path: String,
     pub track_number: u32,
     pub duration_secs: u64,
+    pub lyrics_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -468,114 +487,80 @@ pub struct Library {
     pub albums: Vec<Album>,
 }
 
-pub fn scan_library() -> anyhow::Result<Library> {
+pub fn get_db_connection() -> rusqlite::Result<Connection> {
     let home = env::var("HOME").unwrap_or_else(|_| "/home/sioodmy".to_string());
-    let cache_dir = Path::new(&home).join(".cache").join("quickshell");
-    let covers_dir = cache_dir.join("covers");
-    let cache_file = cache_dir.join("music_library.json");
+    let db_path = Path::new(&home).join("Music").join("ceca.db");
+    
+    let conn = Connection::open(db_path)?;
+    Ok(conn)
+}
 
-    if cache_file.exists() {
-        if let Ok(content) = fs::read_to_string(&cache_file) {
-            if let Ok(library) = serde_json::from_str::<Library>(&content) {
-                return Ok(library);
-            }
-        }
-    }
-
+pub fn scan_library() -> anyhow::Result<Library> {
+    let mut conn = get_db_connection()?;
+    let home = env::var("HOME").unwrap_or_else(|_| "/home/sioodmy".to_string());
     let music_dir = Path::new(&home).join("Music");
-    fs::create_dir_all(&covers_dir)?;
 
-    let mut albums_map: HashMap<String, Album> = HashMap::new();
-
-    for entry in WalkDir::new(music_dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if !path.is_file() { continue; }
-
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        if !["flac", "mp3", "m4a", "ogg", "wav", "opus"].contains(&ext.as_str()) {
-            continue;
-        }
-
-        let tagged_file = match Probe::open(path).and_then(|p| p.read()) {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-
-        let tag = match tagged_file.primary_tag().or_else(|| tagged_file.first_tag()) {
-            Some(t) => t,
-            None => continue,
-        };
-
-        let title = tag.get_string(ItemKey::TrackTitle).unwrap_or("Unknown Title").to_string();
-        let artist = tag.get_string(ItemKey::AlbumArtist).or(tag.get_string(ItemKey::TrackArtist)).unwrap_or("Unknown Artist").to_string();
-        let album_title = tag.get_string(ItemKey::AlbumTitle).unwrap_or("Unknown Album").to_string();
-        let track_number = tag.get(ItemKey::TrackNumber).and_then(|i| i.value().text()).and_then(|s| s.parse().ok()).unwrap_or(0);
-        let duration_secs = tagged_file.properties().duration().as_secs();
-
-        // Group by directory path to keep multi-artist albums together
-        let album_key = path.parent().and_then(|p| p.to_str()).unwrap_or("Unknown Dir").to_string();
-
-        let album = albums_map.entry(album_key).or_insert_with(|| {
-            // Try to extract cover art
-            let mut cover_path = None;
-            for pic in tag.pictures() {
-                if pic.pic_type() == PictureType::CoverFront || pic.pic_type() == PictureType::Other {
-                    let mut hasher = Sha256::new();
-                    hasher.update(&artist);
-                    hasher.update(&album_title);
-                    let hash: String = hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect();
-                    let out_path = covers_dir.join(format!("{}.jpg", hash));
-
-                    if !out_path.exists() {
-                        if let Ok(img) = image::load_from_memory(pic.data()) {
-                            let _ = img.save(&out_path);
-                        }
-                    }
-                    cover_path = Some(out_path.to_string_lossy().to_string());
-                    break;
-                }
-            }
-
-            if cover_path.is_none() {
-                if let Some(parent) = path.parent() {
-                    let fallbacks = ["cover.jpg", "cover.png", "folder.jpg", "folder.png", "Folder.jpg", "Cover.jpg"];
-                    for f in fallbacks.iter() {
-                        let fallback_path = parent.join(f);
-                        if fallback_path.exists() {
-                            cover_path = Some(fallback_path.to_string_lossy().to_string());
-                            break;
-                        }
-                    }
-                }
-            }
-
+    let mut albums_map: HashMap<i64, Album> = HashMap::new();
+    let mut stmt = conn.prepare("
+        SELECT albums.id, albums.title, artists.name, albums.cover_path 
+        FROM albums 
+        JOIN artists ON albums.artist_id = artists.id
+    ")?;
+    
+    let album_iter = stmt.query_map([], |row| {
+        let cover_path: Option<String> = row.get(3)?;
+        let abs_cover_path = cover_path.map(|p| music_dir.join(p).to_string_lossy().to_string());
+        
+        Ok((
+            row.get::<_, i64>(0)?,
             Album {
-                title: album_title,
-                artist,
-                cover_path,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                cover_path: abs_cover_path,
                 tracks: Vec::new(),
             }
-        });
-
-        album.tracks.push(Track {
-            title,
-            path: path.to_string_lossy().to_string(),
-            track_number,
-            duration_secs,
-        });
+        ))
+    })?;
+    
+    for a in album_iter {
+        if let Ok((id, album)) = a {
+            albums_map.insert(id, album);
+        }
     }
-
+    
+    let mut stmt = conn.prepare("SELECT album_id, title, file_path, track_number, duration_secs, lyrics_path FROM tracks")?;
+    let track_iter = stmt.query_map([], |row| {
+        let file_path: String = row.get(2)?;
+        let abs_file_path = music_dir.join(file_path).to_string_lossy().to_string();
+        
+        let lyrics_path: Option<String> = row.get(5)?;
+        let abs_lyrics_path = lyrics_path.map(|p| music_dir.join(p).to_string_lossy().to_string());
+        
+        Ok((
+            row.get::<_, i64>(0)?,
+            Track {
+                title: row.get(1)?,
+                path: abs_file_path,
+                track_number: row.get::<_, Option<u32>>(3)?.unwrap_or(0),
+                duration_secs: row.get::<_, f64>(4)? as u64,
+                lyrics_path: abs_lyrics_path,
+            }
+        ))
+    })?;
+    
+    for t in track_iter {
+        if let Ok((album_id, track)) = t {
+            if let Some(album) = albums_map.get_mut(&album_id) {
+                album.tracks.push(track);
+            }
+        }
+    }
+    
     let mut albums: Vec<Album> = albums_map.into_values().collect();
     albums.sort_by(|a, b| a.artist.cmp(&b.artist).then(a.title.cmp(&b.title)));
-
     for album in &mut albums {
         album.tracks.sort_by_key(|t| t.track_number);
     }
-
-    let library = Library { albums };
-    if let Ok(json) = serde_json::to_string(&library) {
-        let _ = fs::write(&cache_file, json);
-    }
-
-    Ok(library)
+    
+    Ok(Library { albums })
 }

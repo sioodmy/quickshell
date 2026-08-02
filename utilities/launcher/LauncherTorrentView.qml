@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -71,10 +72,10 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰇚" 
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 20 }
+                        icon: "download"
+                        font.pixelSize: 20
                         color: Theme.primary
                     }
                 }
@@ -138,14 +139,32 @@ Item {
                     Behavior on radius { NumberAnimation { duration: 200 } }
                     Behavior on color { ColorAnimation { duration: 200 } }
                     
-                    Text {
-                        id: enterLabel
+                    Row {
                         anchors.centerIn: parent
-                        text: root.successAnim ? "󰄬" : "Enter 󰌑"
-                        font { family: root.successAnim ? "JetBrainsMono Nerd Font" : "Google Sans"; pixelSize: root.successAnim ? 18 : 11 }
-                        color: root.successAnim ? Theme.primary : Theme.on_surface_variant
-                        
-                        Behavior on color { ColorAnimation { duration: 200 } }
+                        spacing: 2
+
+                        MaterialIcon {
+                            visible: root.successAnim
+                            icon: "check"
+                            font.pixelSize: 18
+                            color: Theme.primary
+                        }
+
+                        Text {
+                            visible: !root.successAnim
+                            text: "Enter"
+                            font { family: "Google Sans"; pixelSize: 11 }
+                            color: Theme.on_surface_variant
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        MaterialIcon {
+                            visible: !root.successAnim
+                            icon: "keyboard_return"
+                            font.pixelSize: 14
+                            color: Theme.on_surface_variant
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
                 }
             }
@@ -259,11 +278,11 @@ Item {
                             
                             Behavior on color { ColorAnimation { duration: 150 } }
                             
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰅖"
+                                icon: "close"
                                 color: cancelArea.containsMouse ? Theme.error : Theme.on_surface_variant
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 18 }
+                                font.pixelSize: 18
                                 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                             }

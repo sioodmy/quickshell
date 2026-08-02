@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -102,14 +103,14 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 220 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: caffeineEnabled ? "󰐂" : "󰾆" // Coffee/Mug icons
-                    font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 }
+                    icon: caffeineEnabled ? "coffee" : "coffee_maker"
+                    font.pixelSize: 24
                     color: caffeineEnabled ? "#ffffff" : Theme.on_surface_variant
 
                     scale: 1.0
-                    onTextChanged: iconPulse.restart()
+                    onIconChanged: iconPulse.restart()
                     SequentialAnimation {
                         id: iconPulse
                         NumberAnimation { target: parent; property: "scale"; to: 1.3; duration: 80; easing.type: Easing.OutElastic }

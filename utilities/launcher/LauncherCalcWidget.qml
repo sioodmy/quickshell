@@ -1,5 +1,6 @@
 import QtQuick
 import "../../theme"
+import qs.components
 
 Item {
     id: calcCard
@@ -31,13 +32,10 @@ Item {
             spacing: 12
 
             // Calculator icon
-            Text {
+            MaterialIcon {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "󰃬"
-                font {
-                    family: "JetBrainsMono Nerd Font"
-                    pixelSize: 24
-                }
+                icon: "calculate"
+                font.pixelSize: 24
                 color: Theme.on_primary_container
             }
 
@@ -98,14 +96,11 @@ Item {
                         }
                     }
 
-                    Text {
+                    MaterialIcon {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "󰆏"
+                        icon: "content_copy"
                         color: calcCopyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                        font {
-                            family: "JetBrainsMono Nerd Font"
-                            pixelSize: 14
-                        }
+                        font.pixelSize: 14
                     }
                 }
 

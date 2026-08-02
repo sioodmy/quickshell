@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -46,14 +47,14 @@ Item {
 
                     Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: NightLight.enabled ? "󰖔" : "󰖕"
-                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 24 }
+                        icon: NightLight.enabled ? "bedtime" : "light_mode"
+                        font.pixelSize: 24
                         color: NightLight.enabled ? "#ffb74d" : Theme.on_surface_variant
 
                         scale: 1.0
-                        onTextChanged: iconBounce.restart()
+                        onIconChanged: iconBounce.restart()
                         SequentialAnimation {
                             id: iconBounce
                             NumberAnimation { target: parent; property: "scale"; to: 1.05; duration: 100; easing.type: Easing.OutCubic }
@@ -285,10 +286,10 @@ Item {
                         anchors.leftMargin: 14
                         spacing: 8
 
-                        Text {
+                        MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "󰔏"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                            icon: "device_thermostat"
+                            font.pixelSize: 16
                             color: NightLight.enabled ? "#ffb74d" : Theme.on_surface_variant
                         }
 
@@ -321,10 +322,10 @@ Item {
                         anchors.leftMargin: 14
                         spacing: 8
 
-                        Text {
+                        MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "󱩑"
-                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                            icon: "wb_sunny"
+                            font.pixelSize: 16
                             color: NightLight.enabled ? "#ffb74d" : Theme.on_surface_variant
                         }
 

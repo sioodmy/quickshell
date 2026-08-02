@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Effects
 import "../theme"
 import qs.services
+import qs.components
 
 Variants {
     id: root
@@ -158,10 +159,9 @@ Variants {
                                     }
                                 }
 
-                                Text {
+                                MaterialIcon {
                                     anchors.centerIn: parent
-                                    text: "󰝚"
-                                    font.family: "JetBrainsMono Nerd Font"
+                                    icon: "music_note"
                                     font.pixelSize: 12
                                     color: Theme.on_surface_variant
                                     visible: volAlbumImg.status !== Image.Ready
@@ -193,38 +193,35 @@ Variants {
 
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        Text {
+                        MaterialIcon {
                             id: volumeIcon
                             anchors.centerIn: parent
 
                             color: volumeOsdPopup.isMuted ? Theme.on_surface_variant : Theme.on_primary_container
                             Behavior on color { ColorAnimation { duration: 200 } }
 
-                            font {
-                                family: "JetBrainsMono Nerd Font"
-                                pixelSize: 22
-                            }
+                            font.pixelSize: 22
 
                             // Dynamic bounce on icon change
                             scale: 1.0
-                            onTextChanged: bounceAnim.restart()
+                            onIconChanged: bounceAnim.restart()
                             SequentialAnimation {
                                 id: bounceAnim
                                 NumberAnimation { target: volumeIcon; property: "scale"; to: 1.3; duration: 100; easing.type: Easing.OutQuad }
                                 NumberAnimation { target: volumeIcon; property: "scale"; to: 1.0; duration: 250; easing.type: Easing.OutBounce }
                             }
 
-                            text: {
+                            icon: {
                                 if (!volumeOsdPopup.activeSink?.audio)
-                                    return "";
+                                    return "volume_off";
                                 if (volumeOsdPopup.isMuted)
-                                    return "";
+                                    return "volume_off";
                                 if (volumeOsdPopup.volumeLevel >= 0.6)
-                                    return "";
+                                    return "volume_up";
                                 if (volumeOsdPopup.volumeLevel >= 0.3)
-                                    return "";
+                                    return "volume_down";
 
-                                return "";
+                                return "volume_mute";
                             }
                         }
                     }

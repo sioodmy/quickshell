@@ -7,6 +7,7 @@ import Quickshell.Services.UPower
 
 import qs.theme
 import qs.services
+import qs.components
 import "../history.js" as History
 
 /**
@@ -506,13 +507,12 @@ WlSessionLockSurface {
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                Text {
+                MaterialIcon {
                     id: lockGlyph
                     anchors.left: parent.left
                     anchors.leftMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "󰌾"
-                    font.family: "JetBrainsMono Nerd Font"
+                    icon: "lock"
                     font.pixelSize: 16
                     color: passwordInput.activeFocus ? Theme.primary : Theme.on_surface_variant
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -662,10 +662,9 @@ WlSessionLockSurface {
                     opacity: visible ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 140 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: revealBtn.revealed ? "󰈉" : "󰈈"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: revealBtn.revealed ? "visibility_off" : "visibility"
                         font.pixelSize: 15
                         color: revealMouse.containsMouse ? Theme.on_surface : Theme.on_surface_variant
                         Behavior on color { ColorAnimation { duration: 120 } }
@@ -695,10 +694,9 @@ WlSessionLockSurface {
                     Behavior on opacity { NumberAnimation { duration: 160 } }
                     Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰁔"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "arrow_forward"
                         font.pixelSize: 15
                         color: Theme.on_primary
                     }
@@ -828,11 +826,10 @@ WlSessionLockSurface {
                             }
                         }
 
-                        Text {
+                        MaterialIcon {
                             anchors.centerIn: parent
                             visible: artImg.status !== Image.Ready
-                            text: "󰝚"
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: "music_note"
                             font.pixelSize: 20
                             color: Theme.on_surface_variant
                         }
@@ -905,10 +902,9 @@ WlSessionLockSurface {
                             }
                             Behavior on color { ColorAnimation { duration: 120 } }
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: parent.icon
-                                font.family: "JetBrainsMono Nerd Font"
+                                icon: parent.icon
                                 font.pixelSize: 15
                                 color: parent.accent ? Theme.on_primary : Theme.on_surface
                             }
@@ -922,16 +918,16 @@ WlSessionLockSurface {
                         }
 
                         MediaBtn {
-                            icon: "󰒮"
+                            icon: "skip_previous"
                             onTriggered: Playerctl.previous()
                         }
                         MediaBtn {
-                            icon: Playerctl.isPlaying ? "󰏤" : "󰐊"
+                            icon: Playerctl.isPlaying ? "pause" : "play_arrow"
                             accent: true
                             onTriggered: Playerctl.playPause()
                         }
                         MediaBtn {
-                            icon: "󰒭"
+                            icon: "skip_next"
                             onTriggered: Playerctl.next()
                         }
                     }
@@ -1052,10 +1048,9 @@ WlSessionLockSurface {
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                 Behavior on color { ColorAnimation { duration: 120 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: parent.icon
-                    font.family: "JetBrainsMono Nerd Font"
+                    icon: parent.icon
                     font.pixelSize: 16
                     color: parent.accent
                     opacity: btnArea.containsMouse ? 1 : 0.85
@@ -1071,15 +1066,15 @@ WlSessionLockSurface {
             }
 
             SessionBtn {
-                icon: "󰒲"
+                icon: "bedtime"
                 onTriggered: Quickshell.execDetached(["systemctl", "suspend"])
             }
             SessionBtn {
-                icon: "󰜉"
+                icon: "restart_alt"
                 onTriggered: Quickshell.execDetached(["systemctl", "reboot"])
             }
             SessionBtn {
-                icon: "󰐥"
+                icon: "power_settings_new"
                 accent: Theme.critical
                 onTriggered: Quickshell.execDetached(["systemctl", "poweroff"])
             }
@@ -1112,6 +1107,8 @@ WlSessionLockSurface {
             text: ""
             horizontalAlignment: Text.AlignRight
             anchors.right: parent.right
+            width: Math.min(implicitWidth, 600)
+            wrapMode: Text.WordWrap
         }
 
         Component.onCompleted: {

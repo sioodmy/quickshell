@@ -9,6 +9,7 @@ import QtQuick.Effects
 import "../../theme"
 import "../../popups/weather"
 import qs.services
+import qs.components
 
 PanelWindow {
     id: launcherWindow
@@ -952,33 +953,30 @@ PanelWindow {
         }
 
         // --- System Commands ---
-        var valStr = "";
-        var num = 0;
         if (queryLower.startsWith("vol ")) {
-            valStr = queryLower.substring(4).trim();
+            var valStr = queryLower.substring(4).trim();
             if (valStr === "mute") {
-                results.push({ type: "system_command", actionId: "vol_mute", name: "Mute Volume", description: "Mute system audio", icon: "󰖁" });
-            } else {
-                num = parseInt(valStr);
-                if (!isNaN(num) && num >= 0 && num <= 100) {
-                    results.push({ type: "system_command", actionId: "vol_set", actionValue: num, name: "Set Volume", description: "Set system volume to " + num + "%", icon: "󰕾" });
-                }
+                results.push({ type: "system_command", actionId: "vol_mute", name: "Mute Volume", description: "Mute system audio", icon: "volume_off" });
+            } else if (valStr !== "" && !isNaN(valStr)) {
+                var num = Math.max(0, Math.min(100, parseInt(valStr)));
+                results.push({ type: "system_command", actionId: "vol_set", actionValue: num, name: "Set Volume", description: "Set system volume to " + num + "%", icon: "volume_up" });
             }
         } else if (queryLower.startsWith("bl ")) {
-            num = parseInt(queryLower.substring(3).trim());
-            if (!isNaN(num) && num >= 0 && num <= 100) {
-                results.push({ type: "system_command", actionId: "bl_set", actionValue: num, name: "Set Backlight", description: "Set screen brightness to " + num + "%", icon: "󰃠" });
+            var valStr = queryLower.substring(3).trim();
+            if (valStr !== "" && !isNaN(valStr)) {
+                var num = Math.max(0, Math.min(100, parseInt(valStr)));
+                results.push({ type: "system_command", actionId: "bl_set", actionValue: num, name: "Set Backlight", description: "Set screen brightness to " + num + "%", icon: "light_mode" });
             }
         } else if (queryLower === "shutdown" || queryLower === "poweroff") {
-            results.push({ type: "system_command", actionId: "shutdown", name: "Shutdown", description: "Turn off the computer", icon: "󰐥" });
+            results.push({ type: "system_command", actionId: "shutdown", name: "Shutdown", description: "Turn off the computer", icon: "power_settings_new" });
         } else if (queryLower === "reboot" || queryLower === "restart") {
-            results.push({ type: "system_command", actionId: "reboot", name: "Reboot", description: "Restart the computer", icon: "󰜉" });
+            results.push({ type: "system_command", actionId: "reboot", name: "Reboot", description: "Restart the computer", icon: "restart_alt" });
         } else if (queryLower === "sleep" || queryLower === "suspend") {
-            results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "󰒲" });
+            results.push({ type: "system_command", actionId: "sleep", name: "Sleep", description: "Suspend to RAM", icon: "bedtime" });
         } else if (queryLower === "lock" || queryLower === "lockscreen") {
-            results.push({ type: "system_command", actionId: "lock", name: "Lock Screen", description: "Lock the session", icon: "󰌾" });
+            results.push({ type: "system_command", actionId: "lock", name: "Lock Screen", description: "Lock the session", icon: "lock" });
         } else if (queryLower === "audio out hdmi") {
-            results.push({ type: "system_command", actionId: "audio_out_hdmi", name: "Audio Out HDMI", description: "Set default audio output to HDMI", icon: "󰡁" });
+            results.push({ type: "system_command", actionId: "audio_out_hdmi", name: "Audio Out HDMI", description: "Set default audio output to HDMI", icon: "tv" });
         }
 
         // --- Music results (only outside music mode) ---
@@ -1048,8 +1046,8 @@ PanelWindow {
                     type: "action",
                     actionId: "wolfram",
                     name: "Open in WolframAlpha",
-                    icon: "󰃬",
-                    iconFamily: "JetBrainsMono Nerd Font"
+                    icon: "calculate",
+                    iconFamily: ""
                 };
             }
             launcherWindow.wolframResultObj.description = query;
@@ -1062,9 +1060,9 @@ PanelWindow {
                 type: "action",
                 actionId: "dictionary",
                 name: "Dictionary",
-                description: query,
-                icon: "󰗊",
-                iconFamily: "JetBrainsMono Nerd Font"
+                description: "Look up \"" + query + "\" in dictionary",
+                icon: "menu_book",
+                iconFamily: ""
             });
         }
 
@@ -1701,15 +1699,12 @@ PanelWindow {
                             }
 
                             background: Item {
-                                Text {
+                                MaterialIcon {
                                     anchors.left: parent.left
                                     anchors.leftMargin: 20
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: ""
-                                    font {
-                                        family: "JetBrainsMono Nerd Font"
-                                        pixelSize: 28
-                                    }
+                                    icon: "search"
+                                    font.pixelSize: 28
                                     color: searchField.activeFocus ? Theme.primary : Theme.on_surface_variant
                                     Behavior on color {
                                         ColorAnimation {
@@ -1912,12 +1907,12 @@ PanelWindow {
                                     value: Math.min(1, launcherWindow.pipewireSink?.audio?.volume ?? 0)
                                     icon: {
                                         if (launcherWindow.pipewireSink?.audio?.muted ?? true)
-                                            return "󰖁";
+                                            return "volume_off";
                                         if (value >= 0.6)
-                                            return "󰕾";
+                                            return "volume_up";
                                         if (value >= 0.3)
-                                            return "󰖀";
-                                        return "󰕿";
+                                            return "volume_down";
+                                        return "volume_mute";
                                     }
                                     onMoved: v => {
                                         if (launcherWindow.pipewireSink?.audio) {
@@ -1935,9 +1930,9 @@ PanelWindow {
                                     accent: Theme.tertiary
                                     value: Brightness.value
                                     icon: {
-                                        if (value >= 0.7) return "󰃠";
-                                        if (value >= 0.3) return "󰃝";
-                                        return "󰃞";
+                                        if (value >= 0.7) return "light_mode";
+                                        if (value >= 0.3) return "brightness_5";
+                                        return "brightness_6";
                                     }
                                     onMoved: v => Brightness.setPercent(v * 100)
                                 }
@@ -2444,10 +2439,10 @@ PanelWindow {
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                                    Text {
+                                    MaterialIcon {
                                         anchors.centerIn: parent
-                                        text: "󰁍"
-                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 17 }
+                                        icon: "arrow_back"
+                                        font.pixelSize: 17
                                         color: Theme.on_surface
                                     }
 
@@ -2524,9 +2519,9 @@ PanelWindow {
                                     anchors.centerIn: parent
                                     spacing: 8
 
-                                    Text {
-                                        text: "󰍨"
-                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                    MaterialIcon {
+                                        icon: "link"
+                                        font.pixelSize: 14
                                         color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
                                     }
                                     Text {
@@ -2850,7 +2845,7 @@ PanelWindow {
                                         color: Theme.on_surface
                                         wrapMode: Text.NoWrap
                                         font {
-                                            family: "JetBrainsMono Nerd Font"
+                                            family: "Monospace"
                                             pixelSize: 11
                                         }
                                     }
@@ -2886,15 +2881,12 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 spacing: 12
 
-                                Text {
+                                MaterialIcon {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: launcherWindow.selectedFileData ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
+                                    icon: launcherWindow.selectedFileData ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
                                     color: Theme.primary
                                     opacity: 0.6
-                                    font {
-                                        family: "JetBrainsMono Nerd Font"
-                                        pixelSize: 72
-                                    }
+                                    font.pixelSize: 72
                                 }
 
                                 Text {
@@ -3017,10 +3009,10 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         spacing: 6
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "󰆏"
-                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                            icon: "content_copy"
+                                            font.pixelSize: 14
                                             color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
                                         }
                                         Text {
@@ -3056,10 +3048,10 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         spacing: 6
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "󰉒"
-                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                            icon: "content_copy"
+                                            font.pixelSize: 14
                                             color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
                                         }
                                         Text {
@@ -3126,10 +3118,10 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         spacing: 6
 
-                                        Text {
+                                        MaterialIcon {
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: "󰆥"
-                                            font { family: "JetBrainsMono Nerd Font"; pixelSize: 14 }
+                                            icon: "draft"
+                                            font.pixelSize: 14
                                             color: Theme.on_surface
                                         }
                                         Text {
@@ -3167,10 +3159,10 @@ PanelWindow {
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                                    Text {
+                                    MaterialIcon {
                                         anchors.centerIn: parent
-                                        text: "󰐳"
-                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                                        icon: "share"
+                                        font.pixelSize: 16
                                         color: shareFileMouse.containsMouse ? Theme.on_tertiary : Theme.on_tertiary_container
                                     }
 

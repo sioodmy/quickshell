@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import qs.theme
 import qs.services
+import qs.components
 
 /**
  * Org Agenda Panel — right side of the calendar popup.
@@ -178,11 +179,11 @@ Item {
 
                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                Text {
+                MaterialIcon {
                     anchors.centerIn: parent
-                    text: "󰐕"
+                    icon: "add"
                     color: Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 13 }
+                    font.pixelSize: 16
                 }
 
                 MouseArea {
@@ -282,12 +283,12 @@ Item {
                             anchors.centerIn: parent
                             spacing: 2
 
-                            Text {
+                            MaterialIcon {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: "󰃭"
+                                icon: "event_busy"
                                 color: Theme.on_surface_variant
                                 opacity: 0.4
-                                font { family: "JetBrainsMono Nerd Font"; pointSize: 16 }
+                                font.pixelSize: 20
                             }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter

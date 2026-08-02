@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import "../../theme"
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -263,7 +264,7 @@ Item {
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: Pomodoro.formattedTime
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 28; weight: Font.Bold }
+                                font { family: "JetBrains Mono"; pixelSize: 28; weight: Font.Bold }
                                 color: Theme.on_surface
                             }
                             Text {
@@ -316,10 +317,10 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 5
 
-                                    Text {
+                                    MaterialIcon {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.icon
-                                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 12 }
+                                        icon: modelData.icon
+                                        font.pixelSize: 12
                                         color: Pomodoro.mode === modelData.modeId ? root.accent : Theme.on_surface_variant
                                     }
                                     Text {
@@ -434,10 +435,10 @@ Item {
                             border.width: 1
                             border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰑐"
-                                font { family: "JetBrainsMono Nerd Font"; pixelSize: 16 }
+                                icon: "restart_alt"
+                                font.pixelSize: 16
                                 color: root.accent
                             }
 

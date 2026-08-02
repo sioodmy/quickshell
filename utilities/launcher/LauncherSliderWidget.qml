@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import "../../theme"
+import qs.components
 
 Item {
     id: root
@@ -54,18 +55,15 @@ Item {
             anchors.rightMargin: 20
             spacing: 14
 
-            Text {
+            MaterialIcon {
                 id: iconText
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.icon
-                font {
-                    family: "JetBrainsMono Nerd Font"
-                    pixelSize: 22
-                }
+                icon: root.icon
+                font.pixelSize: 22
                 color: root.value > 0.12 ? Theme.on_primary : Theme.on_surface
 
                 scale: 1.0
-                onTextChanged: iconBounce.restart()
+                onIconChanged: iconBounce.restart()
                 SequentialAnimation {
                     id: iconBounce
                     NumberAnimation { target: iconText; property: "scale"; to: 1.25; duration: 100; easing.type: Easing.OutQuad }

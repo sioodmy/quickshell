@@ -1,6 +1,7 @@
 import QtQuick
 import qs.theme
 import qs.services
+import qs.components
 
 /**
  * Material Design 3 styled card for a single org agenda entry.
@@ -162,10 +163,10 @@ Rectangle {
                 visible: root._deadline !== ""
                 spacing: 2
 
-                Text {
-                    text: "󰃰"
+                MaterialIcon {
+                    icon: "schedule"
                     color: root.isOverdue ? Theme.critical : Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 8 }
+                    font.pixelSize: 10
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -190,10 +191,10 @@ Rectangle {
                 visible: root._scheduled !== "" && root._deadline === ""
                 spacing: 2
 
-                Text {
-                    text: "󰸗"
+                MaterialIcon {
+                    icon: "calendar_today"
                     color: Theme.on_surface_variant
-                    font { family: "JetBrainsMono Nerd Font"; pointSize: 8 }
+                    font.pixelSize: 10
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {

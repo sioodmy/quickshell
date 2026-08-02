@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import qs.theme
 import qs.services
+import qs.components
 
 Item {
     id: root
@@ -242,10 +243,9 @@ Item {
                         }
                     }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: "󰝚"
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: "music_note"
                         font.pixelSize: 20
                         color: Theme.on_surface_variant
                         visible: coverImg.status !== Image.Ready
@@ -258,10 +258,9 @@ Item {
                         opacity: coverPlayMouse.containsMouse ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 120 } }
 
-                        Text {
+                        MaterialIcon {
                             anchors.centerIn: parent
-                            text: "󰐊"
-                            font.family: "JetBrainsMono Nerd Font"
+                            icon: "play_arrow"
                             font.pixelSize: 18
                             color: "white"
                         }
@@ -375,10 +374,9 @@ Item {
                             color: backBtnMouse.containsMouse ? Theme.surface_variant : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰁍"
-                                font.family: "JetBrainsMono Nerd Font"
+                                icon: "arrow_back"
                                 font.pixelSize: 18
                                 color: Theme.on_surface
                             }
@@ -448,11 +446,10 @@ Item {
                             scale: playAllMouse.containsMouse ? 1.08 : 1.0
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
                                 anchors.horizontalCenterOffset: 1
-                                text: "󰐊"
-                                font.family: "JetBrainsMono Nerd Font"
+                                icon: "play_arrow"
                                 font.pixelSize: 18
                                 color: Theme.on_primary
                             }

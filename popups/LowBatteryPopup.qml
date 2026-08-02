@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.UPower
 import "../theme"
+import qs.components
 
 Variants {
     id: root
@@ -112,10 +113,9 @@ Variants {
                             radius: 12
                             color: Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22)
 
-                            Text {
+                            MaterialIcon {
                                 anchors.centerIn: parent
-                                text: "󰂃" // Empty/Low battery icon
-                                font.family: "JetBrainsMono Nerd Font"
+                                icon: "battery_alert"
                                 font.pixelSize: 26
                                 color: Theme.critical
                             }

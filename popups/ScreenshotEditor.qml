@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.services
 import qs.theme
+import qs.components
 
 PanelWindow {
     id: root
@@ -21,6 +22,10 @@ PanelWindow {
     onVisibleChanged: {
         if (visible) {
             drawCanvas.clearCanvas();
+            if (typeof floatingTextInput !== "undefined") {
+                floatingTextInput.visible = false;
+                floatingTextInput.text = "";
+            }
             drawCanvas.activeTool = "pencil";
             drawCanvas.drawColor = Theme.critical;
         }
@@ -33,6 +38,9 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             onClicked: {
+                if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                    floatingTextInput.commitText();
+                }
                 drawCanvas.clearCanvas();
                 Screenshot.editorActive = false;
             }
@@ -98,6 +106,14 @@ PanelWindow {
                         ctx.textAlign = "center";
                         ctx.textBaseline = "middle";
                         ctx.fillText(stroke.number.toString(), stroke.points[0].x, stroke.points[0].y + 2);
+                    } else if (stroke.type === "text") {
+                        if (stroke.points.length < 1) continue;
+                        ctx.globalAlpha = 1.0;
+                        ctx.fillStyle = stroke.color;
+                        ctx.font = "bold 24px 'Google Sans Medium'";
+                        ctx.textAlign = "left";
+                        ctx.textBaseline = "top";
+                        ctx.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y);
                     }
                 }
 
@@ -140,12 +156,48 @@ PanelWindow {
             }
         }
 
+        TextInput {
+            id: floatingTextInput
+            visible: false
+            font.family: "Google Sans Medium"
+            font.pixelSize: 24
+            font.weight: Font.Bold
+            color: drawCanvas.drawColor
+            activeFocusOnPress: true
+            
+            onEditingFinished: commitText()
+
+            function commitText() {
+                if (visible) {
+                    if (text.trim().length > 0) {
+                        let s = drawCanvas.strokes;
+                        s.push({ type: "text", color: color, points: [{x: x, y: y}], text: text });
+                        drawCanvas.strokes = s;
+                        drawCanvas.requestPaint();
+                    }
+                    visible = false;
+                    text = "";
+                }
+            }
+        }
+
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.CrossCursor
             property bool isDrawing: false
             onPressed: e => {
-                if (drawCanvas.activeTool === "dot") {
+                if (drawCanvas.activeTool === "text") {
+                    if (floatingTextInput.visible) {
+                        floatingTextInput.commitText();
+                    } else {
+                        floatingTextInput.x = e.x;
+                        floatingTextInput.y = e.y;
+                        floatingTextInput.text = "";
+                        floatingTextInput.color = drawCanvas.drawColor;
+                        floatingTextInput.visible = true;
+                        floatingTextInput.forceActiveFocus();
+                    }
+                } else if (drawCanvas.activeTool === "dot") {
                     let s = drawCanvas.strokes;
                     s.push({ type: "dot", color: drawCanvas.drawColor, points: [{x: e.x, y: e.y}], number: drawCanvas.dotCounter });
                     drawCanvas.strokes = s;
@@ -158,7 +210,7 @@ PanelWindow {
                 }
             }
             onPositionChanged: e => {
-                if (isDrawing && drawCanvas.activeTool !== "dot") {
+                if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
                     let arr = drawCanvas.currentStroke;
                     arr.push({x: e.x, y: e.y});
                     drawCanvas.currentStroke = arr;
@@ -166,7 +218,7 @@ PanelWindow {
                 }
             }
             onReleased: e => {
-                if (isDrawing && drawCanvas.activeTool !== "dot") {
+                if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
                     isDrawing = false;
                     let s = drawCanvas.strokes;
                     s.push({ type: drawCanvas.activeTool, color: drawCanvas.drawColor, points: drawCanvas.currentStroke });
@@ -183,7 +235,7 @@ PanelWindow {
         anchors.top: parent.top
         anchors.topMargin: 32
         anchors.horizontalCenter: parent.horizontalCenter
-        width: topRow.implicitWidth + 32
+        width: topRow.implicitWidth + 16
         height: 72
         radius: 36
         color: Theme.surface_container_high
@@ -223,12 +275,11 @@ PanelWindow {
                     height: Math.max(icn.implicitHeight, lbl.implicitHeight)
                     anchors.centerIn: parent
 
-                    Text {
+                    MaterialIcon {
                         id: icn
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        text: parent.parent.icon
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: parent.parent.icon
                         font.pixelSize: 22
                         color: parent.parent.contentColor
                     }
@@ -256,26 +307,35 @@ PanelWindow {
             }
 
             ActionBtn {
-                icon: "󰅖"
+                icon: "close"
                 label: "Cancel"
                 onClicked: {
+                    if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                        floatingTextInput.visible = false;
+                        floatingTextInput.text = "";
+                    }
                     drawCanvas.clearCanvas();
                     Screenshot.editorActive = false;
                 }
             }
 
             ActionBtn {
-                icon: "󰕌"
+                icon: "undo"
                 label: "Undo"
                 onClicked: {
-                    let s = drawCanvas.strokes;
-                    if (s.length > 0) {
-                        let last = s.pop();
-                        if (last.type === "dot") {
-                            drawCanvas.dotCounter--;
+                    if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                        floatingTextInput.visible = false;
+                        floatingTextInput.text = "";
+                    } else {
+                        let s = drawCanvas.strokes;
+                        if (s.length > 0) {
+                            let last = s.pop();
+                            if (last.type === "dot") {
+                                drawCanvas.dotCounter--;
+                            }
+                            drawCanvas.strokes = s;
+                            drawCanvas.requestPaint();
                         }
-                        drawCanvas.strokes = s;
-                        drawCanvas.requestPaint();
                     }
                 }
             }
@@ -305,10 +365,9 @@ PanelWindow {
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                    Text {
+                    MaterialIcon {
                         anchors.centerIn: parent
-                        text: parent.icon
-                        font.family: "JetBrainsMono Nerd Font"
+                        icon: parent.icon
                         font.pixelSize: 22
                         color: drawCanvas.activeTool === toolName ? Theme.on_primary_container : Theme.on_surface
                     }
@@ -318,13 +377,19 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: drawCanvas.activeTool = toolName
+                        onClicked: {
+                            if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                                floatingTextInput.commitText();
+                            }
+                            drawCanvas.activeTool = toolName;
+                        }
                     }
                 }
 
-                ToolBtn { icon: "󰏫"; toolName: "pencil" }
-                ToolBtn { icon: "󰸱"; toolName: "highlight" }
-                ToolBtn { icon: "\uf4f7"; toolName: "dot" }
+                ToolBtn { icon: "edit"; toolName: "pencil" }
+                ToolBtn { icon: "draw"; toolName: "highlight" }
+                ToolBtn { icon: "circle"; toolName: "dot" }
+                ToolBtn { icon: "title"; toolName: "text" }
             }
 
             // Separator
@@ -373,12 +438,15 @@ PanelWindow {
             }
 
             ActionBtn {
-                icon: "󰆧"
+                icon: "save"
                 label: "Save & Copy"
                 baseColor: Theme.primary_container
                 hoverColor: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.4)
                 contentColor: Theme.on_primary_container
                 onClicked: {
+                    if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                        floatingTextInput.commitText();
+                    }
                     container.grabToImage(function(result) {
                         result.saveToFile(Screenshot.imagePath);
                         drawCanvas.clearCanvas();
@@ -393,8 +461,13 @@ PanelWindow {
     Shortcut {
         sequence: "Escape"
         onActivated: {
-            drawCanvas.clearCanvas();
-            Screenshot.editorActive = false;
+            if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
+                floatingTextInput.visible = false;
+                floatingTextInput.text = "";
+            } else {
+                drawCanvas.clearCanvas();
+                Screenshot.editorActive = false;
+            }
         }
     }
 }
