@@ -141,6 +141,8 @@ PanelWindow {
 
     property real openProgress: 0.0
     property bool menuOpen: false
+    // When true, we want to open but are waiting for LazyLoader content to load.
+    property bool _pendingOpen: false
     property string bluetoothConnectedDeviceLabel: ""
 
     color: "transparent"
@@ -1128,22 +1130,34 @@ PanelWindow {
     LauncherBackend {
         id: ctrl
 
-        onOpenMenuRequested: {
-            if (launcherWindow.menuOpen) {
-                closeMenu();
-            } else {
-                ctrl.clearStates();
-                launcherWindow.pinSelectionToBest = true;
-                closeAnim.stop();
-                launcherWindow.menuOpen = true;
-                openAnim.start();
-            }
-        }
+        onOpenMenuRequested: launcherWindow.openMenu()
+        onCloseMenuRequested: launcherWindow.closeMenu()
+    }
 
-        onCloseMenuRequested: closeMenu()
+    function openMenu() {
+        if (menuOpen) {
+            closeMenu();
+            return;
+        }
+        ctrl.clearStates();
+        pinSelectionToBest = true;
+        closeAnim.stop();
+        // Ensure openProgress starts at 0 so the mask is fully closed
+        // before the content appears.
+        openProgress = 0;
+        menuOpen = true;
+        // If the LazyLoader content is already loaded, start the animation
+        // immediately. Otherwise, set _pendingOpen so the animation starts
+        // once loading finishes (see contentLoader.onItemChanged).
+        if (contentLoader.item) {
+            openAnim.start();
+        } else {
+            _pendingOpen = true;
+        }
     }
 
     function closeMenu() {
+        _pendingOpen = false;
         shareModeActive = false;
         shareData = null;
         if (contentLoader.item)
@@ -1159,6 +1173,15 @@ PanelWindow {
         id: contentLoader
 
         activeAsync: launcherWindow.menuOpen
+
+        // When activeAsync finishes loading and a pending open is waiting,
+        // kick off the reveal animation now that the mask layer is ready.
+        onItemChanged: {
+            if (item && launcherWindow._pendingOpen) {
+                launcherWindow._pendingOpen = false;
+                openAnim.start();
+            }
+        }
 
         component: Component {
             Item {
@@ -1470,6 +1493,11 @@ PanelWindow {
                     radius: 28
                     border.width: 1
                     border.color: Theme.surface_container_high
+                    // Keep mainUi hidden until the open animation has actually
+                    // started.  This prevents a single-frame flash where the
+                    // mask layer texture hasn't been rendered yet and the
+                    // unmasked rectangle (with rounded left corners) is visible.
+                    visible: launcherWindow.openProgress > 0
                     focus: true
 
                     // Swallow clicks on the card so it doesn't dismiss
