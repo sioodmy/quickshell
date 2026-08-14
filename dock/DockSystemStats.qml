@@ -10,7 +10,7 @@ Rectangle {
     implicitWidth: 28
     implicitHeight: layout.implicitHeight + 20
     radius: width / 2
-    color: Theme.surface_container
+    color: "transparent"
 
     // --- Audio State Management ---
     readonly property var activeSink: Pipewire.defaultAudioSink
@@ -24,7 +24,7 @@ Rectangle {
     Column {
         id: layout
         anchors.centerIn: parent
-        spacing: 12
+        spacing: 16
 
         // --- Network ---
         Item {
@@ -42,8 +42,8 @@ Rectangle {
 
         // --- Audio ---
         Item {
-            width: 12
-            height: 12
+            width: 14
+            height: 14
             anchors.horizontalCenter: parent.horizontalCenter
 
             Canvas {
@@ -88,7 +88,7 @@ Rectangle {
                 anchors.centerIn: parent
                 visible: root.isMuted || root.volumeLevel <= 0.0
                 icon: "volume_off"
-                font.pixelSize: 11
+                font.pixelSize: 13
                 color: Theme.on_surface_variant
             }
         }

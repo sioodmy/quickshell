@@ -23,8 +23,8 @@ Item {
         anchors.bottom: parent.bottom // Pin to the bottom of the container
         anchors.horizontalCenter: parent.horizontalCenter
         radius: width / 2
-        color: hoverArea.hovered ? "#f38ba8" : "#2b2930"
-        border.color: hoverArea.hovered ? "#f38ba8" : "#45475a"
+        color: hoverArea.hovered ? "#f38ba8" : "transparent"
+        border.color: hoverArea.hovered ? "#f38ba8" : "transparent"
         border.width: 1
 
         Behavior on color { ColorAnimation { duration: 150 } }

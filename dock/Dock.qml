@@ -84,7 +84,7 @@ Variants {
                 anchors.verticalCenter: parent.verticalCenter
                 x: -22
                 radius: 22
-                color: Theme.surface
+                color: Theme.surface_container
                 z: -10
             }
 

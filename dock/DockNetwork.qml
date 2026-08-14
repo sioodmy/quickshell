@@ -37,7 +37,7 @@ Item {
                 return "signal_wifi_4_bar"
             return "signal_wifi_0_bar"
         }
-        font.pixelSize: 11
+        font.pixelSize: 14
         color: Networking.wifiEnabled ? Theme.primary : Theme.on_surface_variant
     }
 }

@@ -54,7 +54,7 @@ Item {
         id: bg
         anchors.fill: parent
         radius: root.barRadius
-        color: Pomodoro.isRunning ? root.accent : Theme.surface_container_high
+        color: Pomodoro.isRunning ? root.accent : "transparent"
 
         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutCubic } }
 

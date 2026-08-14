@@ -27,6 +27,7 @@ pub enum PlayerCmd {
     Seek { position_secs: f64 },
     SetVolume { volume: f32 },
     ToggleLoop,
+    ReloadDevice,
 }
 
 // ── Shared state between player thread and MPRIS ─────────────────────
@@ -94,7 +95,7 @@ impl Player {
         let state_clone = state.clone();
 
         thread::spawn(move || {
-            let device_handle = loop {
+            let mut device_handle = loop {
                 match rodio::DeviceSinkBuilder::open_default_sink() {
                     Ok(h) => break h,
                     Err(e) => {
@@ -103,7 +104,7 @@ impl Player {
                     }
                 }
             };
-            let player = rodio::Player::connect_new(&device_handle.mixer());
+            let mut player = rodio::Player::connect_new(&device_handle.mixer());
             player.set_volume(0.3);
 
             // Helper: load metadata for a file path
@@ -277,6 +278,36 @@ impl Player {
                                 let mut s = state_clone.lock().unwrap();
                                 s.loop_album = !s.loop_album;
                             }
+                            PlayerCmd::ReloadDevice => {
+                                crate::debug_log!("Reloading audio device...");
+                                device_handle = loop {
+                                    match rodio::DeviceSinkBuilder::open_default_sink() {
+                                        Ok(h) => break h,
+                                        Err(e) => {
+                                            crate::debug_log!("rodio: failed to open audio output: {}, retrying...", e);
+                                            thread::sleep(Duration::from_secs(2));
+                                        }
+                                    }
+                                };
+                                player = rodio::Player::connect_new(&device_handle.mixer());
+                                
+                                let (was_playing, playlist_index, pos_us, volume) = {
+                                    let mut s = state_clone.lock().unwrap();
+                                    let pos = s.live_position_us();
+                                    s.position_snapshot_us = pos;
+                                    s.position_at = Instant::now();
+                                    (s.playing, s.playlist_index, pos, s.volume)
+                                };
+                                player.set_volume(volume);
+
+                                if was_playing {
+                                    play_index(&player, &state_clone, playlist_index);
+                                    let _ = player.try_seek(Duration::from_micros(pos_us as u64));
+                                    let mut s = state_clone.lock().unwrap();
+                                    s.position_snapshot_us = pos_us;
+                                    s.position_at = Instant::now();
+                                }
+                            }
                         }
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
@@ -303,6 +334,7 @@ impl Player {
     pub fn seek(&self, pos: f64) { let _ = self.tx.send(PlayerCmd::Seek { position_secs: pos }); }
     pub fn set_volume(&self, vol: f32) { let _ = self.tx.send(PlayerCmd::SetVolume { volume: vol }); }
     pub fn toggle_loop(&self) { let _ = self.tx.send(PlayerCmd::ToggleLoop); }
+    pub fn reload_device(&self) { let _ = self.tx.send(PlayerCmd::ReloadDevice); }
 }
 
 pub static PLAYER: OnceLock<Player> = OnceLock::new();

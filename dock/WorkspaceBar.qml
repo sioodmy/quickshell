@@ -46,7 +46,7 @@ Item {
         id: track
         anchors.fill: parent
         radius: width / 2
-        color: Theme.surface_container
+        color: "transparent"
         // Let drop-target wobble spill slightly outside the track
         clip: root.draggingApp === null
 
@@ -61,7 +61,7 @@ Item {
                 x: root.trackInset
                 y: wsColumn.y + (wsItem ? wsItem.y : 0)
                 radius: width / 2
-                color: Theme.surface_container_high
+                color: "transparent"
                 opacity: (wsItem && wsItem.showPill) ? 1 : 0
                 scale: wsItem ? wsItem.scale : 1
                 rotation: wsItem ? wsItem.rotation : 0

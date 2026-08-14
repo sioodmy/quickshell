@@ -48,10 +48,10 @@ Item {
 
         color: {
             if (root.calendarOpen)
-                return Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12));
+                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12);
             if (pillMouse.containsMouse)
-                return Qt.tint(Theme.surface_container, Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08));
-            return Theme.surface_container;
+                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
+            return "transparent";
         }
 
         scale: pillMouse.pressed && !root.calendarOpen ? 0.95 : 1.0
