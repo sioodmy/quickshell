@@ -79,6 +79,12 @@ pub enum DaemonRequest {
     CocaineEnable,
     #[serde(rename = "cocaine_disable")]
     CocaineDisable,
+    #[serde(rename = "brightness_set")]
+    BrightnessSet { percent: f64 },
+    #[serde(rename = "polkit_submit")]
+    PolkitSubmit { cookie: String, response: String },
+    #[serde(rename = "polkit_cancel")]
+    PolkitCancel { cookie: String },
 }
 
 #[derive(Serialize)]
@@ -136,6 +142,19 @@ pub enum DaemonEvent {
     MusicRemoteStopped,
     #[serde(rename = "music_remote_connected")]
     MusicRemoteConnected,
+    #[serde(rename = "polkit_show_auth")]
+    PolkitShowAuth {
+        action_id: String,
+        message: String,
+        icon_name: String,
+        cookie: String,
+        user_name: String,
+        prompt: String,
+    },
+    #[serde(rename = "polkit_result")]
+    PolkitResult { cookie: String, success: bool },
+    #[serde(rename = "polkit_dismiss")]
+    PolkitDismiss { cookie: String },
 }
 
 #[derive(Serialize)]

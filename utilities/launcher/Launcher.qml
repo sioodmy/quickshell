@@ -145,6 +145,49 @@ PanelWindow {
     property bool _pendingOpen: false
     property string bluetoothConnectedDeviceLabel: ""
 
+    property var _debouncedResults: []
+
+    Timer {
+        id: filterDebounce
+        interval: 50
+        onTriggered: {
+            launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
+        }
+    }
+
+    onTrimmedQueryChanged: filterDebounce.restart()
+
+    Connections {
+        target: ctrl
+        function onFileSearchResultsChanged() { filterDebounce.restart() }
+        function onBookmarkSearchResultsChanged() { filterDebounce.restart() }
+        function onAppFrequenciesChanged() { filterDebounce.restart() }
+    }
+
+    Connections {
+        target: ScreenRecord
+        function onRecordingChanged() { filterDebounce.restart() }
+        function onRecordAudioChanged() { filterDebounce.restart() }
+    }
+
+    Connections {
+        target: DoNotDisturb
+        function onEnabledChanged() { filterDebounce.restart() }
+    }
+
+    Connections {
+        target: Pomodoro
+        function onIsRunningChanged() { filterDebounce.restart() }
+        function onModeChanged() { filterDebounce.restart() }
+        function onCompletedSessionsChanged() { filterDebounce.restart() }
+        function onShouldShowChanged() { filterDebounce.restart() }
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() { filterDebounce.restart() }
+    }
+
     color: "transparent"
     visible: menuOpen || openAnim.running || closeAnim.running
 
@@ -572,17 +615,6 @@ PanelWindow {
         var query = ctrl.searchText.trim();
         var queryLower = query.toLowerCase();
         var queryLen = queryLower.length;
-
-        // Track async search results to force QML to re-evaluate this function
-        var _fileSearchDep = ctrl.fileSearchResults;
-        var _bookmarkSearchDep = ctrl.bookmarkSearchResults;
-        var _recStateDep = ScreenRecord.recording;
-        var _recAudioDep = ScreenRecord.recordAudio;
-        var _dndDep = DoNotDisturb.enabled;
-        var _pomRunDep = Pomodoro.isRunning;
-        var _pomModeDep = Pomodoro.mode;
-        var _pomSessionsDep = Pomodoro.completedSessions;
-        var _pomShowDep = Pomodoro.shouldShow;
 
         var results = [];
 
@@ -1146,6 +1178,7 @@ PanelWindow {
         // before the content appears.
         openProgress = 0;
         menuOpen = true;
+        filterDebounce.restart();
         // If the LazyLoader content is already loaded, start the animation
         // immediately. Otherwise, set _pendingOpen so the animation starts
         // once loading finishes (see contentLoader.onItemChanged).
@@ -1188,7 +1221,7 @@ PanelWindow {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                width: 680 + 48
+                width: 752 + 48
                 height: 609
                 x: 0
                 anchors.verticalCenter: parent.verticalCenter
@@ -1438,7 +1471,7 @@ PanelWindow {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     anchors.margins: 4
-                    width: Math.max(0, 728 * launcherWindow.openProgress - 44)
+                    width: Math.max(0, 800 * launcherWindow.openProgress - 44)
                     radius: 26
                     color: Theme.surface
                     visible: false
@@ -1484,7 +1517,7 @@ PanelWindow {
 
                 Rectangle {
                     id: mainUi
-                    width: 728
+                    width: 800
 
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
@@ -2047,7 +2080,7 @@ PanelWindow {
 
                                     model: ScriptModel {
                                         id: searchModel
-                                        values: launcherWindow.buildFilteredList()
+                                        values: launcherWindow._debouncedResults
                                         onValuesChanged: {
                                             if (launcherWindow.pinSelectionToBest)
                                                 lazyContentRoot.resetSelectionToBest();

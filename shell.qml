@@ -37,6 +37,11 @@ ShellRoot {
         id: notificationOverlay
     }
 
+    // Polkit authentication popup
+    PolkitPopup {
+        id: polkitPopup
+    }
+
     // Top-right Drag Queen dropzone
     FileStashPopup {
         id: fileStashOverlay

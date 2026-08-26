@@ -46,6 +46,11 @@ Singleton {
     // Emitted once a clipboard copy has been written to the Wayland selection.
     signal cliphistCopied()
     signal cliphistUpdated()
+
+    signal polkitShowAuth(string action_id, string message, string icon_name, string cookie, string user_name, string prompt)
+    signal polkitResult(string cookie, bool success)
+    signal polkitDismiss(string cookie)
+
     property var musicState: {
         "playing": false,
         "title": "",
@@ -222,6 +227,12 @@ Singleton {
                         root.activeTorrents = parsed.torrents || [];
                     } else if (type === "music_remote_connected") {
                         root.musicRemoteConnected = true;
+                    } else if (type === "polkit_show_auth") {
+                        root.polkitShowAuth(parsed.action_id, parsed.message, parsed.icon_name, parsed.cookie, parsed.user_name, parsed.prompt);
+                    } else if (type === "polkit_result") {
+                        root.polkitResult(parsed.cookie, parsed.success);
+                    } else if (type === "polkit_dismiss") {
+                        root.polkitDismiss(parsed.cookie);
                     }
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);
@@ -232,6 +243,14 @@ Singleton {
 
     function send(obj) {
         daemon.write(JSON.stringify(obj) + "\n");
+    }
+
+    function polkitSubmit(cookie, response) {
+        send({ action: "polkit_submit", cookie: cookie, response: response })
+    }
+
+    function polkitCancel(cookie) {
+        send({ action: "polkit_cancel", cookie: cookie })
     }
 
     Timer {

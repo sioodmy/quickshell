@@ -21,6 +21,7 @@ mod context;
 mod handler;
 mod torrent;
 pub mod org_renderer;
+pub mod polkit;
 
 #[macro_export]
 macro_rules! debug_log {
@@ -216,6 +217,14 @@ async fn main() -> Result<()> {
                 });
             }
 
+            // Start polkit agent
+            {
+                let tx = tx_event.clone();
+                tokio::spawn(async move {
+                    polkit::start_agent(tx).await;
+                });
+            }
+
             // Monotonic generation so stale file_search tasks can abort.
             let file_search_generation = Arc::new(AtomicU64::new(0));
 
@@ -271,6 +280,25 @@ async fn main() -> Result<()> {
                         continue;
                     }
                 };
+
+                // Fast path for polkit routing to avoid spawning task overhead for password passing
+                match &req {
+                    api::DaemonRequest::PolkitSubmit { cookie, response } => {
+                        let ch = polkit::POLKIT_CHANNELS.lock().await;
+                        if let Some(tx) = ch.get(cookie) {
+                            let _ = tx.send(response.clone()).await;
+                        }
+                        continue;
+                    }
+                    api::DaemonRequest::PolkitCancel { cookie } => {
+                        let mut ch = polkit::POLKIT_CHANNELS.lock().await;
+                        if let Some(_tx) = ch.remove(cookie) {
+                            // Channel drop will abort waiting agent
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
 
                 let assigned_search_gen = match &req {
                     api::DaemonRequest::FileSearch { .. } => {

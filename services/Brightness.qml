@@ -41,8 +41,7 @@ Singleton {
         let p = Math.max(0, Math.min(100, Math.round(percent)));
         root.value = p / 100.0;
         root.available = true;
-        setProc.command = ["brightnessctl", "set", `${p}%`];
-        setProc.running = true;
+        BackendDaemon.send({"action": "brightness_set", "percent": p});
     }
 
     function refresh() {
@@ -61,10 +60,6 @@ Singleton {
                 root.available = true;
             }
         }
-    }
-
-    Process {
-        id: setProc
     }
 
     // React to external brightness changes (keys, other tools).

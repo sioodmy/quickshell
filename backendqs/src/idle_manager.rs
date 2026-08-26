@@ -142,43 +142,9 @@ pub fn spawn_idle_manager() {
                 crate::debug_log!("Idle manager started. Lock: {}ms, Sleep: {}ms", LOCK_TIMEOUT_MS, SLEEP_TIMEOUT_MS);
                 
                 loop {
-                    // Check if cocaine mode changed
-                    let is_cocaine = *COCAINE_ENABLED.lock().unwrap();
-                    if is_cocaine != app_data.cocaine_active {
-                        app_data.cocaine_active = is_cocaine;
-                        if is_cocaine {
-                            // Destroy inhibitors so they don't fire
-                            if let Some(n) = app_data.lock_notification.take() { n.destroy(); }
-                            if let Some(n) = app_data.sleep_notification.take() { n.destroy(); }
-                        } else {
-                            // Recreate inhibitors
-                            if let (Some(seat), Some(notifier)) = (&app_data.seat, &app_data.notifier) {
-                                let qh = event_queue.handle();
-                                app_data.lock_notification = Some(notifier.get_idle_notification(
-                                    LOCK_TIMEOUT_MS,
-                                    seat,
-                                    &qh,
-                                    NotificationData { is_sleep: false },
-                                ));
-                                app_data.sleep_notification = Some(notifier.get_idle_notification(
-                                    SLEEP_TIMEOUT_MS,
-                                    seat,
-                                    &qh,
-                                    NotificationData { is_sleep: true },
-                                ));
-                            }
-                        }
-                    }
-
-                    if let Err(e) = event_queue.dispatch_pending(&mut app_data) {
+                    if let Err(e) = event_queue.blocking_dispatch(&mut app_data) {
                         crate::debug_log!("Wayland idle manager dispatch error: {:?}", e);
                         break;
-                    }
-                    if let Some(guard) = event_queue.prepare_read() {
-                        drop(guard);
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                    } else {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
                     }
                 }
             } else {

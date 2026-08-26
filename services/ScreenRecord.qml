@@ -75,14 +75,7 @@ Singleton {
         onTriggered: root.elapsedSec += 1
     }
 
-    // Keep indicator honest if the recorder dies outside our stop() path.
-    Timer {
-        id: watchdog
-        interval: 1500
-        repeat: true
-        running: root.recording
-        onTriggered: pidCheck.running = true
-    }
+
 
     Process {
         id: resolveBin
@@ -97,21 +90,7 @@ Singleton {
     }
 
 
-    Process {
-        id: pidCheck
-        command: ["bash", "-c",
-            "PID=$(cat '" + root.pidFile + "' 2>/dev/null); " +
-            "if [ -n \"$PID\" ] && kill -0 \"$PID\" 2>/dev/null; then echo alive; else echo dead; fi"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (!root.recording)
-                    return;
-                if (text.trim() === "dead")
-                    root._onFinished();
-            }
-        }
-    }
+
 
     Process {
         id: stopProc

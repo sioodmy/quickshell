@@ -376,6 +376,26 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                         api::DaemonRequest::CocaineDisable => {
                             crate::idle_manager::set_cocaine_enabled(false);
                         }
+                        api::DaemonRequest::BrightnessSet { percent } => {
+                            tokio::task::spawn_blocking(move || {
+                                if let Ok(entries) = std::fs::read_dir("/sys/class/backlight") {
+                                    for entry in entries.flatten() {
+                                        let max_path = entry.path().join("max_brightness");
+                                        let brightness_path = entry.path().join("brightness");
+                                        if let (Ok(max_str), Ok(_)) = (std::fs::read_to_string(&max_path), std::fs::metadata(&brightness_path)) {
+                                            if let Ok(max) = max_str.trim().parse::<f64>() {
+                                                let target = (max * percent / 100.0).round() as u64;
+                                                let _ = std::fs::write(&brightness_path, target.to_string());
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                        api::DaemonRequest::PolkitSubmit { .. } | api::DaemonRequest::PolkitCancel { .. } => {
+                            // Handled in main.rs fast-path
+                        }
                     }
 }
 
