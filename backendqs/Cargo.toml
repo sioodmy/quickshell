@@ -10,7 +10,6 @@ rustflags = ["-C", "target-cpu=native"]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.4", features = ["derive"] }
-tempfile = "3.10"
 anyhow = "1.0"
 tokio = { version = "1.52.3", features = ["full"] }
 reqwest = { version = "0.13.4", features = ["json"] }
@@ -55,6 +54,7 @@ wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 lazy_static = "1.5.0"
 orgize = "0.9.0"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
+mathtosvg = { git = "https://github.com/sioodmy/mathtosvg", version = "0.1.0" }
 
 [profile.release]
 opt-level = 3

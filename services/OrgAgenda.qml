@@ -16,8 +16,8 @@ Singleton {
     // Set of date strings ("YYYY-MM-DD") that have agenda entries
     property var datesWithEvents: ({})
 
-    // Loading state (no longer really applicable since it's instant from daemon, but keep for compat)
-    property bool loading: items === undefined || items.length === 0
+    // Loading state (true when agenda items have not been received from backend)
+    property bool loading: items === undefined || items === null
 
     // Today's items only
     readonly property var todayItems: {
@@ -50,10 +50,15 @@ Singleton {
         });
     }
 
-    // Items for a specific date
+    // Items for a specific date (sorted chronologically)
     function itemsForDate(dateStr) {
+        if (!items) return [];
         return items.filter(function(e) {
             return e.deadline === dateStr || e.scheduled === dateStr;
+        }).sort(function(a, b) {
+            let ta = a.scheduled_time || a.deadline_time || "99:99";
+            let tb = b.scheduled_time || b.deadline_time || "99:99";
+            return ta.localeCompare(tb);
         });
     }
 

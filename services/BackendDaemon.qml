@@ -7,7 +7,7 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    property var agendaItems: []
+    property var agendaItems: null
     property var weatherData: null
     property string dictStatus: ""
     property string dictWord: ""
@@ -61,7 +61,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["sh", "-c", "exec ~/.config/quickshell/backendqs/target/release/backendqs daemon"]
+        command: ["sh", "-c", "exec backendqs daemon"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.

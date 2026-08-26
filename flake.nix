@@ -28,7 +28,8 @@
 
           postInstall = ''
             wrapProgram $out/bin/backendqs \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pandoc pkgs.tectonic pkgs.poppler-utils pkgs.rink pkgs.cliphist pkgs.wl-clipboard pkgs.libarchive pkgs.coreutils (pkgs.tesseract.override { enableLanguages = [ "eng" ]; }) ]}
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pandoc pkgs.tectonic pkgs.poppler-utils pkgs.rink pkgs.cliphist pkgs.wl-clipboard pkgs.libarchive pkgs.coreutils (pkgs.tesseract.override { enableLanguages = [ "eng" ]; }) ]} \
+              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [ pkgs.alsa-lib pkgs.libopus pkgs.dbus ]}
           '';
         };
 

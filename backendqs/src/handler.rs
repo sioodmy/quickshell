@@ -437,11 +437,11 @@ async fn handle_cliphist_list(
 }
 
 async fn handle_math(query: String, out: Option<String>, color: Option<String>, tx: tokio::sync::mpsc::Sender<crate::api::DaemonEvent>) {
-    let res = tokio::task::spawn_blocking(move || {
-        math::process_query(&query, out.as_deref(), color.as_deref(), None)
+    let result = tokio::task::spawn_blocking(move || {
+        mathtosvg::process_query(&query, out.as_deref(), color.as_deref(), None)
     }).await.unwrap();
 
-    match res {
+    match result {
         Ok((content, path)) => {
             let _ = tx.send(api::DaemonEvent::MathResult {
                 status: "ok".into(),

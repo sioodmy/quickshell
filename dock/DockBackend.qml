@@ -235,7 +235,7 @@ Singleton {
 
         var finalCommand = ["run-as-service"];
         if (entry.runInTerminal) {
-            finalCommand.push("foot");
+            finalCommand.push("kitty");
             finalCommand.push("--");
         }
         finalCommand = finalCommand.concat(entry.command);

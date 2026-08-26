@@ -135,9 +135,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.103"
+version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arbitrary"
@@ -541,6 +541,7 @@ dependencies = [
  "librqbit",
  "lofty",
  "lz4_flex",
+ "mathtosvg",
  "notify",
  "notify-rust",
  "nucleo-matcher",
@@ -559,7 +560,6 @@ dependencies = [
  "sha2",
  "syntect",
  "tar",
- "tempfile",
  "tokio",
  "tokio-util",
  "urlencoding",
@@ -2865,6 +2865,14 @@ name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
+
+[[package]]
+name = "mathtosvg"
+version = "0.1.0"
+source = "git+https://github.com/sioodmy/mathtosvg#0b30ed247396d094613d0b5e49f0934f55198dd9"
+dependencies = [
+ "anyhow",
+]
 
 [[package]]
 name = "maybe-rayon"

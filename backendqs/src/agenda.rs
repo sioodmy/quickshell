@@ -36,10 +36,16 @@ pub fn parse_directory(dir: &Path) -> Result<Vec<AgendaItem>> {
         return Ok(items);
     }
 
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
+    for entry in walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !name.starts_with('.')
+        })
+        .filter_map(|e| e.ok())
+    {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("org") {
+        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("org") {
             let filename = path.file_stem().unwrap().to_string_lossy().to_string();
             let content = match fs::read_to_string(&path) {
                 Ok(c) => c,

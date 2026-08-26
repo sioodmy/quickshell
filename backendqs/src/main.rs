@@ -1,8 +1,6 @@
 mod idle_manager;
 mod music;
-mod parser;
 mod logind_listener;
-mod math;
 mod dictionary;
 mod agenda;
 mod lyrics;
@@ -76,7 +74,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Run { query, out, color } => {
-            match math::process_query(&query, out.as_deref(), color.as_deref(), None) {
+            match mathtosvg::process_query(&query, out.as_deref(), color.as_deref(), None) {
                 Ok((content, path)) => {
                     if let Some(p) = path {
                         println!("SVG saved to: {}", p);
@@ -148,32 +146,31 @@ async fn main() -> Result<()> {
             let notes_dir = std::env::var("HOME").map(|h| PathBuf::from(h).join("Notes")).unwrap_or_default();
             if notes_dir.exists() {
                 let (tx_notify, rx_notify) = std::sync::mpsc::channel();
-                let mut watcher = notify::recommended_watcher(tx_notify)?;
-                watcher.watch(&notes_dir, RecursiveMode::Recursive)?;
-
-                let tx_ev = tx_event.clone();
-                let ndir = notes_dir.clone();
-                tokio::task::spawn_blocking(move || {
-                    let _w = watcher; // Keep alive
-                    for res in rx_notify {
-                        match res {
-                            Ok(Event { kind, .. }) => {
-                                if kind.is_modify() || kind.is_create() || kind.is_remove() {
-                                    if let Ok(items) = agenda::parse_directory(&ndir) {
-                                        let _ = tx_ev.blocking_send(api::DaemonEvent::AgendaUpdate { data: items });
+                if let Ok(mut watcher) = notify::recommended_watcher(tx_notify) {
+                    let _ = watcher.watch(&notes_dir, RecursiveMode::Recursive);
+                    let tx_ev = tx_event.clone();
+                    let ndir = notes_dir.clone();
+                    tokio::task::spawn_blocking(move || {
+                        let _w = watcher; // Keep alive
+                        for res in rx_notify {
+                            match res {
+                                Ok(Event { kind, .. }) => {
+                                    if kind.is_modify() || kind.is_create() || kind.is_remove() {
+                                        if let Ok(items) = agenda::parse_directory(&ndir) {
+                                            let _ = tx_ev.blocking_send(api::DaemonEvent::AgendaUpdate { data: items });
+                                        }
                                     }
                                 }
+                                Err(_) => {}
                             }
-                            Err(_) => {}
                         }
-                    }
-                });
-
-                // Trigger initial agenda load
-                if let Ok(items) = agenda::parse_directory(&notes_dir) {
-                    let _ = tx_event.send(api::DaemonEvent::AgendaUpdate { data: items }).await;
+                    });
                 }
             }
+
+            // Trigger initial agenda load
+            let initial_items = agenda::parse_directory(&notes_dir).unwrap_or_default();
+            let _ = tx_event.send(api::DaemonEvent::AgendaUpdate { data: initial_items }).await;
 
             // Setup Frecency state (scores cached; refreshed only on load/record)
             let frecency_state = Arc::new(std::sync::Mutex::new(crate::frecency::FrecencyState::new(
