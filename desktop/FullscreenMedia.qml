@@ -167,6 +167,7 @@ Variants {
                                 source: Playerctl.artUrl
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                sourceSize: Qt.size(400, 400)
                                 visible: Playerctl.artUrl !== ""
 
                                 layer.enabled: true
@@ -220,6 +221,7 @@ Variants {
                                         height: 152
                                         source: BackendDaemon.musicRemoteQrSvg !== "" ? "data:image/svg+xml;utf8," + encodeURIComponent(BackendDaemon.musicRemoteQrSvg) : ""
                                         fillMode: Image.PreserveAspectFit
+                                        sourceSize: Qt.size(200, 200)
                                     }
                                 }
 

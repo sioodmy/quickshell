@@ -19,7 +19,7 @@ PanelWindow {
         right: true
     }
 
-    screen: Quickshell.primaryScreen
+    screen: Quickshell.primaryScreen || null
 
     color: "transparent"
     visible: isActive

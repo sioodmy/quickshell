@@ -806,6 +806,7 @@ WlSessionLockSurface {
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             cache: true
+                            sourceSize: Qt.size(104, 104)
                             visible: status === Image.Ready
 
                             layer.enabled: true

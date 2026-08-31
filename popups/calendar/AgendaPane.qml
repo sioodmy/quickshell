@@ -319,7 +319,7 @@ Item {
                         id: upcomingRepeater
                         model: {
                             let today = Qt.formatDate(new Date(), "yyyy-MM-dd");
-                            return OrgAgenda.activeItems.filter(function(e) {
+                            return (OrgAgenda.activeItems || []).filter(function(e) {
                                 let d = e.deadline || e.scheduled || "";
                                 return d >= today && d !== root.selectedDateStr;
                             }).slice(0, 5);
@@ -339,7 +339,7 @@ Item {
                     }
 
                     Item {
-                        visible: OrgAgenda.overdueItems.length > 0
+                        visible: (OrgAgenda.overdueItems || []).length > 0
                         width: agendaCol.width
                         height: 26
 
@@ -366,7 +366,7 @@ Item {
                                 Text {
                                     id: overdueCountText
                                     anchors.centerIn: parent
-                                    text: OrgAgenda.overdueItems.length.toString()
+                                    text: (OrgAgenda.overdueItems || []).length.toString()
                                     color: Theme.critical
                                     font { family: "Google Sans"; pointSize: 8; weight: Font.Bold }
                                 }
@@ -375,7 +375,7 @@ Item {
                     }
 
                     Repeater {
-                        model: OrgAgenda.overdueItems.slice(0, 3)
+                        model: (OrgAgenda.overdueItems || []).slice(0, 3)
 
                         delegate: AgendaCard {
                             required property var modelData

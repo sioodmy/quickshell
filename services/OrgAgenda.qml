@@ -22,21 +22,21 @@ Singleton {
     // Today's items only
     readonly property var todayItems: {
         let today = Qt.formatDate(new Date(), "yyyy-MM-dd");
-        return items.filter(function(e) {
+        return (items || []).filter(function(e) {
             return e.deadline === today || e.scheduled === today;
         });
     }
 
     // Active items (TODO/NEXT/WAITING — not completed)
     readonly property var activeItems: {
-        return items.filter(function(e) {
+        return (items || []).filter(function(e) {
             return e.state === "TODO" || e.state === "NEXT" || e.state === "WAITING";
         });
     }
 
     // Completed items (DONE/CANCELLED)
     readonly property var completedItems: {
-        return items.filter(function(e) {
+        return (items || []).filter(function(e) {
             return e.state === "DONE" || e.state === "CANCELLED";
         });
     }
@@ -44,7 +44,7 @@ Singleton {
     // Overdue items
     readonly property var overdueItems: {
         let today = Qt.formatDate(new Date(), "yyyy-MM-dd");
-        return activeItems.filter(function(e) {
+        return (activeItems || []).filter(function(e) {
             let d = e.deadline || e.scheduled || "";
             return d !== "" && d < today;
         });
@@ -79,8 +79,9 @@ Singleton {
 
     onItemsChanged: {
         let dates = {};
-        for (let i = 0; i < items.length; i++) {
-            let e = items[i];
+        let safeItems = items || [];
+        for (let i = 0; i < safeItems.length; i++) {
+            let e = safeItems[i];
             if (e.deadline) dates[e.deadline] = true;
             if (e.scheduled) dates[e.scheduled] = true;
         }

@@ -2554,6 +2554,7 @@ PanelWindow {
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
                                     asynchronous: true
+                                    sourceSize: Qt.size(256, 256)
                                 }
                             }
 
@@ -2653,6 +2654,7 @@ PanelWindow {
                             cache: ctrl.filePreview && (ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video")
                             smooth: true
                             mipmap: true
+                            sourceSize: Qt.size(400, 400)
 
                             // Handle broken images
                             onStatusChanged: {

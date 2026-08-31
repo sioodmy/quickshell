@@ -70,24 +70,31 @@ ShellRoot {
         id: chargePopupWindow
     }
 
-    ScreenshotEditor {
-        id: screenshotEditor
+    Loader {
+        active: Screenshot.editorActive
+        asynchronous: true
+        sourceComponent: ScreenshotEditor { id: screenshotEditor }
     }
 
-    ScreenshotOverlay {
-        id: screenshotOverlay
+    Loader {
+        active: Screenshot.overlayActive
+        asynchronous: true
+        sourceComponent: ScreenshotOverlay { id: screenshotOverlay }
     }
 
     // Live synced lyrics on desktop (wallpaper)
-    LyricsDesktop {
-        id: lyricsDesktop
+    Loader {
+        active: Lyrics.parsedLyrics.length > 0
+        asynchronous: true
+        sourceComponent: LyricsDesktop { id: lyricsDesktop }
     }
 
     // Fullscreen media overlay
-    FullscreenMedia {
-        id: fullscreenMedia
+    Loader {
+        active: Lyrics.showFullscreen
+        asynchronous: true
+        sourceComponent: FullscreenMedia { id: fullscreenMedia }
     }
-
 
     IpcHandler {
         target: "cocaine"

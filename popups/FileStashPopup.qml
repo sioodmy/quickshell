@@ -420,6 +420,7 @@ Variants {
                                             source: chipRoot.isImage ? ("file://" + chipRoot.path) : ""
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
+                                            sourceSize: Qt.size(240, 240)
                                             layer.enabled: true
                                             layer.effect: MultiEffect {
                                                 maskEnabled: true

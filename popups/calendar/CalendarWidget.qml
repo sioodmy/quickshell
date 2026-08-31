@@ -350,10 +350,8 @@ PanelWindow {
     }
 
     // Escape to close
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape) {
-            root.closeAnimated();
-            event.accepted = true;
-        }
+    Shortcut {
+        sequence: "Escape"
+        onActivated: root.closeAnimated()
     }
 }
