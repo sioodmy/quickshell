@@ -43,7 +43,7 @@ Item {
             text: root.isMonthYearView ? "Select Month" : Qt.formatDate(new Date(root.displayYear, root.displayMonth, 1), "MMMM yyyy")
             color: Theme.on_surface
             font.family: "Google Sans"
-            font.pointSize: 13
+            font.pointSize: 11
             font.weight: Font.Medium
         }
 

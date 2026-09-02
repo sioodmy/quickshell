@@ -4,10 +4,10 @@ import "../theme"
 import qs.services
 
 /**
- * Vertical workspace track for the dock.
+ * Horizontal workspace track for the dock.
  *
  * Outer pill stretches between clock and stats. Workspace groups (app pills)
- * and empty-workspace dots are stacked and vertically centered inside.
+ * and empty-workspace dots are stacked and horizontally centered inside.
  *
  * Layout is driven by explicit metrics so pill size, icon centering, and the
  * sliding active highlight stay in sync — no magic height offsets.
@@ -27,25 +27,25 @@ Item {
     signal dragEnded(real globalX, real globalY)
 
     // --- Metrics (single source of truth) ---
-    readonly property int trackWidth: 30
-    readonly property int trackInset: 3
+    readonly property int trackWidth: 22
+    readonly property int trackInset: 2
     readonly property int pillWidth: trackWidth - trackInset * 2
-    readonly property int iconSize: 22
-    readonly property int iconSpacing: 3
-    readonly property int pillPadV: 8
-    readonly property int workspaceGap: 6
+    readonly property int iconSize: 15
+    readonly property int iconSpacing: 2
+    readonly property int pillPadV: 4
+    readonly property int workspaceGap: 4
     readonly property int maxApps: 4
-    readonly property int overflowHeight: 14
-    readonly property int emptyDotSize: 8
-    readonly property int emptySlotHeight: 14
+    readonly property int overflowHeight: 10
+    readonly property int emptyDotSize: 5
+    readonly property int emptySlotHeight: 10
 
-    width: trackWidth
-    // height is set by anchors from Dock
+    implicitWidth: wsRow.width + 12
+    height: trackWidth
 
     Rectangle {
         id: track
         anchors.fill: parent
-        radius: width / 2
+        radius: height / 2
         color: "transparent"
         // Let drop-target wobble spill slightly outside the track
         clip: root.draggingApp === null
@@ -56,11 +56,11 @@ Item {
             Rectangle {
                 property var wsItem: wsRepeater.itemAt(index)
                 
-                width: root.pillWidth
-                height: wsItem ? wsItem.height : 0
-                x: root.trackInset
-                y: wsColumn.y + (wsItem ? wsItem.y : 0)
-                radius: width / 2
+                width: wsItem ? wsItem.width : 0
+                height: root.pillWidth
+                x: wsRow.x + (wsItem ? wsItem.x : 0)
+                y: root.trackInset
+                radius: height / 2
                 color: "transparent"
                 opacity: (wsItem && wsItem.showPill) ? 1 : 0
                 scale: wsItem ? wsItem.scale : 1
@@ -70,29 +70,30 @@ Item {
             }
         }
 
-        // Sliding active highlight — same width as pills, follows active item
+        // Sliding active highlight — same height as pills, follows active item
         Rectangle {
             id: highlight
-            width: root.pillWidth
-            height: Math.max(activeTargetHeight, animHeight)
-            x: root.trackInset
-            y: activeTargetY
-            radius: width / 2
-            color: Theme.secondary_container
+            width: Math.max(activeTargetWidth, animWidth)
+            height: root.pillWidth
+            x: activeTargetX
+            y: root.trackInset
+            radius: height / 2
+            color: "#2a2a2a"
+            border.width: 1
+            border.color: "#3a3a3a"
             opacity: root.activeWsItem ? 1 : 0
 
-            property real animHeight: activeTargetHeight
+            property real animWidth: activeTargetWidth
 
-            Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-            Behavior on animHeight { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+            Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+            Behavior on animWidth { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: 150 } }
         }
 
-        Column {
-            id: wsColumn
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            width: root.pillWidth
+        Row {
+            id: wsRow
+            anchors.centerIn: parent
+            height: root.pillWidth
             spacing: root.workspaceGap
             z: 1
 
@@ -106,7 +107,7 @@ Item {
                     required property var model
                     required property int index
 
-                    width: root.pillWidth
+                    height: root.pillWidth
 
                     wsId: model.id
                     wsName: model.name || ""
@@ -159,12 +160,12 @@ Item {
     // --- Active workspace tracking ---
     property Item activeWsItem: null
 
-    readonly property real activeTargetY: {
+    readonly property real activeTargetX: {
         if (!activeWsItem)
             return root.trackInset
-        return wsColumn.y + activeWsItem.y
+        return wsRow.x + activeWsItem.x
     }
-    readonly property real activeTargetHeight: activeWsItem ? activeWsItem.height : 0
+    readonly property real activeTargetWidth: activeWsItem ? activeWsItem.width : 0
 
     // Last drag position in scene coords — kept in sync by dragUpdated so drop
     // hit-testing does not depend on DragHandler.translation at release.
@@ -172,15 +173,15 @@ Item {
     property real _lastDragGY: 0
 
     function _workspaceAt(gx, gy) {
-        var local = wsColumn.mapFromItem(null, gx, gy)
+        var local = wsRow.mapFromItem(null, gx, gy)
         var halfGap = root.workspaceGap / 2
         for (var i = 0; i < wsRepeater.count; i++) {
             var item = wsRepeater.itemAt(i)
             if (!item)
                 continue
-            var top = item.y - halfGap
-            var bottom = item.y + item.height + halfGap
-            if (local.y >= top && local.y <= bottom)
+            var left = item.x - halfGap
+            var right = item.x + item.width + halfGap
+            if (local.x >= left && local.x <= right)
                 return item
         }
         return null

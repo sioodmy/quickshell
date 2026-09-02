@@ -7,13 +7,13 @@ Item {
     id: root
 
     readonly property int barRadius: 22
-    readonly property int visibleWidth: 44
+    readonly property int visibleHeight: 44
 
-    // Same left-edge trick as the dock notch: half the radius sits off-screen
-    // so only the right side shows rounded corners.
-    width: visibleWidth + barRadius
-    height: contentCol.implicitHeight + 16
-    x: -barRadius
+    // Same top-edge trick as the dock notch: half the radius sits off-screen
+    // so only the bottom side shows rounded corners.
+    width: contentRow.implicitWidth + 16
+    height: visibleHeight + barRadius
+    y: -barRadius
     visible: ScreenRecord.recording
 
     Rectangle {
@@ -22,15 +22,15 @@ Item {
         radius: root.barRadius
         color: Theme.critical
 
-        Column {
-            id: contentCol
-            // Center within the on-screen (right) half of the pill
+        Row {
+            id: contentRow
+            // Center within the on-screen (bottom) half of the pill
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: root.barRadius / 2
+            anchors.verticalCenterOffset: root.barRadius / 2
             spacing: 8
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: ScreenRecord.elapsedText
                 font { family: "Google Sans Medium"; pixelSize: 11 }
                 color: Theme.on_critical
@@ -40,7 +40,7 @@ Item {
                 width: 26
                 height: 26
                 radius: 13
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 color: stopMouse.containsMouse
                     ? Qt.rgba(Theme.on_critical.r, Theme.on_critical.g, Theme.on_critical.b, 0.28)
                     : Qt.rgba(Theme.on_critical.r, Theme.on_critical.g, Theme.on_critical.b, 0.16)

@@ -20,11 +20,6 @@ ShellRoot {
         id: applicationDock
     }
 
-    // Screen masking for rounded workspace effect
-    BezelsMask {
-        id: desktopBezels
-    }
-
 
 
     // Session lock screen
@@ -32,15 +27,15 @@ ShellRoot {
         id: lockScreen
     }
 
-    // Floating notification overlay
-    NotifPopup {
-        id: notificationOverlay
-    }
+    // Floating notification overlay (Disabled, now inside dock)
+    // NotifPopup {
+    //     id: notificationOverlay
+    // }
 
-    // Polkit authentication popup
-    PolkitPopup {
-        id: polkitPopup
-    }
+    // Polkit authentication popup (Disabled, now inside dock)
+    // PolkitPopup {
+    //     id: polkitPopup
+    // }
 
     // Top-right Drag Queen dropzone
     FileStashPopup {
@@ -54,21 +49,13 @@ ShellRoot {
         id: launcherWindow
     }
 
-    VolumePopup {
-        id: volumePopupWindow
-    }
 
-    BrightnessPopup {
-        id: brightnessPopupWindow
-    }
 
     SpeakerWarningPopup {
         id: speakerWarningPopupWindow
     }
 
-    ChargePopup {
-        id: chargePopupWindow
-    }
+
 
     Loader {
         active: Screenshot.editorActive
@@ -76,11 +63,11 @@ ShellRoot {
         sourceComponent: ScreenshotEditor { id: screenshotEditor }
     }
 
-    Loader {
-        active: Screenshot.overlayActive
-        asynchronous: true
-        sourceComponent: ScreenshotOverlay { id: screenshotOverlay }
-    }
+    // Loader {
+    //     active: Screenshot.overlayActive
+    //     asynchronous: true
+    //     sourceComponent: ScreenshotOverlay { id: screenshotOverlay }
+    // }
 
     // Live synced lyrics on desktop (wallpaper)
     Loader {

@@ -1,11 +1,14 @@
 import QtQuick
 import qs.theme
 import qs.services
+import qs.components
 
 Item {
     id: root
+    implicitWidth: 540
+    implicitHeight: 310
 
-    readonly property int calendarColumnWidth: 304
+    readonly property int calendarColumnWidth: 260
     readonly property int swipeDistance: calendarColumnWidth
 
     property date currentDate: new Date()
@@ -277,6 +280,7 @@ Item {
         id: calendarModel
     }
 
+
     Row {
         anchors.fill: parent
         spacing: 16
@@ -400,6 +404,7 @@ Item {
 
             isWindowVisible: root.isWindowVisible
             clockSettled: root.clockSettled
+            onCloseRequested: root.requestClose()
         }
     }
 }

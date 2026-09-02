@@ -5,8 +5,8 @@ import qs.components
 Item {
     id: root
 
-    readonly property int monthW: 64
-    readonly property int monthH: 36
+    readonly property int monthW: 56
+    readonly property int monthH: 32
     readonly property int monthSpacing: 8
     readonly property int monthStrideX: monthW + monthSpacing
     readonly property int monthStrideY: monthH + monthSpacing

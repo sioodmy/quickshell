@@ -48,13 +48,20 @@ Variants {
             id: effectContainer
             anchors.fill: parent
 
-            Item {
-                id: bezelLayer
+            Rectangle {
+                id: bezelBackground
                 anchors.fill: parent
+                color: Theme.surface
                 layer.enabled: true
 
-                // Primary Drop Shadow for the bezel edges
+                // Subtracts the cutoutShape from the solid surface and adds an inner shadow
                 layer.effect: MultiEffect {
+                    maskSource: cutoutShape
+                    maskEnabled: true
+                    maskInverted: true
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1
+                    
                     shadowEnabled: true
                     shadowColor: "#B0000000"
                     shadowVerticalOffset: 0
@@ -62,38 +69,22 @@ Variants {
                     blurMax: 20
                     shadowBlur: 0.5
                 }
+            }
+
+            /**
+             * Cutout Definition
+             * Defines the area where the desktop remains visible.
+             */
+            Item {
+                id: cutoutShape
+                anchors.fill: parent
+                layer.enabled: true
+                visible: false // Source item only
 
                 Rectangle {
-                    id: bezelBackground
+                    id: clippingRect
                     anchors.fill: parent
-                    color: Theme.surface
-                    layer.enabled: true
-
-                    // Subtracts the cutoutShape from the solid surface
-                    layer.effect: MultiEffect {
-                        maskSource: cutoutShape
-                        maskEnabled: true
-                        maskInverted: true
-                        maskThresholdMin: 0.5
-                        maskSpreadAtMin: 1
-                    }
-                }
-
-                /**
-                 * Cutout Definition
-                 * Defines the area where the desktop remains visible.
-                 */
-                Item {
-                    id: cutoutShape
-                    anchors.fill: parent
-                    layer.enabled: true
-                    visible: false // Source item only
-
-                    Rectangle {
-                        id: clippingRect
-                        anchors.fill: parent
-                        radius: Layout.cornerRadius
-                    }
+                    radius: Layout.cornerRadius
                 }
             }
         }

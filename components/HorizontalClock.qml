@@ -7,8 +7,8 @@ import "../popups/calendar"
 Item {
     id: root
 
-    implicitWidth: timeRow.implicitWidth + 12
-    implicitHeight: 22
+    implicitWidth: timeRow.implicitWidth + 24
+    implicitHeight: 32
 
     SystemClock {
         id: clock
@@ -18,36 +18,29 @@ Item {
     readonly property bool calendarOpen: CalendarState.open || CalendarState.openProgress > 0.01
 
     function captureSource() {
-        const g = timeRow.mapToGlobal(0, 0);
+        const g = root.mapToGlobal(0, 0);
         CalendarState.sourceX = g.x;
         CalendarState.sourceY = g.y;
-        CalendarState.sourceW = timeRow.width;
-        CalendarState.sourceH = timeRow.height;
+        CalendarState.sourceW = root.width;
+        CalendarState.sourceH = root.height;
         CalendarState.hoursText = Qt.formatDateTime(clock.date, "HH");
         CalendarState.minutesText = Qt.formatDateTime(clock.date, "mm");
     }
 
     function toggleCalendar() {
-        if (dynamicIsland.activeMode === "calendar") {
-            dynamicIsland.activeMode = "dock";
-        } else {
-            dynamicIsland.activeMode = "calendar";
-        }
+        // Disabled since Calendar is now integrated in DynamicIsland.
     }
 
     Rectangle {
         id: visualPill
-        anchors.centerIn: parent
-
-        implicitWidth: root.implicitWidth
-        implicitHeight: 22
+        anchors.fill: parent
         radius: height / 2
 
         color: {
             if (root.calendarOpen)
-                return Qt.rgba(1, 1, 1, 0.15);
+                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12);
             if (pillMouse.containsMouse)
-                return Qt.rgba(1, 1, 1, 0.1);
+                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
             return "transparent";
         }
 
@@ -60,18 +53,14 @@ Item {
             id: timeRow
             anchors.centerIn: parent
             spacing: 2
-            opacity: {
-                if (dynamicIsland.activeMode === "calendar") return 0.5;
-                return 1.0;
-            }
-
+            
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: Qt.formatDateTime(clock.date, "HH:mm")
-                color: "#ffffff"
+                color: Theme.on_surface
                 font {
                     family: "Google Sans"
-                    pixelSize: 12
+                    pixelSize: 14
                     weight: Font.Bold
                 }
             }
@@ -85,5 +74,4 @@ Item {
             onClicked: root.toggleCalendar()
         }
     }
-
 }

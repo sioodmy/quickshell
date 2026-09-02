@@ -3,9 +3,9 @@ import "../theme"
 import qs.services
 
 /**
- * One workspace entry in the workspace bar.
+ * One workspace entry in the horizontal workspace bar.
  *
- * Occupied: pill-shaped column of app icons (+ optional overflow badge).
+ * Occupied: pill-shaped row of app icons (+ optional overflow badge).
  * Empty + inactive: centered dot.
  * Empty + active: circular slot (highlight drawn by parent).
  *
@@ -24,13 +24,13 @@ Item {
     property Item draggingApp: null
     property bool showPill: false
 
-    property int iconSize: 20
-    property int iconSpacing: 4
-    property int pillPadV: 6
+    property int iconSize: 15
+    property int iconSpacing: 2
+    property int pillPadV: 4
     property int maxApps: 4
-    property int overflowHeight: 14
-    property int emptyDotSize: 8
-    property int emptySlotHeight: 14
+    property int overflowHeight: 10
+    property int emptyDotSize: 5
+    property int emptySlotHeight: 10
 
     signal becameActive(bool fromFocus)
     signal appContextMenu(var itemData, real itemY)
@@ -49,13 +49,13 @@ Item {
     readonly property int visibleCount: hasApps ? Math.min(wsApps.length, maxApps) : 0
     readonly property int hiddenCount: hasApps ? Math.max(0, wsApps.length - visibleCount) : 0
 
-    height: {
+    width: {
         if (!hasApps)
-            return (isFocused || isActive) ? width : emptySlotHeight
-        var h = pillPadV * 2 + visibleCount * iconSize + Math.max(0, visibleCount - 1) * iconSpacing
+            return (isFocused || isActive) ? height : emptySlotHeight
+        var w = pillPadV * 2 + visibleCount * iconSize + Math.max(0, visibleCount - 1) * iconSpacing
         if (hiddenCount > 0)
-            h += iconSpacing + overflowHeight
-        return h
+            w += iconSpacing + overflowHeight
+        return w
     }
 
     // Don't clip while dragging so scale/glow can spill out of the pill
@@ -212,7 +212,7 @@ Item {
     // Hover / drop wash
     Rectangle {
         anchors.fill: parent
-        radius: width / 2
+        radius: height / 2
         color: {
             if (root.isDropHovered)
                 return Qt.alpha(Theme.primary, 0.35)
@@ -268,15 +268,15 @@ Item {
         anchors.centerIn: parent
         width: {
             if (root.isDropHovered)
-                return 18
+                return 14
             if (root.isDragTarget)
-                return 13
+                return 10
             return root.emptyDotSize
         }
         height: width
         radius: width / 2
-        color: root.isDropHovered ? Theme.primary : Theme.on_surface_variant
-        opacity: root.isDropHovered ? 1.0 : (root.isDragTarget ? 0.85 : 0.35)
+        color: root.isDropHovered ? Theme.primary : "#888888"
+        opacity: root.isDropHovered ? 1.0 : (root.isDragTarget ? 0.85 : 0.5)
         visible: !root.hasApps && !root.isFocused && !root.isActive
 
         Behavior on width {
@@ -286,12 +286,12 @@ Item {
         Behavior on color { ColorAnimation { duration: 120 } }
     }
 
-    Column {
+    Row {
         id: appColumn
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: root.pillPadV
-        width: parent.width
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.leftMargin: root.pillPadV
+        height: parent.height
         spacing: root.iconSpacing
         visible: root.hasApps
 
@@ -300,8 +300,8 @@ Item {
 
             Item {
                 id: slot
-                width: appColumn.width
-                height: root.iconSize
+                width: root.iconSize
+                height: appColumn.height
 
                 required property int index
 
@@ -341,24 +341,24 @@ Item {
         }
 
         Item {
-            width: appColumn.width
-            height: root.hiddenCount > 0 ? root.overflowHeight : 0
+            width: root.hiddenCount > 0 ? root.overflowHeight : 0
+            height: appColumn.height
             visible: root.hiddenCount > 0
 
             Rectangle {
                 anchors.centerIn: parent
-                width: parent.width - 8
-                height: parent.height
-                radius: height / 2
-                color: Qt.alpha(Theme.on_surface_variant, 0.14)
+                width: parent.width
+                height: parent.height - 4
+                radius: width / 2
+                color: Qt.alpha(Theme.on_surface_variant, 0.2)
 
                 Text {
                     anchors.centerIn: parent
                     text: "+" + root.hiddenCount
-                    color: Theme.on_surface_variant
+                    color: "#ffffff"
                     font {
                         family: "Google Sans"
-                        pixelSize: 9
+                        pixelSize: 8
                         weight: Font.DemiBold
                     }
                 }

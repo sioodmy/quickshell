@@ -5,8 +5,8 @@ import qs.services
 Item {
     id: root
 
-    readonly property int cellSize: 38
-    readonly property int cellSpacing: 6
+    readonly property int cellSize: 30
+    readonly property int cellSpacing: 4
     readonly property int cellStride: cellSize + cellSpacing
 
     property alias model: daysRepeater.model

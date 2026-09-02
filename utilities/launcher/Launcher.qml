@@ -1223,7 +1223,7 @@ PanelWindow {
                 parent: launcherWindow.contentItem
                 width: 752 + 48
                 height: 609
-                x: 0
+                anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
 
                 function syncFilePreviewForCurrentItem() {
@@ -1463,16 +1463,12 @@ PanelWindow {
                     searchField.forceActiveFocus();
                 }
 
-                // Shadow tracks the revealed area, offset past the dock so the
-                // launcher feels connected to the bar on the left edge.
+                // Shadow for the floating launcher window
                 Rectangle {
                     id: shadowCaster
-                    x: 44
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
+                    anchors.fill: mainUi
                     anchors.margins: 4
-                    width: Math.max(0, 800 * launcherWindow.openProgress - 44)
-                    radius: 26
+                    radius: mainUi.radius
                     color: Theme.surface
                     visible: false
                 }
@@ -1488,7 +1484,7 @@ PanelWindow {
                     opacity: launcherWindow.openProgress
                 }
 
-                // Reveal mask: flat left edge, rounded right leading edge
+                // Simple rounded mask to clip children to the rounded corners
                 Item {
                     id: mainUiMask
                     anchors.fill: mainUi
@@ -1496,21 +1492,9 @@ PanelWindow {
                     layer.enabled: true
                     layer.smooth: true
 
-                    // Rounded reveal area that grows from left
                     Rectangle {
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        x: 44
-                        width: Math.max(0, parent.width * launcherWindow.openProgress - 44)
+                        anchors.fill: parent
                         radius: 28
-                        color: "black"
-                    }
-                    // Flat left edge filler (covers the left rounded corners)
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        x: 44
-                        width: Math.min(28, Math.max(0, parent.width * launcherWindow.openProgress - 44))
                         color: "black"
                     }
                 }
@@ -1521,16 +1505,15 @@ PanelWindow {
 
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.left: parent.left
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    
                     color: Theme.surface
                     radius: 28
                     border.width: 1
                     border.color: Theme.surface_container_high
-                    // Keep mainUi hidden until the open animation has actually
-                    // started.  This prevents a single-frame flash where the
-                    // mask layer texture hasn't been rendered yet and the
-                    // unmasked rectangle (with rounded left corners) is visible.
                     visible: launcherWindow.openProgress > 0
+                    opacity: launcherWindow.openProgress
+                    scale: 0.95 + (0.05 * launcherWindow.openProgress)
                     focus: true
 
                     // Swallow clicks on the card so it doesn't dismiss

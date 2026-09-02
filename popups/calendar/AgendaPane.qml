@@ -21,6 +21,8 @@ Item {
 
     property alias timeLabel: timeText
 
+    signal closeRequested()
+
     // Refresh agenda when window becomes visible
     onIsWindowVisibleChanged: {
         if (isWindowVisible) {
@@ -45,85 +47,11 @@ Item {
     }
 
     Rectangle {
-        id: maskShape
-        anchors.fill: parent
-        radius: 20
-        visible: false
-        layer.enabled: true
-    }
-
-    Rectangle {
         id: bgRect
         anchors.fill: parent
         radius: 20
-        color: Theme.surface_container_highest
+        color: "#000000"
         clip: true
-
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: maskShape
-            maskThresholdMin: 0.5
-            maskSpreadAtMin: 1.0
-        }
-
-        Rectangle {
-            width: 140
-            height: 120
-            radius: 70
-            color: Theme.primary
-            opacity: 0.07
-            x: -30
-            y: -24
-            transformOrigin: Item.Center
-
-            SequentialAnimation on x {
-                loops: Animation.Infinite
-                paused: !root.isWindowVisible
-                NumberAnimation { to: 16; duration: 9000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -60; duration: 8000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -16; duration: 10000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -30; duration: 7500; easing.type: Easing.InOutSine }
-            }
-            SequentialAnimation on y {
-                loops: Animation.Infinite
-                paused: !root.isWindowVisible
-                NumberAnimation { to: -50; duration: 8500; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 12; duration: 9500; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -36; duration: 8000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -24; duration: 9000; easing.type: Easing.InOutSine }
-            }
-            NumberAnimation on rotation {
-                from: 0; to: 360; duration: 28000
-                loops: Animation.Infinite
-                paused: !root.isWindowVisible
-            }
-        }
-
-        Rectangle {
-            width: 110
-            height: 140
-            radius: 55
-            color: Theme.tertiary
-            opacity: 0.05
-            x: bgRect.width - 80
-            y: bgRect.height - 110
-            transformOrigin: Item.Center
-
-            SequentialAnimation on x {
-                loops: Animation.Infinite
-                paused: !root.isWindowVisible
-                NumberAnimation { to: bgRect.width - 110; duration: 10000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: bgRect.width - 50; duration: 8000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: bgRect.width - 90; duration: 9500; easing.type: Easing.InOutSine }
-                NumberAnimation { to: bgRect.width - 80; duration: 8500; easing.type: Easing.InOutSine }
-            }
-            NumberAnimation on rotation {
-                from: 360; to: 0; duration: 32000
-                loops: Animation.Infinite
-                paused: !root.isWindowVisible
-            }
-        }
 
         Item {
             anchors.fill: parent
@@ -134,15 +62,15 @@ Item {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.rightMargin: 36
-                spacing: 10
+                anchors.rightMargin: 12
+                spacing: 8
 
                 Text {
                     id: timeText
                     anchors.verticalCenter: parent.verticalCenter
                     text: Qt.formatTime(root.liveTime, "HH:mm")
                     color: Theme.primary
-                    font { family: "Google Sans"; pointSize: 24; weight: Font.Black }
+                    font { family: "Google Sans"; pointSize: 18; weight: Font.Black }
                     // Keep layout size while invisible so the morph has a stable landing pad
                     opacity: root.clockSettled ? 1 : 0
 
@@ -158,40 +86,68 @@ Item {
                     Text {
                         text: Qt.formatDate(new Date(root.selectedYear, root.selectedMonth, root.selectedDay), "dddd")
                         color: Theme.on_surface
-                        font { family: "Google Sans"; pointSize: 11; weight: Font.Bold }
+                        font { family: "Google Sans"; pointSize: 10; weight: Font.Bold }
                     }
 
                     Text {
                         text: Qt.formatDate(new Date(root.selectedYear, root.selectedMonth, root.selectedDay), "MMM d, yyyy")
                         color: Theme.on_surface_variant
-                        font { family: "Google Sans"; pointSize: 9; weight: Font.Medium }
+                        font { family: "Google Sans"; pointSize: 8; weight: Font.Medium }
                     }
                 }
             }
 
-            Rectangle {
-                width: 28
-                height: 28
-                radius: 14
+            Row {
                 anchors.right: parent.right
                 anchors.verticalCenter: headerCol.verticalCenter
-                color: addMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                spacing: 8
 
-                Behavior on color { ColorAnimation { duration: 150 } }
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: addMouse.containsMouse ? Theme.surface_container_high : "transparent"
 
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: "add"
-                    color: Theme.on_surface_variant
-                    font.pixelSize: 16
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        icon: "add"
+                        color: Theme.on_surface_variant
+                        font.pixelSize: 16
+                    }
+
+                    MouseArea {
+                        id: addMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: newEventForm.isOpen = true
+                    }
                 }
 
-                MouseArea {
-                    id: addMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: newEventForm.isOpen = true
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: 14
+                    color: closeMouse.containsMouse ? Theme.surface_variant : "transparent"
+                    
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        icon: "close"
+                        font.pixelSize: 18
+                        color: Theme.on_surface_variant
+                    }
+                    
+                    MouseArea {
+                        id: closeMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.closeRequested()
+                    }
                 }
             }
 

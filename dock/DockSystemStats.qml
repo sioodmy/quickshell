@@ -7,9 +7,9 @@ import qs.components
 Rectangle {
     id: root
 
-    implicitWidth: 28
-    implicitHeight: layout.implicitHeight + 20
-    radius: width / 2
+    implicitWidth: layout.implicitWidth + 8
+    implicitHeight: 22
+    radius: height / 2
     color: "transparent"
 
     // --- Audio State Management ---
@@ -21,30 +21,16 @@ Rectangle {
         objects: root.activeSink ? [root.activeSink] : []
     }
 
-    Column {
+    Row {
         id: layout
         anchors.centerIn: parent
-        spacing: 16
-
-        // --- Network ---
-        Item {
-            width: netIcon.width; height: netIcon.height
-            anchors.horizontalCenter: parent.horizontalCenter
-            DockNetwork { id: netIcon; anchors.centerIn: parent }
-        }
-
-        // --- Bluetooth ---
-        Item {
-            width: btIcon.width; height: btIcon.height
-            anchors.horizontalCenter: parent.horizontalCenter
-            DockBluetooth { id: btIcon; anchors.centerIn: parent }
-        }
+        spacing: 6
 
         // --- Audio ---
         Item {
-            width: 14
-            height: 14
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: 11
+            height: 11
+            anchors.verticalCenter: parent.verticalCenter
 
             Canvas {
                 id: audioIcon
@@ -63,12 +49,12 @@ Rectangle {
                     ctx.clearRect(0, 0, width, height);
                     var cx = width / 2;
                     var cy = height / 2;
-                    var r = (width / 2) - 1.5;
+                    var r = (width / 2) - 1.0;
 
                     ctx.beginPath();
                     ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                    ctx.lineWidth = 2.5;
-                    ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
+                    ctx.lineWidth = 1.8;
+                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.3);
                     ctx.stroke();
 
                     if (root.volumeLevel > 0) {
@@ -76,9 +62,9 @@ Rectangle {
                         var startAngle = -Math.PI / 2;
                         var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
                         ctx.arc(cx, cy, r, startAngle, endAngle);
-                        ctx.lineWidth = 2.5;
+                        ctx.lineWidth = 1.8;
                         ctx.lineCap = "round";
-                        ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
+                        ctx.strokeStyle = root.isMuted ? Qt.rgba(1, 1, 1, 0.5) : "#ffffff";
                         ctx.stroke();
                     }
                 }
@@ -88,17 +74,17 @@ Rectangle {
                 anchors.centerIn: parent
                 visible: root.isMuted || root.volumeLevel <= 0.0
                 icon: "volume_off"
-                font.pixelSize: 13
-                color: Theme.on_surface_variant
+                font.pixelSize: 10
+                color: "#ffffff"
             }
         }
 
         // --- Battery ---
         Item {
             id: batteryIconItem
-            width: 10
-            height: 20
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: 22
+            height: 12
+            anchors.verticalCenter: parent.verticalCenter
 
             // Internal logic
             readonly property bool isVisible: UPower.displayDevice?.isPresent ?? false
@@ -107,14 +93,14 @@ Rectangle {
 
             visible: isVisible
 
-            // Battery nub (terminal)
+            // Battery nub (terminal on the right)
             Rectangle {
                 id: batteryNub
-                width: 4
-                height: 2
+                width: 2
+                height: 5
                 anchors {
-                    top: parent.top
-                    horizontalCenter: parent.horizontalCenter
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
                 }
                 radius: 1
                 color: batteryBody.border.color
@@ -124,9 +110,10 @@ Rectangle {
                 id: batteryBody
                 anchors {
                     left: parent.left
-                    top: batteryNub.bottom
+                    top: parent.top
                     bottom: parent.bottom
-                    right: parent.right
+                    right: batteryNub.left
+                    rightMargin: 1
                 }
                 radius: 3
                 color: "transparent"
@@ -138,7 +125,7 @@ Rectangle {
                         return "#ea999c";
                     if (batteryIconItem.isCharging)
                         return "#259b50";
-                    return Theme.primary;
+                    return "#ffffff";
                 }
                 Behavior on border.color { ColorAnimation { duration: 250 } }
             }
@@ -147,17 +134,27 @@ Rectangle {
                 id: batteryFill
                 anchors {
                     left: batteryBody.left
-                    right: batteryBody.right
+                    top: batteryBody.top
                     bottom: batteryBody.bottom
                     margins: 2
                 }
-                radius: 1
-                height: Math.max(0, (batteryBody.height - 4) * (batteryIconItem.capacity / 100))
+                radius: 1.5
+                width: Math.max(0, (batteryBody.width - 4) * (batteryIconItem.capacity / 100))
                 color: batteryBody.border.color
-                opacity: 1.0
+                opacity: 0.4
 
-                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 250 } }
+            }
+
+            Text {
+                visible: !batteryIconItem.isCharging
+                anchors.centerIn: batteryBody
+                text: Math.round(batteryIconItem.capacity)
+                font.family: "Google Sans"
+                font.pixelSize: 7
+                font.bold: true
+                color: "#ffffff"
             }
 
             MaterialIcon {
@@ -166,8 +163,8 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 icon: "bolt"
-                font.pixelSize: 7
-                color: Theme.on_surface
+                font.pixelSize: 8
+                color: "#ffffff"
             }
         }
     }

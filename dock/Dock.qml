@@ -7,13 +7,13 @@ import qs.services
 import qs.components
 
 /**
- * Vertical application dock functioning as a LeftBar.
+ * Horizontal application dock functioning as a TopBar.
  *
  * Layout:
- * - Solid background extending full height.
- * - Top: Launcher icon + clock.
+ * - Solid background extending full width.
+ * - Left: Launcher icon + clock.
  * - Center: WorkspaceBar — workspaces with running apps and sliding highlight.
- * - Bottom: System stats.
+ * - Right: System stats.
  */
 Variants {
     id: root
@@ -26,20 +26,20 @@ Variants {
         screen: modelData
 
         // --- Layer Shell ---
-        WlrLayershell.layer: WlrLayer.Top // Changed to Top so it doesn't overlap fullscreen videos
+        WlrLayershell.layer: WlrLayer.Top
         WlrLayershell.namespace: "quickshell-dock"
-        // Reserve space for the dock on the left edge
-        WlrLayershell.exclusiveZone: 48
+        WlrLayershell.exclusiveZone: 28
+        WlrLayershell.keyboardFocus: (typeof dynamicIsland !== "undefined" && dynamicIsland.requiresKeyboard) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         anchors {
             top: true
             left: true
-            bottom: true
+            right: true
         }
 
-        // Make the window wide enough to fit menus, but transparent
+        // Make the window tall enough to fit menus, but transparent
         color: "transparent"
-        implicitWidth: 400
+        implicitHeight: 400
 
         // Allow click-through everywhere except the bar and popups
         mask: Region {
@@ -56,19 +56,19 @@ Variants {
             property string contextAppName: ""
             property bool contextIsPinned: false
             property bool contextIsRunning: false
-            property real contextItemY: 0
+            property real contextItemX: 0
 
             property Item draggingApp: null
             property string draggingWinId: ""
             property real dragX: 0
             property real dragY: 0
-            property real dragVY: 0
-            property real _prevDragY: 0
+            property real dragVX: 0
+            property real _prevDragX: 0
             property bool dropHoverActive: workspaceBar.dropHoverActive
 
-            onDragYChanged: {
-                dragVY = dragY - _prevDragY
-                _prevDragY = dragY
+            onDragXChanged: {
+                dragVX = dragX - _prevDragX
+                _prevDragX = dragX
             }
 
             property var runningApps: {
@@ -79,206 +79,94 @@ Variants {
             // The visible background of the bar (floating notch)
             Rectangle {
                 id: notchBg
-                width: 44 + 22
-                height: 680
-                anchors.verticalCenter: parent.verticalCenter
-                x: -22
-                radius: 22
-                color: Theme.surface_container
+                height: dockContent.animHeight
+                width: dockContent.animWidth
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: -14
+                radius: dockContent.animRadius
+                color: "#000000"
+                border.width: 1
+                border.color: "#1e1e1e"
                 z: -10
             }
 
             // Recording indicator — same layer / exclusive zone as the bar,
-            // glued to the left edge below the notch, right-side radius only.
+            // glued to the top edge to the right of the notch.
             DockRecordingIndicator {
                 id: recordingIndicator
-                anchors.top: notchBg.bottom
-                anchors.topMargin: 8
-                z: -10
-            }
-
-            // Pomodoro focus orb — above the notch, same left-edge pill treatment.
-            DockPomodoroIndicator {
-                id: pomodoroIndicator
-                anchors.bottom: notchBg.top
-                anchors.bottomMargin: 8
+                anchors.left: notchBg.right
+                anchors.leftMargin: 8
                 z: -10
             }
 
             // Defines exactly what areas block clicks
             Item {
                 id: inputMaskContainer
-                x: 0
-                y: {
-                    var top = notchBg.y;
-                    if (pomodoroIndicator.visible)
-                        top = Math.min(top, pomodoroIndicator.y);
-                    if (contextMenu.visible) top = Math.min(top, contextMenu.y);
-                    return top;
-                }
-                width: {
-                    var w = 44;
-                    if (contextMenu.visible) w = Math.max(w, contextMenu.x + contextMenu.width + 4);
-                    // Keep a bit of horizontal slack while dragging so the
-                    // pointer doesn't leave the layer-shell input region.
-                    if (dockContent.draggingApp !== null) w = Math.max(w, 72);
-                    return w;
+                y: 0
+                x: {
+                    var left = notchBg.x;
+                    if (contextMenu.visible) left = Math.min(left, contextMenu.x);
+                    return left;
                 }
                 height: {
-                    var bottom = notchBg.y + notchBg.height;
-                    if (recordingIndicator.visible)
-                        bottom = Math.max(bottom, recordingIndicator.y + recordingIndicator.height);
-                    if (contextMenu.visible) bottom = Math.max(bottom, contextMenu.y + contextMenu.height + 4);
-                    return bottom - y;
+                    var h = dynamicIsland.isDockHidden ? dynamicIsland.implicitHeight + 16 : 28;
+                    if (contextMenu.visible) h = Math.max(h, contextMenu.y + contextMenu.height + 4);
+                    // Keep a bit of vertical slack while dragging so the
+                    // pointer doesn't leave the layer-shell input region.
+                    if (dockContent.draggingApp !== null) h = Math.max(h, 56);
+                    return h;
                 }
+                width: {
+                    var right = notchBg.x + notchBg.width;
+                    if (recordingIndicator.visible)
+                        right = Math.max(right, recordingIndicator.x + recordingIndicator.width);
+                    if (contextMenu.visible) right = Math.max(right, contextMenu.x + contextMenu.width + 4);
+                    return right - x;
+                }
+
+
             }
 
-            // The single container that holds the modules, centered vertically
-            Item {
-                id: contentColumn
-                width: 44
-                height: 680
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-
-                // 0. Launcher Button — pink animated rounded square matching launcher header
-                Item {
-                    id: launcherButton
-                    anchors.top: parent.top
-                    anchors.topMargin: 12
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 34
-                    height: 34
-
-                    Item {
-                        id: launcherMerge
-                        anchors.fill: parent
-                        opacity: Math.max(0, 1.0 - LauncherState.openProgress * 1.4)
-
-                        transform: Translate {
-                            x: LauncherState.openProgress * 4
-                            y: LauncherState.openProgress * 24
-                        }
-
-                        Rectangle {
-                            id: launcherPill
-                            anchors.fill: parent
-                            radius: 10
-                            color: "#f5bde6"
-
-                            scale: {
-                                if (LauncherState.openProgress > 0.05) return 1.0;
-                                return launcherTap.pressed ? 0.88 : (launcherHover.hovered ? 1.06 : 1.0);
-                            }
-                            Behavior on scale {
-                                NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
-                            }
-
-                            Rectangle {
-                                width: 30; height: 30; radius: 15
-                                color: "#ffffff"; opacity: 0.38
-                                x: -6; y: -4
-
-                                SequentialAnimation on x {
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 12; duration: 4200; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: -8; duration: 4600; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: -6; duration: 3800; easing.type: Easing.InOutSine }
-                                }
-                                SequentialAnimation on y {
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: -8; duration: 3600; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 16; duration: 4400; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: -4; duration: 3800; easing.type: Easing.InOutSine }
-                                }
-                            }
-
-                            Rectangle {
-                                width: 26; height: 26; radius: 13
-                                color: "#c6a0f6"; opacity: 0.50
-                                x: 8; y: 14
-
-                                SequentialAnimation on x {
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: -4; duration: 5000; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 16; duration: 4800; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 8; duration: 4200; easing.type: Easing.InOutSine }
-                                }
-                                SequentialAnimation on y {
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 22; duration: 4400; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: -4; duration: 5000; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 14; duration: 4600; easing.type: Easing.InOutSine }
-                                }
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                color: "white"
-                                opacity: launcherHover.hovered && LauncherState.openProgress < 0.1 ? 0.12 : 0
-                                Behavior on opacity { NumberAnimation { duration: 200 } }
-                            }
-
-                            layer.enabled: true
-                            layer.smooth: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    hideSource: true
-                                    sourceItem: Rectangle {
-                                        width: launcherPill.width
-                                        height: launcherPill.height
-                                        radius: 10
-                                        color: "black"
-                                        visible: false
-                                    }
-                                }
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1.0
-                            }
-                        }
-                    }
-
-                    HoverHandler {
-                        id: launcherHover
-                        enabled: LauncherState.openProgress < 0.3
-                        cursorShape: Qt.PointingHandCursor
-                    }
-
-                    TapHandler {
-                        id: launcherTap
-                        onTapped: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "appLauncher", "toggle"] })
-                    }
-                }
+            Row {
+                id: contentRow
+                height: 28
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                spacing: 6
+                opacity: dynamicIsland.isDockHidden ? 0 : 1
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                 // 1. Time (DockClock)
                 DockClock {
                     id: clockModule
-                    anchors.top: launcherButton.bottom
-                    anchors.topMargin: 10
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
                 }
 
                 // 2. Workspaces
-                WorkspaceBar {
-                    id: workspaceBar
-                    anchors.top: clockModule.bottom
-                    anchors.topMargin: 12
-                    anchors.bottom: dockShareIcon.top
-                    anchors.bottomMargin: 0
-                    anchors.horizontalCenter: parent.horizontalCenter
+                Item {
+                    id: workspaceContainer
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 28
+                    
+                    width: dynamicIsland.isDockHidden ? 0 : workspaceBar.implicitWidth
+                    
+                    clip: true
+                    
+                    WorkspaceBar {
+                        id: workspaceBar
+                        anchors.centerIn: parent
 
                     runningApps: dockContent.runningApps
                     draggingApp: dockContent.draggingApp
                     draggingWinId: dockContent.draggingWinId
 
-                    onAppContextMenu: function(itemData, itemY) {
+                    onAppContextMenu: function(itemData, itemX) {
                         dockContent.contextDesktopId = itemData.desktopId || ""
                         dockContent.contextAppName = itemData.name || ""
                         dockContent.contextIsPinned = !!itemData.pinned
                         dockContent.contextIsRunning = !!itemData.running
-                        dockContent.contextItemY = itemY - dockContent.mapToItem(null, 0, 0).y
+                        dockContent.contextItemX = itemX - dockContent.mapToItem(null, 0, 0).x
                         dockContent.contextMenuOpen = true
                     }
                     onDragStarted: function(item, winId, gx, gy) {
@@ -287,8 +175,8 @@ Variants {
                         dockContent.draggingWinId = winId
                         dockContent.dragX = local.x
                         dockContent.dragY = local.y
-                        dockContent._prevDragY = local.y
-                        dockContent.dragVY = 0
+                        dockContent._prevDragX = local.x
+                        dockContent.dragVX = 0
                     }
                     onDragUpdated: function(gx, gy) {
                         var local = dockContent.mapFromItem(null, gx, gy)
@@ -298,23 +186,49 @@ Variants {
                     onDragEnded: function(gx, gy) {
                         dockContent.draggingApp = null
                         dockContent.draggingWinId = ""
-                        dockContent.dragVY = 0
+                        dockContent.dragVX = 0
                     }
+                }
                 }
 
                 DockFileShare {
                     id: dockShareIcon
-                    anchors.bottom: statsModule.top
-                    anchors.bottomMargin: 12
-                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // 3. Sys/Net Stats
+                DockPomodoroWidget {
+                    id: pomodoroWidget
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // 3. Sys Stats
                 DockSystemStats {
                     id: statsModule
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            Rectangle {
+                id: islandClipper
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: -14
+                width: dockContent.animWidth
+                height: dockContent.animHeight
+                radius: dockContent.animRadius
+                color: "transparent"
+                clip: true
+                z: 10
+
+                DynamicIsland {
+                    id: dynamicIsland
                     anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top
+                    anchors.topMargin: (activeMode === "osd" || activeMode === "charging") ? 0 : 22
+                    osdDockWidth: (activeMode === "osd" || activeMode === "charging") ? dockContent.dockTargetWidth : dockContent.dockTargetWidth - 32
+                    osdDockHeight: dockContent.dockTargetHeight
+                    opacity: isDockHidden ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 }
             }
 
@@ -328,8 +242,8 @@ Variants {
                 Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.5 } }
 
-                x: 56
-                y: dockContent.contextItemY
+                x: dockContent.contextItemX
+                y: 56
 
                 width: 170
                 height: contextMenuCol.implicitHeight + 16
@@ -640,7 +554,24 @@ Variants {
                         return "image://icon/" + icon
                     }
                 }
-            }
+            } // end draggingOverlay
+
+            property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + 16
+            property real dockTargetHeight: 28 + 14
+            property real dockTargetRadius: 14
+
+            property real islandTargetWidth: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetWidth : dynamicIsland.implicitWidth + 32) : 0
+            property real islandTargetHeight: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetHeight : dynamicIsland.implicitHeight + 16 + 14) : 0
+            property real islandTargetRadius: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetRadius : 20) : 20
+
+            property real animWidth: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetWidth : dockTargetWidth
+            property real animHeight: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetHeight : dockTargetHeight
+            property real animRadius: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetRadius : dockTargetRadius
+
+            Behavior on animWidth { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
+            Behavior on animHeight { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
+            Behavior on animRadius { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
+
         }
     }
 }

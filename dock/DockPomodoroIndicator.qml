@@ -7,7 +7,7 @@ Item {
     id: root
 
     readonly property int barRadius: 22
-    readonly property int visibleWidth: 44
+    readonly property int visibleHeight: 44
 
     // Match launcher nature palette
     readonly property color leaf: "#a6d189"
@@ -31,9 +31,9 @@ Item {
 
     // Same left-edge trick as the dock notch / recording indicator:
     // half the radius sits off-screen so only the right side shows rounded.
-    width: visibleWidth + barRadius
-    height: contentCol.implicitHeight + 16
-    x: -barRadius
+    width: contentRow.implicitWidth + 16
+    height: visibleHeight + barRadius
+    y: -barRadius
     visible: Pomodoro.shouldShow
     opacity: visible ? 1 : 0
 
@@ -58,10 +58,10 @@ Item {
 
         Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
-        Column {
-            id: contentCol
+        Row {
+            id: contentRow
             anchors.centerIn: parent
-            anchors.horizontalCenterOffset: root.barRadius / 2
+            anchors.verticalCenterOffset: root.barRadius / 2
             spacing: 6
 
             // Circular progress — hover swaps mode icon for pause/play, click toggles
@@ -69,7 +69,7 @@ Item {
                 id: ringHit
                 width: 32
                 height: 32
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
 
                 Canvas {
                     id: miniRing
@@ -139,7 +139,7 @@ Item {
             }
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: Pomodoro.formattedTime
                 font { family: "Google Sans Medium"; pixelSize: 10 }
                 color: Pomodoro.isRunning ? root.accentOn : Theme.on_surface_variant

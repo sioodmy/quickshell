@@ -151,6 +151,7 @@ Item {
                         }
 
                         Text {
+                            id: enterLabel
                             visible: !root.successAnim
                             text: "Enter"
                             font { family: "Google Sans"; pixelSize: 11 }
