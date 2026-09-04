@@ -9,10 +9,15 @@ pub struct DeviceItem {
     pub name: String,
     pub kind: String,
     pub active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub battery: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub charging: Option<bool>,
 }
 
 pub async fn get_bluetooth_devices() -> Vec<DeviceItem> {
     let mut devices = Vec::new();
+    let sysfs_batteries = crate::battery::get_sysfs_batteries();
     
     if let Ok(connection) = zbus::Connection::system().await {
         if let Ok(proxy) = zbus::Proxy::new(
@@ -23,7 +28,7 @@ pub async fn get_bluetooth_devices() -> Vec<DeviceItem> {
         ).await {
             let result: Result<HashMap<OwnedObjectPath, HashMap<String, HashMap<String, OwnedValue>>>, _> = proxy.call("GetManagedObjects", &()).await;
             if let Ok(objects) = result {
-                for (path, interfaces) in objects {
+                for (_, interfaces) in objects {
                     if let Some(device_props) = interfaces.get("org.bluez.Device1") {
                         let name = device_props.get("Name").and_then(|v| <&str>::try_from(&**v).ok()).unwrap_or("Unknown").to_string();
                         let paired: bool = device_props.get("Paired").and_then(|v| bool::try_from(&**v).ok()).unwrap_or(false);
@@ -31,11 +36,29 @@ pub async fn get_bluetooth_devices() -> Vec<DeviceItem> {
                         let address: String = device_props.get("Address").and_then(|v| <&str>::try_from(&**v).ok()).unwrap_or("").to_string();
                         
                         if paired && !name.is_empty() {
+                            let mut battery: Option<f64> = None;
+                            let mut charging: Option<bool> = None;
+                            
+                            if let Some(battery_props) = interfaces.get("org.bluez.Battery1") {
+                                if let Some(v) = battery_props.get("Percentage") {
+                                    if let Ok(pct) = u8::try_from(&**v) {
+                                        battery = Some(pct as f64 / 100.0);
+                                    }
+                                }
+                            }
+                            
+                            if let Some(&(cap, charge)) = sysfs_batteries.get(&address) {
+                                battery = Some(cap);
+                                charging = Some(charge);
+                            }
+
                             devices.push(DeviceItem {
                                 id: address,
                                 name,
                                 kind: "bluetooth".to_string(),
                                 active: connected,
+                                battery,
+                                charging,
                             });
                         }
                     }
@@ -82,6 +105,8 @@ pub async fn get_wifi_networks() -> Vec<DeviceItem> {
                             name,
                             kind,
                             active,
+                            battery: None,
+                            charging: None,
                         });
                     }
                 }

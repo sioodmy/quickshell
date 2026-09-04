@@ -37,11 +37,6 @@ ShellRoot {
     //     id: polkitPopup
     // }
 
-    // Top-right Drag Queen dropzone
-    FileStashPopup {
-        id: fileStashOverlay
-    }
-
 
 
     // Application Launcher
@@ -81,6 +76,13 @@ ShellRoot {
         active: Lyrics.showFullscreen
         asynchronous: true
         sourceComponent: FullscreenMedia { id: fullscreenMedia }
+    }
+
+    // RSVP speed reader overlay
+    Loader {
+        active: RsvpReader.active
+        asynchronous: true
+        sourceComponent: RsvpOverlay { id: rsvpOverlay }
     }
 
     IpcHandler {

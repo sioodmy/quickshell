@@ -22,6 +22,7 @@ mod handler;
 mod torrent;
 pub mod org_renderer;
 pub mod polkit;
+pub mod battery;
 
 #[macro_export]
 macro_rules! debug_log {

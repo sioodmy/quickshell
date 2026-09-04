@@ -34,6 +34,7 @@ FileView {
     property alias inverse_surface: colors.inverse_surface
     property alias inverse_on_surface: colors.inverse_on_surface
 
+    property alias surface_container_lowest: colors.surface_container_lowest
     property alias surface_container_low: colors.surface_container_low
     property alias surface_container: colors.surface_container
     property alias surface_container_high: colors.surface_container_high

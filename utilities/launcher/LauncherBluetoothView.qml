@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
+import "../../services"
 import qs.components
 
 Item {
@@ -141,6 +142,14 @@ Item {
             adapter.discovering = true;
     }
 
+    Timer {
+        id: batteryUpdateTimer
+        interval: 15000
+        repeat: true
+        running: root.visible
+        onTriggered: BackendDaemon.send({action: "sysctl_list", kind: "bluetooth"})
+    }
+
     onVisibleChanged: {
         if (!visible) {
             resetConnecting();
@@ -148,6 +157,7 @@ Item {
         }
         if (adapter && adapter.enabled)
             adapter.discovering = true;
+        BackendDaemon.send({action: "sysctl_list", kind: "bluetooth"});
     }
 
     Timer {
@@ -441,10 +451,19 @@ Item {
                     Text {
                         text: {
                             if (devDelegate.isConnecting) return "Connecting…";
-                            if (devDelegate.modelData.connected)
-                                return devDelegate.modelData.batteryAvailable
-                                    ? "Connected · " + Math.round(devDelegate.modelData.battery * 100) + "%"
-                                    : "Connected";
+                            if (devDelegate.modelData.connected) {
+                                var backendDev = BackendDaemon.bluetoothDevices.find(d => d.id === devDelegate.modelData.address);
+                                var batStr = "";
+                                if (backendDev !== undefined && backendDev.battery !== undefined && backendDev.battery !== null) {
+                                    batStr = " · " + Math.round(backendDev.battery * 100) + "%";
+                                    if (backendDev.charging) {
+                                        batStr += " ⚡";
+                                    }
+                                } else if (devDelegate.modelData.batteryAvailable) {
+                                    batStr = " · " + Math.round(devDelegate.modelData.battery * 100) + "%";
+                                }
+                                return "Connected" + batStr;
+                            }
                             if (devDelegate.modelData.pairing) return "Pairing…";
                             if (devDelegate.modelData.paired) return "Paired";
                             return "Available";

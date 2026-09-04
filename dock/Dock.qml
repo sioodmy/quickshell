@@ -124,7 +124,6 @@ Variants {
                     return right - x;
                 }
 
-
             }
 
             Row {
@@ -556,11 +555,60 @@ Variants {
                 }
             } // end draggingOverlay
 
+            DropArea {
+                id: dragQueenDropArea
+                anchors.fill: notchBg
+
+                onEntered: function (drag) {
+                    if (drag.hasUrls) {
+                        drag.accept(Qt.CopyAction);
+                        if (typeof dynamicIsland !== "undefined") {
+                            dynamicIsland._dragQueenDragHover = true;
+                            if (dynamicIsland.activeMode === "dock")
+                                dynamicIsland.activeMode = "drag_queen";
+                        }
+                        return;
+                    }
+                    if (drag.hasText && String(drag.text).indexOf("file:") !== -1) {
+                        drag.accept(Qt.CopyAction);
+                        if (typeof dynamicIsland !== "undefined") {
+                            dynamicIsland._dragQueenDragHover = true;
+                            if (dynamicIsland.activeMode === "dock")
+                                dynamicIsland.activeMode = "drag_queen";
+                        }
+                    }
+                }
+
+                onExited: {
+                    if (typeof dynamicIsland !== "undefined")
+                        dynamicIsland._dragQueenDragHover = false;
+                }
+
+                onDropped: function (drop) {
+                    if (typeof dynamicIsland !== "undefined")
+                        dynamicIsland._dragQueenDragHover = false;
+                    if (drop.hasUrls) {
+                        FileStash.addUrls(drop.urls);
+                        drop.acceptProposedAction();
+                        return;
+                    }
+                    if (drop.hasText && drop.text) {
+                        const parts = String(drop.text).split(/\s+/).filter(function (p) {
+                            return p.indexOf("file:") === 0;
+                        });
+                        if (parts.length > 0) {
+                            FileStash.addUrls(parts);
+                            drop.acceptProposedAction();
+                        }
+                    }
+                }
+            }
+
             property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + 16
             property real dockTargetHeight: 28 + 14
             property real dockTargetRadius: 14
 
-            property real islandTargetWidth: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetWidth : dynamicIsland.implicitWidth + 32) : 0
+            property real islandTargetWidth: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetWidth : (dynamicIsland.activeMode === "drag_queen" ? Math.max(dockTargetWidth, dynamicIsland.implicitWidth + 32) : dynamicIsland.implicitWidth + 32)) : 0
             property real islandTargetHeight: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetHeight : dynamicIsland.implicitHeight + 16 + 14) : 0
             property real islandTargetRadius: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetRadius : 20) : 20
 
