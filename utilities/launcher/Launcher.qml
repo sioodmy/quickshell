@@ -67,8 +67,6 @@ PanelWindow {
     readonly property var cocQuery: parseCocQuery(trimmedQuery)
     readonly property bool cocModeActive: cocQuery !== null
 
-    readonly property var torrentQuery: parseTorrentQuery(trimmedQuery)
-    readonly property bool torrentModeActive: torrentQuery !== null || normalizedQuery === "torrent" || (BackendDaemon.activeTorrents && BackendDaemon.activeTorrents.length > 0 && normalizedQuery.startsWith("torrent"))
 
     readonly property var bringQuery: parseBringQuery(trimmedQuery)
     readonly property bool bringModeActive: bringQuery !== null
@@ -80,7 +78,7 @@ PanelWindow {
     // scroll/cycle. Cleared only by Tab/arrows or mouse hover selection.
     property bool pinSelectionToBest: true
 
-    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive || torrentModeActive
+    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
 
     readonly property var pipewireSink: Pipewire.defaultAudioSink
     PwObjectTracker { objects: launcherWindow.pipewireSink ? [launcherWindow.pipewireSink] : [] }
@@ -89,7 +87,7 @@ PanelWindow {
     onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onColorPickerModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onNightModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
-    onTorrentModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+
     onClipModeActiveChanged: {
         fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0;
         if (clipModeActive && contentLoader.item)
@@ -335,14 +333,7 @@ PanelWindow {
         return null;
     }
 
-    function parseTorrentQuery(query) {
-        var q = query.trim();
-        if (q.startsWith("magnet:"))
-            return { mode: "add", magnet: q };
-        if (q.toLowerCase() === "torrent")
-            return { mode: "view" };
-        return null;
-    }
+
 
     function parseMusicQuery(query) {
         var q = query.trim().toLowerCase();
@@ -1680,12 +1671,7 @@ PanelWindow {
                                     lazyContentRoot.activateConnectivitySelection();
                                 } else if (launcherWindow.colorPickerModeActive) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
+
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem)
                                         listView.currentItem.activate(false);
@@ -1721,13 +1707,7 @@ PanelWindow {
                                 } else if (launcherWindow.colorPickerModeActive) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
                                     event.accepted = true;
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
-                                    event.accepted = true;
+
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem) {
                                         if (listView.currentItem.hasActions && launcherWindow.appActionIndex >= 0) {
@@ -1873,13 +1853,7 @@ PanelWindow {
                                 } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                                     colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
                                     event.accepted = true;
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add" && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
-                                    event.accepted = true;
+
                                 } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
                                     lazyContentRoot.cycleListSelection(true);
                                     event.accepted = true;
@@ -2157,32 +2131,6 @@ PanelWindow {
                             }
                         }
 
-                        LauncherTorrentView {
-                            id: torrentView
-                            z: launcherWindow.torrentModeActive ? 2 : 0
-                            enabled: launcherWindow.torrentModeActive
-                            isAddMode: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.mode === "add" : false
-                            magnetUrl: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.magnet || "" : ""
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-
-                            onAddedAnimationFinished: {
-                                ctrl.setQuery("");
-                            }
-                            opacity: launcherWindow.torrentModeActive ? 1 : 0
-                            visible: opacity > 0.02
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
-                            }
-
-                        }
 
                         Item {
                             id: musicListContainer

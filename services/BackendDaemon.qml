@@ -38,7 +38,7 @@ Singleton {
     property string musicRemoteUrl: ""
     property string musicRemoteQrSvg: ""
     property bool musicRemoteConnected: false
-    property var activeTorrents: []
+
 
     // Emitted when a new share is ready with QR data for the launcher.
     signal fileShareReady(var data)
@@ -223,8 +223,7 @@ Singleton {
                         root.musicRemoteUrl = "";
                         root.musicRemoteQrSvg = "";
                         root.musicRemoteConnected = false;
-                    } else if (type === "torrent_progress") {
-                        root.activeTorrents = parsed.torrents || [];
+
                     } else if (type === "music_remote_connected") {
                         root.musicRemoteConnected = true;
                     } else if (type === "polkit_show_auth") {

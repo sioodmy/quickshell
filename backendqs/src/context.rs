@@ -14,6 +14,6 @@ pub struct AppContext {
     pub file_share: Arc<tokio::sync::Mutex<Option<crate::fileshare::FileShareHandle>>>,
     pub file_share_progress_active: Arc<std::sync::atomic::AtomicBool>,
     pub music_remote_state: Arc<tokio::sync::Mutex<Option<(crate::music_remote::MusicRemoteHandle, Arc<crate::music_remote::MusicRemoteState>)>>>,
-    pub torrent_manager: std::sync::Arc<crate::torrent::TorrentManager>,
+
     pub rink_ctx: Arc<tokio::sync::Mutex<rink_core::Context>>,
 }

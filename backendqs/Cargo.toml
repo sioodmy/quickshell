@@ -44,7 +44,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 futures = "0.3"
 qrcode = "0.14"
 uuid = { version = "1", features = ["v4"] }
-librqbit = { version = "8.1.1", default-features = false, features = ["rust-tls", "http-api-client"] }
+
 rink-core = { version = "0.9.0", features = ["bundle-files"] }
 notify-rust = "4.18.0"
 wl-clipboard-rs = "0.9.3"

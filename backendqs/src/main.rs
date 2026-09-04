@@ -19,7 +19,7 @@ mod music_remote;
 mod api;
 mod context;
 mod handler;
-mod torrent;
+
 pub mod org_renderer;
 pub mod polkit;
 pub mod battery;
@@ -261,8 +261,7 @@ async fn main() -> Result<()> {
                 });
             }
 
-            // Setup torrent manager
-            let torrent_manager = Arc::new(torrent::TorrentManager::new().await.unwrap());
+
 
             // Setup rink
             let mut rink = rink_core::Context::new();
@@ -322,7 +321,7 @@ async fn main() -> Result<()> {
                     file_share: file_share.clone(),
                     file_share_progress_active: file_share_progress_active.clone(),
                     music_remote_state: music_remote_state.clone(),
-                    torrent_manager: torrent_manager.clone(),
+
                     rink_ctx: rink_ctx.clone(),
                 };
 
