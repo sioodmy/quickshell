@@ -41,7 +41,6 @@ Item {
             anchors.fill: parent
             radius: 20
             visible: false
-            layer.enabled: true
         }
 
         // The "trip" gradient background that animates when active
@@ -49,7 +48,7 @@ Item {
             anchors.fill: parent
             opacity: caffeineEnabled ? 0.3 : 0
 
-            layer.enabled: true
+            layer.enabled: caffeineEnabled
             layer.effect: MultiEffect {
                 maskEnabled: true
                 maskSource: tripMask

@@ -244,19 +244,20 @@ Item {
                                 : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        sourceSize: Qt.size(128, 128)
+                        visible: (itemType === "music_album" || itemType === "music_track") && status === Image.Ready
                         
-                        layer.enabled: true
+                        layer.enabled: visible
                         layer.effect: MultiEffect {
                             maskEnabled: true
-                            maskSource: ShaderEffectSource {
-                                sourceItem: Rectangle {
-                                    width: launcherAlbumCover.width
-                                    height: launcherAlbumCover.height
-                                    radius: 8
-                                }
-                            }
+                            maskSource: albumCoverMask
                         }
+                    }
+
+                    Rectangle {
+                        id: albumCoverMask
+                        anchors.fill: parent
+                        radius: 8
+                        visible: false
                     }
                     
                     MaterialIcon {

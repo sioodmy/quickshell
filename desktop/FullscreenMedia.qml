@@ -170,7 +170,7 @@ Variants {
                                 sourceSize: Qt.size(400, 400)
                                 visible: Playerctl.artUrl !== ""
 
-                                layer.enabled: true
+                                layer.enabled: (Lyrics.showFullscreen || opacityAnim.running) && Playerctl.artUrl !== ""
                                 layer.effect: MultiEffect {
                                     maskEnabled: true
                                     maskSource: artMask
@@ -182,7 +182,6 @@ Variants {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 visible: false
-                                layer.enabled: true
                             }
 
                             MaterialIcon {

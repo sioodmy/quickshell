@@ -108,7 +108,7 @@ Variants {
 
                 color: Theme.surface_container_high
 
-                layer.enabled: true
+                layer.enabled: showOsd
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowBlur: 1.0
@@ -146,17 +146,18 @@ Variants {
                                     source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
                                     fillMode: Image.PreserveAspectCrop
 
-                                    layer.enabled: true
+                                    layer.enabled: showOsd && BackendDaemon.musicState.playing && BackendDaemon.musicState.artUrl !== "" && status === Image.Ready
                                     layer.effect: MultiEffect {
                                         maskEnabled: true
-                                        maskSource: ShaderEffectSource {
-                                            sourceItem: Rectangle {
-                                                width: volAlbumImg.width
-                                                height: volAlbumImg.height
-                                                radius: 12
-                                            }
-                                        }
+                                        maskSource: volAlbumMask
                                     }
+                                }
+
+                                Rectangle {
+                                    id: volAlbumMask
+                                    anchors.fill: parent
+                                    radius: 12
+                                    visible: false
                                 }
 
                                 MaterialIcon {

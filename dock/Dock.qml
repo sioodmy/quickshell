@@ -249,7 +249,7 @@ Variants {
                 radius: 16
                 color: Theme.surface_container
 
-                layer.enabled: true
+                layer.enabled: dockContent.contextMenuOpen
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowBlur: 1.0

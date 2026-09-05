@@ -234,13 +234,19 @@ Item {
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         sourceSize: Qt.size(104, 104)
-                        layer.enabled: true
+                        visible: !!source && status === Image.Ready
+                        layer.enabled: visible
                         layer.effect: MultiEffect {
                             maskEnabled: true
-                            maskSource: ShaderEffectSource {
-                                sourceItem: Rectangle { width: coverImg.width; height: coverImg.height; radius: 10 }
-                            }
+                            maskSource: coverImgMask
                         }
+                    }
+
+                    Rectangle {
+                        id: coverImgMask
+                        anchors.fill: parent
+                        radius: 10
+                        visible: false
                     }
 
                     MaterialIcon {
@@ -404,13 +410,19 @@ Item {
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 sourceSize: Qt.size(160, 160)
-                                layer.enabled: true
+                                visible: !!source && status === Image.Ready
+                                layer.enabled: visible
                                 layer.effect: MultiEffect {
                                     maskEnabled: true
-                                    maskSource: ShaderEffectSource {
-                                        sourceItem: Rectangle { width: headerCoverImg.width; height: headerCoverImg.height; radius: 12 }
-                                    }
+                                    maskSource: headerCoverMask
                                 }
+                            }
+
+                            Rectangle {
+                                id: headerCoverMask
+                                anchors.fill: parent
+                                radius: 12
+                                visible: false
                             }
                         }
 

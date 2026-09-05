@@ -78,8 +78,6 @@ WlSessionLockSurface {
         id: lockMask
         anchors.fill: parent
         visible: false
-        layer.enabled: true
-        layer.smooth: true
 
         // Rounded reveal area that grows from left
         Rectangle {
@@ -104,7 +102,7 @@ WlSessionLockSurface {
         id: lockContent
         anchors.fill: parent
 
-        layer.enabled: true
+        layer.enabled: surface.progress < 0.999
         layer.smooth: true
         layer.effect: MultiEffect {
             maskEnabled: true
@@ -447,17 +445,16 @@ WlSessionLockSurface {
                             maskEnabled: true
                             maskThresholdMin: 0.5
                             maskSpreadAtMin: 1.0
-                            maskSource: ShaderEffectSource {
-                                hideSource: true
-                                sourceItem: Rectangle { 
-                                    width: avatarImg.width
-                                    height: avatarImg.height
-                                    radius: width / 2
-                                    color: "black"
-                                    antialiasing: true
-                                }
-                            }
+                            maskSource: avatarMask
                         }
+                    }
+
+                    Rectangle { 
+                        id: avatarMask
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: "black"
+                        visible: false
                     }
 
                     // Material 3 style subtle avatar border overlay
@@ -612,7 +609,7 @@ WlSessionLockSurface {
                                     anchors.centerIn: parent
                                     width: 11
                                     height: 10
-                                    layer.enabled: true
+                                    layer.enabled: shapeSlot.kind === 2
                                     layer.samples: 4
 
                                     ShapePath {
@@ -729,7 +726,7 @@ WlSessionLockSurface {
                         height: 14
                         anchors.verticalCenter: parent.verticalCenter
                         visible: surface.authenticating
-                        layer.enabled: true
+                        layer.enabled: surface.authenticating
                         layer.samples: 4
 
                         ShapePath {
@@ -809,22 +806,20 @@ WlSessionLockSurface {
                             sourceSize: Qt.size(104, 104)
                             visible: status === Image.Ready
 
-                            layer.enabled: true
+                            layer.enabled: surface.mediaActive && status === Image.Ready
                             layer.effect: MultiEffect {
                                 maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    hideSource: true
-                                    sourceItem: Rectangle {
-                                        width: artImg.width
-                                        height: artImg.height
-                                        radius: 12
-                                        color: "black"
-                                        visible: false
-                                    }
-                                }
+                                maskSource: artMask
                                 maskThresholdMin: 0.5
                                 maskSpreadAtMin: 1.0
                             }
+                        }
+
+                        Rectangle {
+                            id: artMask
+                            anchors.fill: parent
+                            radius: 12
+                            visible: false
                         }
 
                         MaterialIcon {

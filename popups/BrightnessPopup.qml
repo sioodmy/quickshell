@@ -85,7 +85,7 @@ Variants {
 
                 color: Theme.surface_container_high
 
-                layer.enabled: true
+                layer.enabled: showOsd
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowBlur: 1.0

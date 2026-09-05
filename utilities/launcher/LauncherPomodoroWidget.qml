@@ -99,7 +99,6 @@ Item {
             id: cardMask
             anchors.fill: parent
             visible: false
-            layer.enabled: true
 
             Rectangle {
                 anchors.fill: parent
@@ -112,7 +111,7 @@ Item {
             id: card
             anchors.fill: parent
 
-            layer.enabled: true
+            layer.enabled: active
             layer.smooth: true
             layer.effect: MultiEffect {
                 maskEnabled: true

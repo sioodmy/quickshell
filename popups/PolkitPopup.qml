@@ -218,7 +218,7 @@ PanelWindow {
                                     anchors.centerIn: parent
                                     width: 11
                                     height: 10
-                                    layer.enabled: true
+                                    layer.enabled: shapeSlot.kind === 2
                                     layer.samples: 4
 
                                     ShapePath {

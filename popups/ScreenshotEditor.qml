@@ -242,7 +242,7 @@ PanelWindow {
         border.color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08)
         border.width: 1
 
-        layer.enabled: true
+        layer.enabled: Screenshot.editorActive
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowBlur: 1.0

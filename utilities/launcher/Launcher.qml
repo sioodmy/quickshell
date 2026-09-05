@@ -1465,6 +1465,7 @@ PanelWindow {
                     shadowVerticalOffset: 8
                     shadowHorizontalOffset: 4
                     opacity: launcherWindow.openProgress
+                    visible: launcherWindow.openProgress > 0
                 }
 
                 // Simple rounded mask to clip children to the rounded corners
@@ -1472,8 +1473,6 @@ PanelWindow {
                     id: mainUiMask
                     anchors.fill: mainUi
                     visible: false
-                    layer.enabled: true
-                    layer.smooth: true
 
                     Rectangle {
                         anchors.fill: parent
@@ -1502,7 +1501,7 @@ PanelWindow {
                     // Swallow clicks on the card so it doesn't dismiss
                     MouseArea { anchors.fill: parent }
 
-                    layer.enabled: true
+                    layer.enabled: launcherWindow.openProgress > 0
                     layer.smooth: true
                     layer.effect: MultiEffect {
                         maskEnabled: true
@@ -1614,7 +1613,7 @@ PanelWindow {
                         radius: height / 2
                         color: Theme.surface_container_highest
 
-                        layer.enabled: true
+                        layer.enabled: launcherWindow.openProgress > 0
                         layer.effect: MultiEffect {
                             shadowEnabled: true
                             shadowBlur: 1.0
@@ -2485,7 +2484,7 @@ PanelWindow {
                                 radius: 18
                                 color: "#ffffff"
 
-                                layer.enabled: true
+                                layer.enabled: launcherWindow.shareViewBlend > 0.02
                                 layer.effect: MultiEffect {
                                     shadowEnabled: true
                                     shadowBlur: 0.6

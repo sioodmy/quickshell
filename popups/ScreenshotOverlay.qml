@@ -30,7 +30,7 @@ PanelWindow {
         radius: 28
         color: Theme.surface_container_high
 
-        layer.enabled: true
+        layer.enabled: Screenshot.overlayActive
         layer.effect: MultiEffect {
             shadowEnabled: true
             shadowBlur: 1.0

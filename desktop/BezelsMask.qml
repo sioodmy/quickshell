@@ -53,6 +53,7 @@ Variants {
                 anchors.fill: parent
                 color: Theme.surface
                 layer.enabled: true
+                layer.mipmap: false
 
                 // Subtracts the cutoutShape from the solid surface and adds an inner shadow
                 layer.effect: MultiEffect {
@@ -78,7 +79,6 @@ Variants {
             Item {
                 id: cutoutShape
                 anchors.fill: parent
-                layer.enabled: true
                 visible: false // Source item only
 
                 Rectangle {

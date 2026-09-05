@@ -62,17 +62,18 @@ Item {
                             source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
-                            layer.enabled: true
+                            layer.enabled: BackendDaemon.musicState.artUrl !== "" && albumArt.status === Image.Ready
                             layer.effect: MultiEffect {
                                 maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    sourceItem: Rectangle {
-                                        width: albumArt.width
-                                        height: albumArt.height
-                                        radius: 16
-                                    }
-                                }
+                                maskSource: albumArtMask
                             }
+                        }
+
+                        Rectangle {
+                            id: albumArtMask
+                            anchors.fill: parent
+                            radius: 16
+                            visible: false
                         }
 
                         MaterialIcon {

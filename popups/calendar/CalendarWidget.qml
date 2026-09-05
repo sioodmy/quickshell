@@ -171,14 +171,13 @@ PanelWindow {
             shadowVerticalOffset: 8
             shadowHorizontalOffset: 4
             opacity: panelHost.opacity
+            visible: root.visible
         }
 
         Item {
             id: mainUiMask
             anchors.fill: mainUi
             visible: false
-            layer.enabled: true
-            layer.smooth: true
 
             Rectangle {
                 anchors.top: parent.top
@@ -209,7 +208,7 @@ PanelWindow {
                 anchors.fill: parent
             }
 
-            layer.enabled: true
+            layer.enabled: root.visible
             layer.smooth: true
             layer.effect: MultiEffect {
                 maskEnabled: true

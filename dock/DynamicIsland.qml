@@ -829,7 +829,7 @@ Item {
                     asynchronous: true
                     cache: false
                     sourceSize.width: 400
-                    layer.enabled: true
+                    layer.enabled: Screenshot.imagePath !== ""
                     layer.effect: MultiEffect { 
                         maskEnabled: true
                         maskSource: previewMask
@@ -837,7 +837,7 @@ Item {
                         maskSpreadAtMin: 1.0 
                     }
                 }
-                Rectangle { id: previewMask; anchors.fill: parent; radius: 12; visible: false; layer.enabled: true }
+                Rectangle { id: previewMask; anchors.fill: parent; radius: 12; visible: false }
             }
             
             Grid {
@@ -1368,17 +1368,19 @@ Item {
                                                 fillMode: Image.PreserveAspectCrop
                                                 asynchronous: true
                                                 sourceSize: Qt.size(200, 200)
-                                                layer.enabled: true
+                                                layer.enabled: chipRoot.isImage && thumb.status === Image.Ready
                                                 layer.effect: MultiEffect {
                                                     maskEnabled: true
-                                                    maskSource: ShaderEffectSource {
-                                                        sourceItem: Rectangle {
-                                                            width: thumb.width
-                                                            height: thumb.height
-                                                            radius: 9
-                                                        }
-                                                    }
+                                                    maskSource: thumbMask
                                                 }
+                                            }
+
+                                            Rectangle {
+                                                id: thumbMask
+                                                anchors.fill: parent
+                                                anchors.margins: 1
+                                                radius: 9
+                                                visible: false
                                             }
 
                                             // Material Icon for Non-Images or Image Loading

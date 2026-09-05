@@ -635,8 +635,6 @@ Variants {
                                         radius: width / 2
                                         color: "black"
                                         visible: false
-                                        layer.enabled: true
-                                        layer.smooth: true
                                     }
 
                                     Image {
@@ -646,7 +644,7 @@ Variants {
                                         visible: !!cardDelegate.applicationIcon && notifType !== "screenshot" && notifType !== "recording" && notifType !== "low_battery"
                                         asynchronous: true
                                         sourceSize: Qt.size(64, 64)
-                                        layer.enabled: true
+                                        layer.enabled: visible
                                         layer.smooth: true
                                         layer.effect: MultiEffect {
                                             maskEnabled: true
@@ -910,7 +908,7 @@ Variants {
                                     cache: false
                                     sourceSize.width: 800
 
-                                    layer.enabled: true
+                                    layer.enabled: notifType === "screenshot" && Screenshot.imagePath !== ""
                                     layer.effect: MultiEffect {
                                         maskEnabled: true
                                         maskSource: previewMask
@@ -924,7 +922,6 @@ Variants {
                                     anchors.fill: parent
                                     radius: parent.radius
                                     visible: false
-                                    layer.enabled: true
                                 }
                             }
 
@@ -1069,7 +1066,7 @@ Variants {
                                     sourceSize.width: 800
                                     visible: status === Image.Ready
 
-                                    layer.enabled: true
+                                    layer.enabled: notifType === "recording" && status === Image.Ready
                                     layer.effect: MultiEffect {
                                         maskEnabled: true
                                         maskSource: recPreviewMask
@@ -1083,7 +1080,6 @@ Variants {
                                     anchors.fill: parent
                                     radius: parent.radius
                                     visible: false
-                                    layer.enabled: true
                                 }
 
                                 Column {

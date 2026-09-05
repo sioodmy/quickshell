@@ -94,8 +94,6 @@ Variants {
                 radius: 20
                 color: Theme.surface_container_high
 
-                // Subtle shadow
-                layer.enabled: true
 
                 Column {
                     anchors.fill: parent

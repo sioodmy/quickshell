@@ -27,7 +27,6 @@ Item {
         anchors.fill: parent
         radius: 20
         visible: false
-        layer.enabled: true
     }
     
     // Block clicks and wheel events from bleeding through
@@ -44,7 +43,7 @@ Item {
         radius: 20
         clip: true
         
-        layer.enabled: true
+        layer.enabled: isOpen
         layer.effect: MultiEffect {
             maskEnabled: true
             maskSource: maskShape
