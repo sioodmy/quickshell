@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pam
+import qs.services
 
 /**
  * Session lock controller.
@@ -43,6 +44,7 @@ Scope {
     }
 
     onLockedChanged: {
+        SessionState.locked = locked;
         if (locked) {
             root.unlocking = false;
             unlockAnimTimer.stop();

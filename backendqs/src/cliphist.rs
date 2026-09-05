@@ -131,6 +131,9 @@ pub fn get_history(state: &SharedState) -> Result<(Vec<ClipItem>, Vec<OcrJob>)> 
     let ocr_enabled = tesseract_available();
 
     for line in listing.lines() {
+        if items.len() >= 50 {
+            break;
+        }
         if line.is_empty() {
             continue;
         }

@@ -181,6 +181,18 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                             }).await.unwrap();
                             let _ = ctx.tx.send(api::DaemonEvent::BookmarkSearchResult { query, results }).await;
                         }
+                        api::DaemonRequest::AppSearch { query } => {
+                            let frecency_apps = {
+                                let state = ctx.frecency_state.lock().unwrap();
+                                Arc::clone(&state.app_scores)
+                            };
+                            let results = tokio::task::spawn_blocking({
+                                let idx = ctx.app_index.clone();
+                                let q = query.clone();
+                                move || appsearch::search(&idx, &q, Some(frecency_apps), 25)
+                            }).await.unwrap();
+                            let _ = ctx.tx.send(api::DaemonEvent::AppSearchResult { query, results }).await;
+                        }
                         api::DaemonRequest::FilePreview { path } => {
                             let result = tokio::task::spawn_blocking(move || {
                                 filesearch::load_preview(&path)
@@ -456,11 +468,12 @@ async fn handle_math(query: String, out: Option<String>, color: Option<String>, 
 
     match result {
         Ok((content, path)) => {
+            let svg_content = if path.is_some() { None } else { Some(content) };
             let _ = tx.send(api::DaemonEvent::MathResult {
                 status: "ok".into(),
                 error: None,
                 svg_file: path,
-                svg_content: Some(content),
+                svg_content,
             }).await;
         }
         Err(e) => {

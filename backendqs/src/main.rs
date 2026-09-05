@@ -14,6 +14,7 @@ mod videopreview;
 mod sysctl;
 mod cliphist;
 mod bookmarks;
+mod appsearch;
 mod fileshare;
 mod music_remote;
 mod api;
@@ -218,6 +219,15 @@ async fn main() -> Result<()> {
                 });
             }
 
+            // Build app search index in background
+            let app_index = appsearch::new_index();
+            {
+                let idx = app_index.clone();
+                tokio::spawn(async move {
+                    appsearch::build_index(idx).await;
+                });
+            }
+
             // Start polkit agent
             {
                 let tx = tx_event.clone();
@@ -315,6 +325,7 @@ async fn main() -> Result<()> {
                     frecency_state: frecency_state.clone(),
                     file_index: file_index.clone(),
                     bookmark_index: bookmark_index.clone(),
+                    app_index: app_index.clone(),
                     file_search_generation: file_search_generation.clone(),
                     cliphist_state: cliphist_state.clone(),
                     ocr_sem: ocr_sem.clone(),

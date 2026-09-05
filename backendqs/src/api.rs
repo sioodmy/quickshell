@@ -78,6 +78,8 @@ pub enum DaemonRequest {
     CocaineDisable,
     #[serde(rename = "brightness_set")]
     BrightnessSet { percent: f64 },
+    #[serde(rename = "app_search")]
+    AppSearch { query: String },
     #[serde(rename = "polkit_submit")]
     PolkitSubmit { cookie: String, response: String },
     #[serde(rename = "polkit_cancel")]
@@ -107,6 +109,8 @@ pub enum DaemonEvent {
     FrecencyUpdate { scores: crate::frecency::FrecencyScores },
     #[serde(rename = "file_search_result")]
     FileSearchResult { query: String, results: Vec<crate::filesearch::FileResult> },
+    #[serde(rename = "app_search_result")]
+    AppSearchResult { query: String, results: Vec<crate::appsearch::AppSearchResult> },
     #[serde(rename = "bookmark_search_result")]
     BookmarkSearchResult { query: String, results: Vec<crate::bookmarks::BookmarkResult> },
     #[serde(rename = "file_preview_result")]

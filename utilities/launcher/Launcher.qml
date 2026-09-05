@@ -160,6 +160,7 @@ PanelWindow {
         function onFileSearchResultsChanged() { filterDebounce.restart() }
         function onBookmarkSearchResultsChanged() { filterDebounce.restart() }
         function onAppFrequenciesChanged() { filterDebounce.restart() }
+        function onAppSearchResultsChanged() { filterDebounce.restart() }
     }
 
     Connections {
@@ -824,63 +825,51 @@ PanelWindow {
             }
         }
         var scored = [];
-        var appById = {};
 
-        for (var i = 0; i < allApps.length; i++) {
-            var entry = allApps[i];
-            if (entry.id)
-                appById[entry.id] = entry;
-
-            // Hide apps matching hiddenKeywords unless explicitly searched for
-            var nameLower = entry.name ? entry.name.toLowerCase() : "";
-            var isHiddenApp = false;
-            for (var hk = 0; hk < hiddenKeywords.length; hk++) {
-                if (nameLower.includes(hiddenKeywords[hk])) {
-                    isHiddenApp = true;
-                    break;
-                }
-            }
-
-            if (isHiddenApp && !isSearchingHidden) {
-                continue;
-            }
-
-            var best = scoreMatch(entry.name, queryLower, queryLen);
-
-            // Exact / prefix name hits don't need expensive secondary fields
-            if (best < 800) {
-                if (entry.genericName) {
-                    var s = scoreMatch(entry.genericName, queryLower, queryLen);
-                    if (s >= 200)
-                        best = Math.max(best, s - 50);
-                }
-
-                if (best < 800 && entry.comment) {
-                    var s = scoreMatch(entry.comment, queryLower, queryLen);
-                    if (s >= 200)
-                        best = Math.max(best, s - 100);
-                }
-
-                if (best < 800 && entry.keywords) {
-                    for (var j = 0; j < entry.keywords.length; j++) {
-                        var s = scoreMatch(entry.keywords[j], queryLower, queryLen);
-                        if (s >= 200)
-                            best = Math.max(best, s - 20);
-                        if (best >= 800)
+        var rustResults = ctrl.appSearchResults;
+        if (rustResults && rustResults.length > 0 && ctrl.appSearchQuery.toLowerCase() === queryLower) {
+            for (var ri = 0; ri < rustResults.length; ri++) {
+                var item = rustResults[ri];
+                var entry = ctrl.findDesktopEntry(item.id);
+                if (entry) {
+                    var nLower = entry.name ? entry.name.toLowerCase() : "";
+                    var isHidden = false;
+                    for (var hk = 0; hk < hiddenKeywords.length; hk++) {
+                        if (nLower.includes(hiddenKeywords[hk])) {
+                            isHidden = true;
                             break;
+                        }
+                    }
+                    if (isHidden && !isSearchingHidden) continue;
+                    scored.push({
+                        entry: entry,
+                        score: item.score
+                    });
+                }
+            }
+        } else {
+            for (var i = 0; i < allApps.length; i++) {
+                var entry = allApps[i];
+                var nameLower = entry.name ? entry.name.toLowerCase() : "";
+                var isHiddenApp = false;
+                for (var hk = 0; hk < hiddenKeywords.length; hk++) {
+                    if (nameLower.includes(hiddenKeywords[hk])) {
+                        isHiddenApp = true;
+                        break;
                     }
                 }
 
-                if (best < 180 && entry.execString && entry.execString.toLowerCase().includes(queryLower)) {
-                    best = Math.max(best, 180);
+                if (isHiddenApp && !isSearchingHidden) {
+                    continue;
                 }
-            }
 
-            if (best >= 0) {
-                scored.push({
-                    entry: entry,
-                    score: best
-                });
+                var best = scoreMatch(entry.name, queryLower, queryLen);
+                if (best >= 0) {
+                    scored.push({
+                        entry: entry,
+                        score: best
+                    });
+                }
             }
         }
 
@@ -916,7 +905,7 @@ PanelWindow {
                 continue;
             }
 
-            var qkEntry = appById[qkId];
+            var qkEntry = ctrl.findDesktopEntry(qkId);
             if (!qkEntry) continue;
 
             quickkeyBoostedIds[qkId] = true;
@@ -1265,22 +1254,23 @@ PanelWindow {
 
                 function activeConnectivityView() {
                     if (launcherWindow.btModeActive)
-                        return btView;
+                        return btLoader.item;
                     if (launcherWindow.wifiModeActive)
-                        return wifiView;
+                        return wifiLoader.item;
                     return null;
                 }
 
                 function activeSpecialView() {
                     if (launcherWindow.clipModeActive)
-                        return clipboardView;
+                        return clipboardLoader.item;
                     if (launcherWindow.musicModeActive)
-                        return musicView;
+                        return musicLoader.item;
                     return activeConnectivityView();
                 }
 
                 function refreshClipboard() {
-                    clipboardView.refresh();
+                    if (clipboardLoader.item)
+                        clipboardLoader.item.refresh();
                 }
 
                 function cycleSpecialSelection(forward) {
@@ -1295,17 +1285,17 @@ PanelWindow {
                 }
 
                 function scrollSpecialToSelection() {
-                    if (launcherWindow.musicModeActive) {
+                    if (launcherWindow.musicModeActive && musicLoader.item) {
                         var maxY = Math.max(0, musicScroll.contentHeight - musicScroll.height);
-                        musicScroll.contentY = Math.max(0, Math.min(musicView.selectedScrollY - musicScroll.height * 0.25, maxY));
+                        musicScroll.contentY = Math.max(0, Math.min(musicLoader.item.selectedScrollY - musicScroll.height * 0.25, maxY));
                         return;
                     }
                     scrollConnectivityToSelection();
                 }
 
                 function activateSpecialSelection() {
-                    if (launcherWindow.clipModeActive)
-                        return clipboardView.activateSelected();
+                    if (launcherWindow.clipModeActive && clipboardLoader.item)
+                        return clipboardLoader.item.activateSelected();
                     if (launcherWindow.musicModeActive)
                         return activateMusicSelection();
                     return activateConnectivitySelection();
@@ -1319,9 +1309,11 @@ PanelWindow {
                         launcherWindow.executeMusicCommand(mq);
                         return true;
                     }
+                    if (!musicLoader.item)
+                        return false;
                     if (mq.filter !== "")
-                        return musicView.activateTopMatch();
-                    return musicView.activateSelected();
+                        return musicLoader.item.activateTopMatch();
+                    return musicLoader.item.activateSelected();
                 }
 
                 function cycleConnectivitySelection(forward) {
@@ -1354,8 +1346,8 @@ PanelWindow {
 
                 function resetSpecialViewState() {
                     connectivityCloseTimer.stop();
-                    btView.resetConnecting();
-                    wifiView.resetConnecting();
+                    if (btLoader.item) btLoader.item.resetConnecting();
+                    if (wifiLoader.item) wifiLoader.item.resetConnecting();
                 }
 
                 function resetConnectivityState() {
@@ -1369,28 +1361,28 @@ PanelWindow {
                 }
 
                 function handleSpecialNavigationKey(event) {
-                    if (launcherWindow.clipModeActive) {
+                    if (launcherWindow.clipModeActive && clipboardLoader.item) {
                         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
                             var clipForward = !((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab);
                             if (clipForward)
-                                clipboardView.incrementSelection();
+                                clipboardLoader.item.incrementSelection();
                             else
-                                clipboardView.decrementSelection();
+                                clipboardLoader.item.decrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Down) {
-                            clipboardView.incrementSelection();
+                            clipboardLoader.item.incrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Up) {
-                            clipboardView.decrementSelection();
+                            clipboardLoader.item.decrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                            clipboardView.activateSelected();
+                            clipboardLoader.item.activateSelected();
                             event.accepted = true;
                             return true;
                         }
@@ -1656,7 +1648,7 @@ PanelWindow {
                                     return;
                                 }
                                 if (launcherWindow.clipModeActive) {
-                                    clipboardView.activateSelected();
+                                    if (clipboardLoader.item) clipboardLoader.item.activateSelected();
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
@@ -1670,7 +1662,7 @@ PanelWindow {
                                 } else if (launcherWindow.connectivityModeActive) {
                                     lazyContentRoot.activateConnectivitySelection();
                                 } else if (launcherWindow.colorPickerModeActive) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    if (colorPickerLoader.item) colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
 
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem)
@@ -1684,7 +1676,7 @@ PanelWindow {
                                 // Ensure we don't also run `onAccepted` for the same keypress.
                                 suppressAcceptedNext = true;
                                 if (launcherWindow.clipModeActive) {
-                                    clipboardView.activateSelected();
+                                    if (clipboardLoader.item) clipboardLoader.item.activateSelected();
                                     event.accepted = true;
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
@@ -1705,7 +1697,7 @@ PanelWindow {
                                     lazyContentRoot.activateConnectivitySelection();
                                     event.accepted = true;
                                 } else if (launcherWindow.colorPickerModeActive) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    if (colorPickerLoader.item) colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                                     event.accepted = true;
 
                                 } else if (!launcherWindow.specialViewActive) {
@@ -2092,11 +2084,11 @@ PanelWindow {
                             }
                         }
 
-                        LauncherWeatherView {
-                            id: weatherView
+                        Loader {
+                            id: weatherLoader
                             z: launcherWindow.weatherModeActive ? 2 : 0
                             enabled: launcherWindow.weatherModeActive
-                            weather: launcherWeatherData
+                            active: launcherWindow.weatherModeActive
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -2105,16 +2097,18 @@ PanelWindow {
                             anchors.rightMargin: 32
                             anchors.topMargin: 20
                             anchors.bottomMargin: 20
-                            revealProgress: launcherWindow.weatherModeActive ? 1 : 0
-                            visible: revealProgress > 0.02
+                            visible: active
+                            sourceComponent: LauncherWeatherView {
+                                weather: launcherWeatherData
+                                revealProgress: launcherWindow.weatherModeActive ? 1 : 0
+                            }
                         }
 
-                        LauncherColorPickerView {
-                            id: colorPickerView
+                        Loader {
+                            id: colorPickerLoader
                             z: launcherWindow.colorPickerModeActive ? 2 : 0
                             enabled: launcherWindow.colorPickerModeActive
-                            searchQuery: ctrl.searchText
-                            defaultColor: Theme.primary
+                            active: launcherWindow.colorPickerModeActive
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -2123,11 +2117,14 @@ PanelWindow {
                             anchors.rightMargin: 32
                             anchors.topMargin: 12
                             anchors.bottomMargin: 20
-                            revealProgress: launcherWindow.colorPickerModeActive ? 1 : 0
-                            visible: revealProgress > 0.02
-
-                            onCopyRequested: function(text, label) {
-                                ctrl.copyColorText(text);
+                            visible: active
+                            sourceComponent: LauncherColorPickerView {
+                                searchQuery: ctrl.searchText
+                                defaultColor: Theme.primary
+                                revealProgress: launcherWindow.colorPickerModeActive ? 1 : 0
+                                onCopyRequested: function(text, label) {
+                                    ctrl.copyColorText(text);
+                                }
                             }
                         }
 
@@ -2164,18 +2161,22 @@ PanelWindow {
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
                                 contentWidth: width
-                                contentHeight: musicView.height
+                                contentHeight: musicLoader.item ? musicLoader.item.height : 0
 
-                                LauncherMusicView {
-                                    id: musicView
+                                Loader {
+                                    id: musicLoader
                                     width: musicScroll.width
-                                    height: musicScroll.height
-                                    filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
-                                    revealProgress: launcherWindow.musicModeActive ? 1 : 0
+                                    active: launcherWindow.musicModeActive
+                                    visible: active
+                                    sourceComponent: LauncherMusicView {
+                                        width: musicScroll.width
+                                        filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
+                                        revealProgress: launcherWindow.musicModeActive ? 1 : 0
 
-                                    onSelectedIndexChanged: {
-                                        if (launcherWindow.musicModeActive)
-                                            lazyContentRoot.scrollSpecialToSelection();
+                                        onSelectedIndexChanged: {
+                                            if (launcherWindow.musicModeActive)
+                                                lazyContentRoot.scrollSpecialToSelection();
+                                        }
                                     }
                                 }
                             }
@@ -2200,28 +2201,36 @@ PanelWindow {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherBluetoothView {
-                                id: btView
+                            Loader {
+                                id: btLoader
                                 anchors.fill: parent
-                                visible: launcherWindow.btModeActive
-                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
-                                revealProgress: launcherWindow.btModeActive ? 1 : 0
-                                onConnectionSucceeded: function(deviceLabel) {
-                                    bluetoothConnectedDeviceLabel = deviceLabel;
-                                    launcherWindow.closeMenu();
-                                    bluetoothConnectedNotifTimer.restart();
+                                active: launcherWindow.btModeActive
+                                visible: active && launcherWindow.btModeActive
+                                sourceComponent: LauncherBluetoothView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                    revealProgress: launcherWindow.btModeActive ? 1 : 0
+                                    onConnectionSucceeded: function(deviceLabel) {
+                                        bluetoothConnectedDeviceLabel = deviceLabel;
+                                        launcherWindow.closeMenu();
+                                        bluetoothConnectedNotifTimer.restart();
+                                    }
                                 }
                             }
 
-                            LauncherWifiView {
-                                id: wifiView
+                            Loader {
+                                id: wifiLoader
                                 anchors.fill: parent
-                                visible: launcherWindow.wifiModeActive
-                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
-                                revealProgress: launcherWindow.wifiModeActive ? 1 : 0
+                                active: launcherWindow.wifiModeActive
+                                visible: active && launcherWindow.wifiModeActive
+                                sourceComponent: LauncherWifiView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                    revealProgress: launcherWindow.wifiModeActive ? 1 : 0
 
-                                onRefocusSearchRequested: searchField.forceActiveFocus()
-                                onConnectionAttemptFailed: lazyContentRoot.resetConnectivityState()
+                                    onRefocusSearchRequested: searchField.forceActiveFocus()
+                                    onConnectionAttemptFailed: lazyContentRoot.resetConnectivityState()
+                                }
                             }
                         }
 
@@ -2244,10 +2253,15 @@ PanelWindow {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherNightLightView {
-                                id: nightLightView
+                            Loader {
+                                id: nightLightLoader
                                 anchors.fill: parent
-                                revealProgress: launcherWindow.nightModeActive ? 1 : 0
+                                active: launcherWindow.nightModeActive
+                                visible: active
+                                sourceComponent: LauncherNightLightView {
+                                    anchors.fill: parent
+                                    revealProgress: launcherWindow.nightModeActive ? 1 : 0
+                                }
                             }
                         }
 
@@ -2270,13 +2284,18 @@ PanelWindow {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherClipboardView {
-                                id: clipboardView
+                            Loader {
+                                id: clipboardLoader
                                 anchors.fill: parent
-                                filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
-                                revealProgress: launcherWindow.clipModeActive ? 1 : 0
+                                active: launcherWindow.clipModeActive
+                                visible: active
+                                sourceComponent: LauncherClipboardView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
+                                    revealProgress: launcherWindow.clipModeActive ? 1 : 0
 
-                                onCloseRequested: launcherWindow.closeMenu()
+                                    onCloseRequested: launcherWindow.closeMenu()
+                                }
                             }
                         }
 

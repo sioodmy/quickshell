@@ -24,6 +24,8 @@ Singleton {
     property var musicLibrary: null
     property string musicLibraryStatus: ""
     property var frecencyScores: ({ apps: {}, quickkeys: {} })
+    property var appSearchResults: []
+    property string appSearchQuery: ""
     property var fileSearchResults: []
     property string fileSearchQuery: ""
     property var bookmarkSearchResults: []
@@ -66,7 +68,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["sh", "-c", "exec backendqs daemon"]
+        command: ["sh", "-c", "if [ -x \"$HOME/.config/quickshell/backendqs/target/release/backendqs\" ]; then exec \"$HOME/.config/quickshell/backendqs/target/release/backendqs\" daemon; else exec backendqs daemon; fi"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.
@@ -146,6 +148,10 @@ Singleton {
                         };
                     } else if (type === "frecency_update") {
                         root.frecencyScores = parsed.scores || { apps: {}, quickkeys: {} };
+                    } else if (type === "app_search_result") {
+                        if (parsed.query === root.appSearchQuery) {
+                            root.appSearchResults = parsed.results || [];
+                        }
                     } else if (type === "file_search_result") {
                         root.fileSearchQuery = parsed.query || "";
                         root.fileSearchResults = parsed.results || [];
