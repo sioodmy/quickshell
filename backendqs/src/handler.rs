@@ -362,14 +362,7 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                             }
                             let _ = ctx.tx.send(api::DaemonEvent::MusicRemoteStopped).await;
                         }
-                        api::DaemonRequest::TorrentAdd { magnet } => {
-                            if let Err(e) = ctx.torrent_manager.add(&magnet).await {
-                                crate::debug_log!("Failed to add torrent: {}", e);
-                            }
-                        }
-                        api::DaemonRequest::TorrentCancel { id } => {
-                            let _ = ctx.torrent_manager.cancel(id).await;
-                        }
+
                         api::DaemonRequest::CocaineEnable => {
                             crate::idle_manager::set_cocaine_enabled(true);
                         }
