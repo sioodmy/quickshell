@@ -200,7 +200,7 @@ Item {
                             id: imagePreview
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl && ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path))
+                            visible: !!(ctrl && ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path)))
                             source: {
                                 if (!ctrl.filePreview) return "";
                                 if (ctrl.filePreview.preview_type === "image")
@@ -239,7 +239,7 @@ Item {
                             id: textFlickable
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "text"
+                            visible: !!(ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "text")
                             contentWidth: width
                             contentHeight: textPreview.implicitHeight
                             clip: true
@@ -251,22 +251,22 @@ Item {
                                 text: (ctrl && ctrl.filePreview && ctrl.filePreview.content) || ""
                                 // Mocha foreground for code so unstyled tokens match the theme;
                                 // markdown keeps the panel's surface contrast color.
-                                color: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md")
+                                color: (launcherWindow && (launcherWindow && launcherWindow.selectedFileData) && (launcherWindow && launcherWindow.selectedFileData).ext === "md")
                                     ? Theme.on_surface
                                     : "#cdd6f4"
                                 wrapMode: Text.Wrap
                                 font {
-                                    family: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
-                                    pixelSize: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
+                                    family: (launcherWindow && (launcherWindow && launcherWindow.selectedFileData) && (launcherWindow && launcherWindow.selectedFileData).ext === "md") ? "Inter" : "JetBrains Mono"
+                                    pixelSize: (launcherWindow && (launcherWindow && launcherWindow.selectedFileData) && (launcherWindow && launcherWindow.selectedFileData).ext === "md") ? 13 : 11
                                 }
                                 lineHeight: 1.4
-                                textFormat: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.RichText
+                                textFormat: (launcherWindow && (launcherWindow && launcherWindow.selectedFileData) && (launcherWindow && launcherWindow.selectedFileData).ext === "md") ? Text.MarkdownText : Text.RichText
                             }
                         }
 
                         // Truncation indicator for text
                         Rectangle {
-                            visible: textFlickable.visible && ctrl && ctrl.filePreview && ctrl.filePreview.line_count >= 60
+                            visible: !!(textFlickable.visible && ctrl && ctrl.filePreview && ctrl.filePreview.line_count >= 60)
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -282,7 +282,7 @@ Item {
                             id: archivePreview
                             anchors.fill: parent
                             anchors.margins: 12
-                            visible: ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "archive"
+                            visible: !!(ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "archive")
 
                             property var listing: {
                                 if (!ctrl.filePreview || ctrl.filePreview.preview_type !== "archive" || !ctrl.filePreview.content)
@@ -477,7 +477,7 @@ Item {
 
                             // Fade when truncated / scrollable
                             Rectangle {
-                                visible: archivePreview.visible && archivePreview.listing && archivePreview.listing.truncated
+                                visible: !!(archivePreview.visible && archivePreview.listing && archivePreview.listing.truncated)
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.right: parent.right
@@ -506,7 +506,7 @@ Item {
 
                                 MaterialIcon {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    icon: (launcherWindow && launcherWindow.selectedFileData) ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
+                                    icon: (launcherWindow && (launcherWindow && launcherWindow.selectedFileData)) ? ctrl.mimeIcon((launcherWindow && launcherWindow.selectedFileData).mime_cat) : ""
                                     color: Theme.primary
                                     opacity: 0.6
                                     font.pixelSize: 72
@@ -535,7 +535,7 @@ Item {
                         // Loading spinner
                         Text {
                             anchors.centerIn: parent
-                            visible: ctrl && !ctrl.filePreview && launcherWindow && launcherWindow.hasFileSelected
+                            visible: !!(ctrl && !ctrl.filePreview && launcherWindow && launcherWindow.hasFileSelected)
                             text: "Loading..."
                             color: Theme.on_surface_variant
                             opacity: 0.6
@@ -576,7 +576,7 @@ Item {
 
                             Text {
                                 width: parent.width
-                                text: launcherWindow.selectedFileData ? launcherWindow.selectedFileData.name : ""
+                                text: (launcherWindow && launcherWindow.selectedFileData) ? (launcherWindow && launcherWindow.selectedFileData).name : ""
                                 color: Theme.on_surface
                                 elide: Text.ElideMiddle
                                 font {
@@ -588,7 +588,7 @@ Item {
 
                             Text {
                                 width: parent.width
-                                text: launcherWindow.selectedFileData ? launcherWindow.selectedFileData.dir : ""
+                                text: (launcherWindow && launcherWindow.selectedFileData) ? (launcherWindow && launcherWindow.selectedFileData).dir : ""
                                 color: Theme.on_surface_variant
                                 elide: Text.ElideMiddle
                                 font {
@@ -599,8 +599,8 @@ Item {
 
                             Text {
                                 text: {
-                                    if (!launcherWindow.selectedFileData) return "";
-                                    var f = launcherWindow.selectedFileData;
+                                    if (!(launcherWindow && launcherWindow.selectedFileData)) return "";
+                                    var f = (launcherWindow && launcherWindow.selectedFileData);
                                     var parts = [ctrl.formatFileSize(f.size)];
                                     if (f.ext) parts.push(f.ext.toUpperCase());
                                     return parts.join("  •  ");
@@ -652,8 +652,8 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            if (launcherWindow.selectedFileData)
-                                                ctrl.copyFile(launcherWindow.selectedFileData.path);
+                                            if ((launcherWindow && launcherWindow.selectedFileData))
+                                                ctrl.copyFile((launcherWindow && launcherWindow.selectedFileData).path);
                                         }
                                     }
                                 }
@@ -691,8 +691,8 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            if (launcherWindow.selectedFileData)
-                                                ctrl.copyFilePath(launcherWindow.selectedFileData.path);
+                                            if ((launcherWindow && launcherWindow.selectedFileData))
+                                                ctrl.copyFilePath((launcherWindow && launcherWindow.selectedFileData).path);
                                         }
                                     }
                                 }
@@ -701,8 +701,8 @@ Item {
                                     id: stashFileBtn
                                     // FileStash.count keeps this reactive when Drag Queen mutates
                                     readonly property bool alreadyStashed: FileStash.count >= 0
-                                        && !!launcherWindow.selectedFileData
-                                        && FileStash.indexOfPath(launcherWindow.selectedFileData.path) !== -1
+                                        && !!(launcherWindow && launcherWindow.selectedFileData)
+                                        && FileStash.indexOfPath((launcherWindow && launcherWindow.selectedFileData).path) !== -1
                                     // Soft M3-weight pride tones
                                     readonly property color prideRed: "#E57373"
                                     readonly property color prideOrange: "#FFB74D"
@@ -761,9 +761,9 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            if (!launcherWindow.selectedFileData)
+                                            if (!(launcherWindow && launcherWindow.selectedFileData))
                                                 return;
-                                            const path = launcherWindow.selectedFileData.path;
+                                            const path = (launcherWindow && launcherWindow.selectedFileData).path;
                                             if (FileStash.indexOfPath(path) !== -1)
                                                 FileStash.removePath(path);
                                             else
@@ -795,14 +795,14 @@ Item {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            if (!launcherWindow.selectedFileData)
+                                            if (!(launcherWindow && launcherWindow.selectedFileData))
                                                 return;
                                             // Optimistic UI: show the QR/share panel immediately
                                             // so the button never feels dead.
                                             BackendDaemon.fileShareError = "";
                                             launcherWindow.shareModeActive = true;
                                             launcherWindow.shareData = null;
-                                            FileShare.startShare(launcherWindow.selectedFileData.path);
+                                            FileShare.startShare((launcherWindow && launcherWindow.selectedFileData).path);
                                         }
                                     }
                                 }

@@ -1482,6 +1482,8 @@ PanelWindow {
 
                 Rectangle {
                     id: mainUi
+                    property var launcherWindowRef: launcherWindow
+                    property var ctrlRef: ctrl
                     width: 800
 
                     anchors.top: parent.top
@@ -2277,8 +2279,8 @@ PanelWindow {
                     // ──── File Preview Panel (Split View) ────
                     LauncherFilePreview {
                         id: previewPanel
-                        launcherWindow: launcherWindow
-                        ctrl: ctrl
+                        launcherWindow: mainUi.launcherWindowRef
+                        ctrl: mainUi.ctrlRef
                         visible: launcherWindow ? launcherWindow.fileSplitBlend > 0 : false
                         opacity: launcherWindow ? launcherWindow.fileSplitBlend : 0
                         anchors.right: parent.right
