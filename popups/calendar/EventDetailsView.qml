@@ -27,6 +27,7 @@ Item {
         anchors.fill: parent
         radius: 20
         visible: false
+        layer.enabled: isOpen
     }
     
     // Block clicks and wheel events from bleeding through

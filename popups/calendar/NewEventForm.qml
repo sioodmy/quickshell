@@ -36,6 +36,7 @@ Item {
         anchors.fill: parent
         radius: 20
         visible: false
+        layer.enabled: isOpen
     }
     
     // Block clicks and wheel events from bleeding through
@@ -96,254 +97,281 @@ Item {
         }
     }
     
-    Column {
+    Flickable {
+        id: formFlick
         anchors.fill: parent
-        anchors.margins: 20
-        spacing: 10
-        y: slideOffset
-        
-        Text {
-            text: "New Event"
-            color: Theme.on_surface
-            font { family: "Google Sans"; pointSize: 15; weight: Font.Bold }
-        }
-        
-        Text {
-            text: Qt.formatDate(new Date(selectedYear, selectedMonth, selectedDay), "dddd, MMMM d, yyyy")
-            color: Theme.on_surface_variant
-            font { family: "Google Sans"; pointSize: 11; weight: Font.Medium }
-        }
-        
-        // Title Input
-        Rectangle {
-            width: parent.width
-            height: 40
-            radius: 12
-            color: Theme.surface_container
-            border.color: titleField.activeFocus ? Theme.primary : "transparent"
-            border.width: 1
+        anchors.margins: 14
+        contentHeight: formCol.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        Column {
+            id: formCol
+            width: formFlick.width
+            spacing: 8
+            y: root.slideOffset
             
-            TextField {
-                id: titleField
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                placeholderText: "Task Title"
-                placeholderTextColor: Theme.on_surface_variant
-                color: Theme.on_surface
-                font { family: "Google Sans"; pointSize: 12 }
-                background: Item {}
+            // ── Header with Back Button ──
+            Row {
+                width: parent.width
+                spacing: 10
+
+                Rectangle {
+                    width: 28; height: 28; radius: 14
+                    color: backMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        icon: "arrow_back"
+                        color: Theme.on_surface
+                        font.pixelSize: 18
+                    }
+
+                    MouseArea {
+                        id: backMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.requestClose();
+                            clearFields();
+                        }
+                    }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+
+                    Text {
+                        text: "New Event"
+                        color: Theme.on_surface
+                        font { family: "Google Sans"; pointSize: 13; weight: Font.Bold }
+                    }
+
+                    Text {
+                        text: Qt.formatDate(new Date(selectedYear, selectedMonth, selectedDay), "dddd, MMM d, yyyy")
+                        color: Theme.on_surface_variant
+                        font { family: "Google Sans"; pointSize: 8; weight: Font.Medium }
+                    }
+                }
             }
-        }
-        
-        // Time Picker Header
-        Row {
-            spacing: 12
             
+            // Title Input
             Rectangle {
-                width: 36
+                width: parent.width
                 height: 36
-                radius: 18
-                color: useTime ? Theme.primary : "transparent"
-                border.color: useTime ? "transparent" : Theme.outline_variant
-                border.width: 1
-                
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: "schedule"
-                    color: useTime ? Theme.on_primary : Theme.on_surface_variant
-                    font.pixelSize: 16
-                }
-                
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.useTime = !root.useTime
-                }
-            }
-            
-            Text {
-                text: "Schedule Time"
-                color: useTime ? Theme.on_surface : Theme.on_surface_variant
-                font { family: "Google Sans"; pointSize: 13; weight: Font.Medium }
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-        
-        // Sleek Pill-based Time Picker
-        Row {
-            visible: root.useTime
-            spacing: 12
-            anchors.horizontalCenter: parent.horizontalCenter
-            
-            // Hour Pill Stepper
-            Rectangle {
-                width: 108
-                height: 40
-                radius: 20
+                radius: 10
                 color: Theme.surface_container
-                border.color: Theme.outline_variant
+                border.color: titleField.activeFocus ? Theme.primary : "transparent"
                 border.width: 1
                 
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 10
-                    
-                    // Minus Button
-                    Rectangle {
-                        width: 24; height: 24; radius: 12
-                        color: hrMinus.containsMouse ? Theme.surface_container_highest : "transparent"
-                        Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 12 }
-                        MouseArea {
-                            id: hrMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedHour = (root.selectedHour + 23) % 24
-                        }
-                    }
-                    
-                    // Value
-                    Text {
-                        width: 26
-                        horizontalAlignment: Text.AlignHCenter
-                        text: root.selectedHour.toString().padStart(2, '0')
-                        font.family: "Google Sans"; font.pointSize: 15; font.weight: Font.Bold
-                        color: Theme.on_surface
-                    }
-                    
-                    // Plus Button
-                    Rectangle {
-                        width: 24; height: 24; radius: 12
-                        color: hrPlus.containsMouse ? Theme.surface_container_highest : "transparent"
-                        Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 12 }
-                        MouseArea {
-                            id: hrPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedHour = (root.selectedHour + 1) % 24
-                        }
-                    }
-                }
-                
-                // Wheel Scroll Support
-                MouseArea {
+                TextField {
+                    id: titleField
                     anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-                    onWheel: (wheel) => {
-                        if (wheel.angleDelta.y > 0) root.selectedHour = (root.selectedHour + 1) % 24;
-                        else root.selectedHour = (root.selectedHour + 23) % 24;
-                        wheel.accepted = true;
-                    }
-                }
-            }
-            
-            Text {
-                text: ":"
-                font.family: "Google Sans"
-                font.pointSize: 15
-                font.weight: Font.Bold
-                color: Theme.on_surface_variant
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            
-            // Minute Pill Stepper
-            Rectangle {
-                width: 108
-                height: 40
-                radius: 20
-                color: Theme.surface_container
-                border.color: Theme.outline_variant
-                border.width: 1
-                
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 10
-                    
-                    // Minus Button
-                    Rectangle {
-                        width: 24; height: 24; radius: 12
-                        color: minMinus.containsMouse ? Theme.surface_container_highest : "transparent"
-                        Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 12 }
-                        MouseArea {
-                            id: minMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedMinute = (root.selectedMinute + 55) % 60
-                        }
-                    }
-                    
-                    // Value
-                    Text {
-                        width: 26
-                        horizontalAlignment: Text.AlignHCenter
-                        text: root.selectedMinute.toString().padStart(2, '0')
-                        font.family: "Google Sans"; font.pointSize: 15; font.weight: Font.Bold
-                        color: Theme.on_surface
-                    }
-                    
-                    // Plus Button
-                    Rectangle {
-                        width: 24; height: 24; radius: 12
-                        color: minPlus.containsMouse ? Theme.surface_container_highest : "transparent"
-                        Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 12 }
-                        MouseArea {
-                            id: minPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedMinute = (root.selectedMinute + 5) % 60
-                        }
-                    }
-                }
-                
-                // Wheel Scroll Support
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-                    onWheel: (wheel) => {
-                        if (wheel.angleDelta.y > 0) root.selectedMinute = (root.selectedMinute + 5) % 60;
-                        else root.selectedMinute = (root.selectedMinute + 55) % 60;
-                        wheel.accepted = true;
-                    }
-                }
-            }
-        }
-        
-        // Description Input
-        Rectangle {
-            width: parent.width
-            height: 90
-            radius: 12
-            color: Theme.surface_container
-            border.color: descField.activeFocus ? Theme.primary : "transparent"
-            border.width: 1
-            
-            Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-            
-            ScrollView {
-                anchors.fill: parent
-                anchors.margins: 10
-                
-                TextArea {
-                    id: descField
-                    width: parent.width
-                    placeholderText: "Description (optional)"
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    placeholderText: "Task Title"
                     placeholderTextColor: Theme.on_surface_variant
                     color: Theme.on_surface
-                    font { family: "Google Sans"; pointSize: 12 }
+                    font { family: "Google Sans"; pointSize: 11 }
                     background: Item {}
-                    wrapMode: Text.Wrap
                 }
             }
-        }
-        
-        // Spacer to push buttons to the bottom
-        Item { width: 1; height: 4 }
-        
-        Item {
-            width: parent.width
-            height: 36
             
+            // Time Picker Header
+            Row {
+                spacing: 10
+                
+                Rectangle {
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: useTime ? Theme.primary : "transparent"
+                    border.color: useTime ? "transparent" : Theme.outline_variant
+                    border.width: 1
+                    
+                    MaterialIcon {
+                        anchors.centerIn: parent
+                        icon: "schedule"
+                        color: useTime ? Theme.on_primary : Theme.on_surface_variant
+                        font.pixelSize: 15
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.useTime = !root.useTime
+                    }
+                }
+                
+                Text {
+                    text: "Schedule Time"
+                    color: useTime ? Theme.on_surface : Theme.on_surface_variant
+                    font { family: "Google Sans"; pointSize: 11; weight: Font.Medium }
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+            
+            // Sleek Pill-based Time Picker
+            Row {
+                visible: root.useTime
+                spacing: 8
+                anchors.horizontalCenter: parent.horizontalCenter
+                
+                // Hour Pill Stepper
+                Rectangle {
+                    width: 96
+                    height: 34
+                    radius: 17
+                    color: Theme.surface_container
+                    border.color: Theme.outline_variant
+                    border.width: 1
+                    
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        
+                        Rectangle {
+                            width: 20; height: 20; radius: 10
+                            color: hrMinus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
+                            MouseArea {
+                                id: hrMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.selectedHour = (root.selectedHour + 23) % 24
+                            }
+                        }
+                        
+                        Text {
+                            width: 24
+                            horizontalAlignment: Text.AlignHCenter
+                            text: root.selectedHour.toString().padStart(2, '0')
+                            font.family: "Google Sans"; font.pointSize: 13; font.weight: Font.Bold
+                            color: Theme.on_surface
+                        }
+                        
+                        Rectangle {
+                            width: 20; height: 20; radius: 10
+                            color: hrPlus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
+                            MouseArea {
+                                id: hrPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.selectedHour = (root.selectedHour + 1) % 24
+                            }
+                        }
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        onWheel: (wheel) => {
+                            if (wheel.angleDelta.y > 0) root.selectedHour = (root.selectedHour + 1) % 24;
+                            else root.selectedHour = (root.selectedHour + 23) % 24;
+                            wheel.accepted = true;
+                        }
+                    }
+                }
+                
+                Text {
+                    text: ":"
+                    font.family: "Google Sans"
+                    font.pointSize: 13
+                    font.weight: Font.Bold
+                    color: Theme.on_surface_variant
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                
+                // Minute Pill Stepper
+                Rectangle {
+                    width: 96
+                    height: 34
+                    radius: 17
+                    color: Theme.surface_container
+                    border.color: Theme.outline_variant
+                    border.width: 1
+                    
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        
+                        Rectangle {
+                            width: 20; height: 20; radius: 10
+                            color: minMinus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
+                            MouseArea {
+                                id: minMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.selectedMinute = (root.selectedMinute + 55) % 60
+                            }
+                        }
+                        
+                        Text {
+                            width: 24
+                            horizontalAlignment: Text.AlignHCenter
+                            text: root.selectedMinute.toString().padStart(2, '0')
+                            font.family: "Google Sans"; font.pointSize: 13; font.weight: Font.Bold
+                            color: Theme.on_surface
+                        }
+                        
+                        Rectangle {
+                            width: 20; height: 20; radius: 10
+                            color: minPlus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
+                            MouseArea {
+                                id: minPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.selectedMinute = (root.selectedMinute + 5) % 60
+                            }
+                        }
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        onWheel: (wheel) => {
+                            if (wheel.angleDelta.y > 0) root.selectedMinute = (root.selectedMinute + 5) % 60;
+                            else root.selectedMinute = (root.selectedMinute + 55) % 60;
+                            wheel.accepted = true;
+                        }
+                    }
+                }
+            }
+            
+            // Description Input
+            Rectangle {
+                width: parent.width
+                height: 52
+                radius: 10
+                color: Theme.surface_container
+                border.color: descField.activeFocus ? Theme.primary : "transparent"
+                border.width: 1
+                
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    
+                    TextArea {
+                        id: descField
+                        width: parent.width
+                        placeholderText: "Description (optional)"
+                        placeholderTextColor: Theme.on_surface_variant
+                        color: Theme.on_surface
+                        font { family: "Google Sans"; pointSize: 11 }
+                        background: Item {}
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+            
+            // Buttons Row
             Row {
                 anchors.right: parent.right
-                spacing: 10
+                spacing: 8
                 
                 // Cancel Button
                 Rectangle {
-                    width: 80
-                    height: 36
-                    radius: 18
+                    width: 68
+                    height: 30
+                    radius: 15
                     color: "transparent"
                     border.color: Theme.outline
                     border.width: 1
@@ -352,7 +380,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Cancel"
                         color: Theme.on_surface
-                        font { family: "Google Sans"; pointSize: 11; weight: Font.Medium }
+                        font { family: "Google Sans"; pointSize: 10; weight: Font.Medium }
                     }
                     
                     MouseArea {
@@ -367,9 +395,9 @@ Item {
                 
                 // Save Button
                 Rectangle {
-                    width: 80
-                    height: 36
-                    radius: 18
+                    width: 68
+                    height: 30
+                    radius: 15
                     color: titleField.text.trim() === "" ? Theme.surface_container_high : Theme.primary
                     opacity: titleField.text.trim() === "" ? 0.5 : 1.0
                     
@@ -377,7 +405,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Save"
                         color: titleField.text.trim() === "" ? Theme.on_surface_variant : Theme.on_primary
-                        font { family: "Google Sans"; pointSize: 11; weight: Font.Medium }
+                        font { family: "Google Sans"; pointSize: 10; weight: Font.Medium }
                     }
                     
                     MouseArea {

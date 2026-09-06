@@ -837,7 +837,7 @@ Item {
                         maskSpreadAtMin: 1.0 
                     }
                 }
-                Rectangle { id: previewMask; anchors.fill: parent; radius: 12; visible: false }
+                Rectangle { id: previewMask; anchors.fill: parent; radius: 12; visible: false; layer.enabled: previewImg.layer.enabled }
             }
             
             Grid {
@@ -1381,6 +1381,7 @@ Item {
                                                 anchors.margins: 1
                                                 radius: 9
                                                 visible: false
+                                                layer.enabled: thumb.layer.enabled
                                             }
 
                                             // Material Icon for Non-Images or Image Loading

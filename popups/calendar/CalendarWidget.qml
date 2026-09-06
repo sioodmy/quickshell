@@ -178,6 +178,8 @@ PanelWindow {
             id: mainUiMask
             anchors.fill: mainUi
             visible: false
+            layer.enabled: root.visible
+            layer.smooth: true
 
             Rectangle {
                 anchors.top: parent.top

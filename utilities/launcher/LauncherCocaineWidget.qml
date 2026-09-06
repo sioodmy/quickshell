@@ -41,6 +41,7 @@ Item {
             anchors.fill: parent
             radius: 20
             visible: false
+            layer.enabled: caffeineEnabled
         }
 
         // The "trip" gradient background that animates when active

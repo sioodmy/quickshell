@@ -74,6 +74,7 @@ Item {
                             anchors.fill: parent
                             radius: 16
                             visible: false
+                            layer.enabled: albumArt.layer.enabled
                         }
 
                         MaterialIcon {

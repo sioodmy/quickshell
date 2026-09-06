@@ -104,9 +104,7 @@ PanelWindow {
         musicSplitBlend = (musicModeActive && BackendDaemon.musicState.hasPlayer) ? 1 : 0
     }
 
-    Behavior on fileSplitBlend {
-        NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-    }
+    // File preview split is instant for snappiness (no animation)
 
     Behavior on musicSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
@@ -1473,6 +1471,8 @@ PanelWindow {
                     id: mainUiMask
                     anchors.fill: mainUi
                     visible: false
+                    layer.enabled: launcherWindow.openProgress > 0
+                    layer.smooth: true
 
                     Rectangle {
                         anchors.fill: parent
@@ -2006,7 +2006,6 @@ PanelWindow {
                                 anchors.bottom: footer.top
                                 anchors.left: parent.left
                                 width: parent.width * (1 - 0.48 * launcherWindow.fileSplitBlend)
-                                Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
                                 clip: true
 
                                 ListView {
@@ -2317,8 +2316,14 @@ PanelWindow {
                         anchors.bottom: parent.bottom
                         width: 1
                         opacity: launcherWindow.activeSplitBlend
-                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                        Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                        Behavior on opacity {
+                            enabled: launcherWindow.musicModeActive
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on x {
+                            enabled: launcherWindow.musicModeActive
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "transparent" }
@@ -2372,32 +2377,14 @@ PanelWindow {
                     // ──── File Preview Panel (Split View) ────
                     Item {
                         id: previewPanel
-                        visible: launcherWindow.fileSplitBlend > 0.02
+                        visible: launcherWindow.fileSplitBlend > 0
                         opacity: launcherWindow.fileSplitBlend
-                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
                         anchors.right: parent.right
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
                         width: parent.width - 48 - listContainer.width
                         clip: true
-
-                        transform: [
-                            Translate {
-                                id: previewSlide
-                                x: (1 - launcherWindow.fileSplitBlend) * 18
-                                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            },
-                            Scale {
-                                id: previewScale
-                                origin.x: 0
-                                origin.y: 0
-                                xScale: 0.97 + 0.03 * launcherWindow.fileSplitBlend
-                                yScale: 0.98 + 0.02 * launcherWindow.fileSplitBlend
-                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            }
-                        ]
 
                         Rectangle {
                             anchors.fill: parent

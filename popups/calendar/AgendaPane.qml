@@ -23,10 +23,13 @@ Item {
 
     signal closeRequested()
 
-    // Refresh agenda when window becomes visible
+    // Refresh agenda when window becomes visible, reset overlays when hidden
     onIsWindowVisibleChanged: {
         if (isWindowVisible) {
             OrgAgenda.refresh();
+        } else {
+            newEventForm.isOpen = false;
+            eventDetailsView.isOpen = false;
         }
     }
 
@@ -54,8 +57,14 @@ Item {
         clip: true
 
         Item {
+            id: agendaMainContent
             anchors.fill: parent
             anchors.margins: 14
+            visible: opacity > 0
+            opacity: (newEventForm.isOpen || eventDetailsView.isOpen) ? 0 : 1
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
 
             Row {
                 id: headerCol
@@ -122,7 +131,10 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: newEventForm.isOpen = true
+                        onClicked: {
+                            eventDetailsView.isOpen = false;
+                            newEventForm.isOpen = true;
+                        }
                     }
                 }
 
@@ -224,6 +236,7 @@ Item {
                             entryData: modelData
 
                             onClicked: (eventData) => {
+                                newEventForm.isOpen = false;
                                 eventDetailsView.entryData = eventData;
                                 eventDetailsView.isOpen = true;
                             }
@@ -288,6 +301,7 @@ Item {
                             showDate: true
 
                             onClicked: (eventData) => {
+                                newEventForm.isOpen = false;
                                 eventDetailsView.entryData = eventData;
                                 eventDetailsView.isOpen = true;
                             }
@@ -341,6 +355,7 @@ Item {
                             isOverdue: true
 
                             onClicked: (eventData) => {
+                                newEventForm.isOpen = false;
                                 eventDetailsView.entryData = eventData;
                                 eventDetailsView.isOpen = true;
                             }

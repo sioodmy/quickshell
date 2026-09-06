@@ -258,6 +258,7 @@ Item {
                         anchors.fill: parent
                         radius: 8
                         visible: false
+                        layer.enabled: launcherAlbumCover.layer.enabled
                     }
                     
                     MaterialIcon {
@@ -717,7 +718,6 @@ Item {
                     anchors.fill: parent
                     visible: ctrl.backendqsSvg === "" && (ctrl.backendqsStatus === "loading" || ctrl.backendqsStatus === "error")
                     opacity: visible ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 200 } }
 
                     Row {
                         anchors.centerIn: parent
@@ -787,7 +787,6 @@ Item {
                 color: Qt.rgba(0,0,0,0.1)
                 visible: delegateRoot.itemType === "action" && modelData.actionId === "dictionary"
                 opacity: ctrl.dictStatus === "ok" ? 1.0 : 0.0
-                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 
                 Column {
                     id: dictColumn

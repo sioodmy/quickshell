@@ -635,9 +635,11 @@ Variants {
                                         radius: width / 2
                                         color: "black"
                                         visible: false
+                                        layer.enabled: headerIconImg.layer.enabled
                                     }
 
                                     Image {
+                                        id: headerIconImg
                                         anchors.fill: parent
                                         source: cardDelegate.applicationIcon
                                         fillMode: Image.PreserveAspectCrop
@@ -922,6 +924,7 @@ Variants {
                                     anchors.fill: parent
                                     radius: parent.radius
                                     visible: false
+                                    layer.enabled: previewImg.layer.enabled
                                 }
                             }
 
@@ -1080,6 +1083,7 @@ Variants {
                                     anchors.fill: parent
                                     radius: parent.radius
                                     visible: false
+                                    layer.enabled: recPreviewImg.layer.enabled
                                 }
 
                                 Column {

@@ -99,6 +99,7 @@ Item {
             id: cardMask
             anchors.fill: parent
             visible: false
+            layer.enabled: active
 
             Rectangle {
                 anchors.fill: parent

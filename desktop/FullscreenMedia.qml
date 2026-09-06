@@ -182,6 +182,7 @@ Variants {
                                 anchors.fill: parent
                                 radius: parent.radius
                                 visible: false
+                                layer.enabled: mainArt.layer.enabled
                             }
 
                             MaterialIcon {

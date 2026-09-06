@@ -247,6 +247,7 @@ Item {
                         anchors.fill: parent
                         radius: 10
                         visible: false
+                        layer.enabled: coverImg.layer.enabled
                     }
 
                     MaterialIcon {
@@ -423,6 +424,7 @@ Item {
                                 anchors.fill: parent
                                 radius: 12
                                 visible: false
+                                layer.enabled: headerCoverImg.layer.enabled
                             }
                         }
 

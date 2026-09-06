@@ -158,6 +158,7 @@ Variants {
                                     anchors.fill: parent
                                     radius: 12
                                     visible: false
+                                    layer.enabled: volAlbumImg.layer.enabled
                                 }
 
                                 MaterialIcon {

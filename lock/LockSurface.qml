@@ -78,6 +78,8 @@ WlSessionLockSurface {
         id: lockMask
         anchors.fill: parent
         visible: false
+        layer.enabled: surface.progress < 0.999
+        layer.smooth: true
 
         // Rounded reveal area that grows from left
         Rectangle {
@@ -419,73 +421,25 @@ WlSessionLockSurface {
             width: parent.width - 48
             spacing: 16
 
-            // Profile and Greeting Row
-            Row {
+            // Greeting and Username
+            Column {
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 16
+                spacing: 4
 
-                Rectangle {
-                    width: 64
-                    height: 64
-                    radius: width / 2
-                    color: Theme.surface_container_highest
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Image {
-                        id: avatarImg
-                        anchors.fill: parent
-                        source: "../based.png"
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        sourceSize: Qt.size(128, 128)
-                        layer.enabled: true
-                        layer.smooth: true
-                        layer.mipmap: true
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskThresholdMin: 0.5
-                            maskSpreadAtMin: 1.0
-                            maskSource: avatarMask
-                        }
-                    }
-
-                    Rectangle { 
-                        id: avatarMask
-                        anchors.fill: parent
-                        radius: width / 2
-                        color: "black"
-                        visible: false
-                    }
-
-                    // Material 3 style subtle avatar border overlay
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: "transparent"
-                        border.color: Theme.outline_variant
-                        border.width: 1
-                        antialiasing: true
-                    }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Welcome back"
+                    color: Theme.on_surface_variant
+                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium; letterSpacing: 0.2 }
                 }
-
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
-
-                    Text {
-                        text: "Welcome back"
-                        color: Theme.on_surface_variant
-                        font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium; letterSpacing: 0.4 }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: {
+                        const u = Quickshell.env("USER") || "user";
+                        return u.charAt(0).toUpperCase() + u.slice(1);
                     }
-                    Text {
-                        text: {
-                            const u = Quickshell.env("USER") || "user";
-                            const capitalized = u.charAt(0).toUpperCase() + u.slice(1);
-                            return capitalized.split('').join(' ');
-                        }
-                        color: Theme.on_surface
-                        font { family: "Noto Serif"; pixelSize: 24; italic: true; weight: Font.Medium; letterSpacing: 4.0 }
-                    }
+                    color: Theme.on_surface
+                    font { family: "Google Sans"; pixelSize: 22; weight: Font.Bold }
                 }
             }
 
@@ -820,6 +774,7 @@ WlSessionLockSurface {
                             anchors.fill: parent
                             radius: 12
                             visible: false
+                            layer.enabled: artImg.layer.enabled
                         }
 
                         MaterialIcon {
