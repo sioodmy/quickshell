@@ -68,6 +68,8 @@ pub async fn start_logind_listener() {
                                 if let Ok(is_sleep) = msg.body().deserialize::<bool>() {
                                     if is_sleep {
                                         crate::debug_log!("Received PrepareForSleep(true), locking quickshell before sleep!");
+                                        let _ = Command::new("playerctl").args(["-a", "pause"]).spawn();
+                                        let _ = Command::new("wpctl").args(["set-mute", "@DEFAULT_AUDIO_SINK@", "1"]).spawn();
                                         let _ = Command::new("quickshell")
                                             .args(["ipc", "call", "lock", "lock"])
                                             .spawn();
