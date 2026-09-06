@@ -15,54 +15,30 @@ import qs.services
 ShellRoot {
     id: root
 
-    // Application dock (vertical, left side)
+    // Application dock & top notch (Dynamic Island)
     Dock {
         id: applicationDock
     }
-
-
 
     // Session lock screen
     Lock {
         id: lockScreen
     }
 
-    // Floating notification overlay (Disabled, now inside dock)
-    // NotifPopup {
-    //     id: notificationOverlay
-    // }
-
-    // Polkit authentication popup (Disabled, now inside dock)
-    // PolkitPopup {
-    //     id: polkitPopup
-    // }
-
-
-
     // Application Launcher
     Launcher {
         id: launcherWindow
     }
 
-
-
     SpeakerWarningPopup {
         id: speakerWarningPopupWindow
     }
-
-
 
     Loader {
         active: Screenshot.editorActive
         asynchronous: true
         sourceComponent: ScreenshotEditor { id: screenshotEditor }
     }
-
-    // Loader {
-    //     active: Screenshot.overlayActive
-    //     asynchronous: true
-    //     sourceComponent: ScreenshotOverlay { id: screenshotOverlay }
-    // }
 
     // Live synced lyrics on desktop (wallpaper)
     Loader {

@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell.Widgets
 import "../../theme"
-import "../../popups/weather"
 import qs.components
 
 Item {

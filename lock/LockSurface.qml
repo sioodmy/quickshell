@@ -61,17 +61,6 @@ WlSessionLockSurface {
         precision: SystemClock.Seconds
     }
 
-    // Approximate dock launcher / clock origins (dock contentColumn is 680px,
-    // vertically centered; launcher is 34² at top + 12).
-    readonly property real dockNotchTop: (height - 680) / 2
-    readonly property real launcherFromX: 5
-    readonly property real launcherFromY: dockNotchTop + 12
-    readonly property real launcherFromSize: 34
-    readonly property real clockFromX: (44 - 28) / 2
-    readonly property real clockFromY: launcherFromY + 34 + 10
-    readonly property real clockFromW: 28
-    readonly property real clockFromH: 58
-
     readonly property bool mediaActive: Playerctl.hasPlayer && Playerctl.title.length > 0
 
     Item {
@@ -114,260 +103,76 @@ WlSessionLockSurface {
         }
 
     // ========================================================================
-    //  Pink ambient background (launcher pinkLayer, fullscreen)
+    //  Lock Background (Ambient pink/lavender orbs + legibility scrim)
     // ========================================================================
-    Item {
-        id: pinkBg
-        anchors.fill: parent
-
-        Item {
-            id: pinkMorph
-            anchors.fill: parent
-
-            Rectangle {
-                id: pinkBase
-                anchors.fill: parent
-                radius: 0
-                color: "#f5bde6"
-                clip: true
-
-                // Soft white orb
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.55
-                    height: width
-                    radius: width / 2
-                    color: "#ffffff"
-                    opacity: 0.40
-                    x: parent.width * -0.05
-                    y: parent.height * -0.08
-                    transformOrigin: Item.Center
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.35; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * -0.08; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * -0.05; duration: 15000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * -0.12; duration: 17000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.18; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.08; duration: 16000; easing.type: Easing.InOutSine }
-                    }
-                    NumberAnimation on rotation {
-                        from: 0; to: 360; duration: 30000; loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                    }
-                }
-
-                // Soft lavender orb
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.5
-                    height: width
-                    radius: width / 2
-                    color: "#c6a0f6"
-                    opacity: 0.55
-                    x: parent.width * 0.55
-                    y: parent.height * -0.05
-                    transformOrigin: Item.Center
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.7; duration: 19000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.55; duration: 17000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * 0.25; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.1; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.05; duration: 16000; easing.type: Easing.InOutSine }
-                    }
-                    NumberAnimation on rotation {
-                        from: 360; to: 0; duration: 35000; loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                    }
-                }
-
-                // Tertiary warm orb for depth
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.35
-                    height: width
-                    radius: width / 2
-                    color: "#f5c2e7"
-                    opacity: 0.35
-                    x: parent.width * 0.15
-                    y: parent.height * 0.55
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.4; duration: 20000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.05; duration: 17000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.15; duration: 18000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * 0.35; duration: 19000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.7; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.55; duration: 17000; easing.type: Easing.InOutSine }
-                    }
-                }
-            }
-        }
-    }
-
-    // Soft legibility scrim over pink for the auth card / clock
-    Rectangle {
-        anchors.fill: parent
-        opacity: Math.max(0, (surface.eased - 0.35) / 0.65)
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(0.07, 0.07, 0.09, 0.18) }
-            GradientStop { position: 0.45; color: Qt.rgba(0.07, 0.07, 0.09, 0.06) }
-            GradientStop { position: 1.0; color: Qt.rgba(0.07, 0.07, 0.09, 0.28) }
-        }
+    LockBackground {
+        progress: surface.eased
+        unlockProgress: surface.unlockProgress
     }
 
     // ========================================================================
-    //  Morphing clock (dock stacked HH/mm → lockscreen HH:mm)
+    //  Clock (Lockscreen HH:mm + Date)
     // ========================================================================
-    Item {
-        id: morphClock
+    Column {
+        id: lockClock
         z: 50
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: surface.height * 0.12
+        spacing: 6
 
-        readonly property real p: 1.0
         readonly property string hours: Qt.formatDateTime(clock.date, "HH")
         readonly property string mins: Qt.formatDateTime(clock.date, "mm")
         readonly property real fontPx: Math.round(surface.height * 0.14)
-        readonly property real colonGap: 2
-        readonly property real colonOpacity: 1
-        readonly property real rowW: hoursMetrics.width + colonMetrics.width * colonOpacity + minsMetrics.width + colonGap * 2
-        readonly property real rowH: fontPx * 1.15
+        readonly property color textColor: Qt.rgba(0.19, 0.1, 0.25, 1)
 
-        // Settled clock target: top-center
-        readonly property real toX: (surface.width - width) / 2
-        readonly property real toY: surface.height * 0.12
-
-        width: Math.max(rowW, dateMetrics.width)
-        height: rowH + dateBlock.height + 8
-
-        x: toX
-        y: toY
-
-        TextMetrics {
-            id: hoursMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: morphClock.hours
-        }
-        TextMetrics {
-            id: minsMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: morphClock.mins
-        }
-        TextMetrics {
-            id: colonMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: ":"
-        }
-        TextMetrics {
-            id: dateMetrics
-            font.family: "Google Sans"
-            font.pixelSize: Math.round(surface.height * 0.022)
-            font.weight: Font.Medium
-            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
-        }
-
-        readonly property color fromColor: Theme.on_surface
-        readonly property color toColor: Qt.rgba(0.19, 0.1, 0.25, 1)
-        readonly property color textColor: Qt.rgba(
-            surface.lerp(fromColor.r, toColor.r, p),
-            surface.lerp(fromColor.g, toColor.g, p),
-            surface.lerp(fromColor.b, toColor.b, p),
-            1
-        )
-
-        Text {
-            id: hoursText
-            text: morphClock.hours
-            color: morphClock.textColor
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
-                letterSpacing: morphClock.p > 0.5 ? -2 : 0
-            }
-            x: surface.lerp((morphClock.width - hoursText.width) / 2, (morphClock.width - morphClock.rowW) / 2, morphClock.p)
-            y: surface.lerp(0, 0, morphClock.p)
-        }
-
-        Text {
-            id: colonText
-            text: ":"
-            color: morphClock.textColor
-            opacity: morphClock.colonOpacity
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: Font.Bold
-                letterSpacing: -2
-            }
-            x: hoursText.x + hoursText.width + morphClock.colonGap
-            y: hoursText.y
-        }
-
-        Text {
-            id: minsText
-            text: morphClock.mins
-            color: morphClock.textColor
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
-                letterSpacing: morphClock.p > 0.5 ? -2 : 0
-            }
-            x: surface.lerp(
-                (morphClock.width - minsText.width) / 2,
-                hoursText.x + hoursText.width + morphClock.colonGap + colonText.width * morphClock.colonOpacity + morphClock.colonGap,
-                morphClock.p
-            )
-            y: surface.lerp(hoursText.height, hoursText.y, morphClock.p)
-        }
-
-        Column {
-            id: dateBlock
+        Row {
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: morphClock.rowH + 4
-            spacing: 0
-            opacity: Math.max(0, Math.min(1, (morphClock.p - 0.55) / 0.3))
+            spacing: 2
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
-                color: Qt.rgba(0.19, 0.1, 0.25, 0.72)
+                text: lockClock.hours
+                color: lockClock.textColor
                 font {
                     family: "Google Sans"
-                    pixelSize: Math.round(surface.height * 0.022)
-                    weight: Font.Medium
-                    letterSpacing: 0.8
+                    pixelSize: lockClock.fontPx
+                    weight: Font.Bold
+                    letterSpacing: -2
                 }
+            }
+
+            Text {
+                text: ":"
+                color: lockClock.textColor
+                font {
+                    family: "Google Sans"
+                    pixelSize: lockClock.fontPx
+                    weight: Font.Bold
+                    letterSpacing: -2
+                }
+            }
+
+            Text {
+                text: lockClock.mins
+                color: lockClock.textColor
+                font {
+                    family: "Google Sans"
+                    pixelSize: lockClock.fontPx
+                    weight: Font.Bold
+                    letterSpacing: -2
+                }
+            }
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
+            color: Qt.rgba(0.19, 0.1, 0.25, 0.72)
+            font {
+                family: "Google Sans"
+                pixelSize: Math.round(surface.height * 0.022)
+                weight: Font.Medium
+                letterSpacing: 0.8
             }
         }
     }
@@ -723,166 +528,8 @@ WlSessionLockSurface {
             // ----------------------------------------------------------------
             //  Now playing — expands seamlessly inside the auth card
             // ----------------------------------------------------------------
-            Rectangle {
-                id: mediaRow
-                width: parent.width
-                height: surface.mediaActive ? 72 : 0
-                radius: 16
-                color: Theme.surface_container
-                clip: true
-                visible: height > 0.5
-                opacity: surface.mediaActive ? 1 : 0
-
-                Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-
-                Row {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 12
-                    opacity: surface.mediaActive ? 1 : 0
-
-                    Rectangle {
-                        width: 52
-                        height: 52
-                        radius: 12
-                        color: Theme.surface_container_highest
-                        clip: true
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        Image {
-                            id: artImg
-                            anchors.fill: parent
-                            source: Playerctl.artUrl
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            cache: true
-                            sourceSize: Qt.size(104, 104)
-                            visible: status === Image.Ready
-
-                            layer.enabled: surface.mediaActive && status === Image.Ready
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: artMask
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1.0
-                            }
-                        }
-
-                        Rectangle {
-                            id: artMask
-                            anchors.fill: parent
-                            radius: 12
-                            visible: false
-                            layer.enabled: artImg.layer.enabled
-                        }
-
-                        MaterialIcon {
-                            anchors.centerIn: parent
-                            visible: artImg.status !== Image.Ready
-                            icon: "music_note"
-                            font.pixelSize: 20
-                            color: Theme.on_surface_variant
-                        }
-                    }
-
-                    Column {
-                        width: parent.width - 52 - 12 - transport.width - 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            text: Playerctl.title
-                            elide: Text.ElideRight
-                            color: Theme.on_surface
-                            font { family: "Google Sans"; pixelSize: 14; weight: Font.DemiBold }
-                        }
-                        Text {
-                            width: parent.width
-                            text: Playerctl.artist
-                            elide: Text.ElideRight
-                            color: Theme.on_surface_variant
-                            font { family: "Google Sans"; pixelSize: 12 }
-                            visible: text.length > 0
-                        }
-
-                        Item {
-                            width: parent.width
-                            height: 7
-                            visible: Playerctl.length > 0
-
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width: parent.width
-                                height: 3
-                                radius: 1.5
-                                color: Theme.surface_container_highest
-
-                                Rectangle {
-                                    height: parent.height
-                                    radius: parent.radius
-                                    width: parent.width * (Playerctl.length > 0
-                                        ? Math.min(1, Playerctl.position / Playerctl.length) : 0)
-                                    color: Theme.primary
-                                    Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                                }
-                            }
-                        }
-                    }
-
-                    Row {
-                        id: transport
-                        spacing: 4
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        component MediaBtn: Rectangle {
-                            property string icon
-                            property bool accent: false
-                            signal triggered
-
-                            width: 36
-                            height: 36
-                            radius: 10
-                            color: {
-                                if (accent)
-                                    return Theme.primary;
-                                return btnMouse.containsMouse
-                                    ? Theme.surface_container_highest
-                                    : "transparent";
-                            }
-                            Behavior on color { ColorAnimation { duration: 120 } }
-
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                icon: parent.icon
-                                font.pixelSize: 15
-                                color: parent.accent ? Theme.on_primary : Theme.on_surface
-                            }
-                            MouseArea {
-                                id: btnMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: parent.triggered()
-                            }
-                        }
-
-                        MediaBtn {
-                            icon: "skip_previous"
-                            onTriggered: Playerctl.previous()
-                        }
-                        MediaBtn {
-                            icon: Playerctl.isPlaying ? "pause" : "play_arrow"
-                            accent: true
-                            onTriggered: Playerctl.playPause()
-                        }
-                        MediaBtn {
-                            icon: "skip_next"
-                            onTriggered: Playerctl.next()
-                        }
-                    }
-                }
+            LockMediaCard {
+                mediaActive: surface.mediaActive
             }
         }
     }
@@ -890,148 +537,7 @@ WlSessionLockSurface {
     // ========================================================================
     //  Bottom session chrome — bar-matching pills
     // ========================================================================
-    Rectangle {
-        id: bottomChromeBar
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: -22
-        width: bottomChrome.implicitWidth + 32
-        height: bottomChrome.implicitHeight + 24 + 22
-        radius: 22
-        color: Theme.surface
-
-        Row {
-            id: bottomChrome
-            anchors.centerIn: parent
-            anchors.verticalCenterOffset: -11
-            spacing: 12
-
-            // Battery
-            Rectangle {
-                id: battPill
-                height: 40
-                width: battRow.implicitWidth + 28
-                radius: 14
-                color: "transparent"
-                visible: UPower.displayDevice?.isPresent ?? false
-                anchors.verticalCenter: parent.verticalCenter
-
-            Row {
-                id: battRow
-                anchors.centerIn: parent
-                spacing: 8
-
-                readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
-                readonly property bool charging: !UPower.onBattery
-
-                Item {
-                    width: 28
-                    height: 14
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Rectangle {
-                        id: battBody
-                        anchors {
-                            left: parent.left; top: parent.top; bottom: parent.bottom
-                            right: parent.right; rightMargin: 3
-                        }
-                        radius: 3
-                        color: "transparent"
-                        border.width: 1.5
-                        border.color: {
-                            if (battRow.capacity <= 20 && !battRow.charging)
-                                return Theme.critical;
-                            if (battRow.charging)
-                                return "#7ee787";
-                            return Theme.on_surface;
-                        }
-                    }
-                    Rectangle {
-                        width: 2.5; height: 5
-                        anchors { left: battBody.right; verticalCenter: parent.verticalCenter }
-                        radius: 1
-                        color: battBody.border.color
-                    }
-                    Rectangle {
-                        anchors {
-                            left: battBody.left; top: battBody.top; bottom: battBody.bottom
-                            margins: 2.5
-                        }
-                        radius: 1
-                        width: Math.max(0, (battBody.width - 5) * (battRow.capacity / 100))
-                        color: battBody.border.color
-                        opacity: 0.85
-                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    }
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Math.round(battRow.capacity) + "%"
-                    color: Theme.on_surface
-                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
-                }
-            }
-        }
-
-        // Session controls
-        Row {
-            spacing: 8
-            anchors.verticalCenter: parent.verticalCenter
-
-            component SessionBtn: Rectangle {
-                property string icon
-                property color accent: Theme.on_surface
-                signal triggered
-
-                width: 40
-                height: 40
-                radius: 14
-                scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.04 : 1.0)
-                color: {
-                    if (btnArea.pressed)
-                        return Theme.surface_container_high;
-                    if (btnArea.containsMouse)
-                        return Theme.surface_container;
-                    return "transparent";
-                }
-
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                Behavior on color { ColorAnimation { duration: 120 } }
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: parent.icon
-                    font.pixelSize: 16
-                    color: parent.accent
-                    opacity: btnArea.containsMouse ? 1 : 0.85
-                }
-
-                MouseArea {
-                    id: btnArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: parent.triggered()
-                }
-            }
-
-            SessionBtn {
-                icon: "bedtime"
-                onTriggered: Quickshell.execDetached(["systemctl", "suspend"])
-            }
-            SessionBtn {
-                icon: "restart_alt"
-                onTriggered: Quickshell.execDetached(["systemctl", "reboot"])
-            }
-            SessionBtn {
-                icon: "power_settings_new"
-                accent: Theme.critical
-                onTriggered: Quickshell.execDetached(["systemctl", "poweroff"])
-            }
-        }
-        }
-    }
+    LockSessionBar {}
 
     // Historical event text
     Column {

@@ -2,8 +2,6 @@ import QtQuick
 import Quickshell
 import qs.theme
 import qs.services
-import "../popups/calendar"
-
 Item {
     id: root
 
@@ -15,17 +13,7 @@ Item {
         precision: SystemClock.Minutes
     }
 
-    readonly property bool calendarOpen: CalendarState.open || CalendarState.openProgress > 0.01
-
-    function captureSource() {
-        const g = timeRow.mapToGlobal(0, 0);
-        CalendarState.sourceX = g.x;
-        CalendarState.sourceY = g.y;
-        CalendarState.sourceW = timeRow.width;
-        CalendarState.sourceH = timeRow.height;
-        CalendarState.hoursText = Qt.formatDateTime(clock.date, "HH");
-        CalendarState.minutesText = Qt.formatDateTime(clock.date, "mm");
-    }
+    readonly property bool calendarOpen: typeof dynamicIsland !== "undefined" && dynamicIsland.activeMode === "calendar"
 
     function toggleCalendar() {
         if (dynamicIsland.activeMode === "calendar") {
