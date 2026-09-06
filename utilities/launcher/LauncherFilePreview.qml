@@ -159,8 +159,10 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (launcherWindow.shareData && launcherWindow.shareData.url)
+                                        if (launcherWindow && launcherWindow.shareData && launcherWindow.shareData.url) {
                                             ctrl.copyText(launcherWindow.shareData.url);
+                                            launcherWindow.closeMenu();
+                                        }
                                     }
                                 }
                             }
