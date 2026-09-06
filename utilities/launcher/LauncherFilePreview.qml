@@ -19,8 +19,8 @@ Item {
                     Item {
                         id: shareView
                         anchors.fill: parent
-                        opacity: launcherWindow.shareViewBlend
-                        visible: launcherWindow.shareViewBlend > 0.02
+                        opacity: launcherWindow ? launcherWindow.shareViewBlend : 0
+                        visible: launcherWindow ? launcherWindow.shareViewBlend > 0.02 : false
                         z: 2
                         property int qrSize: 170
 
@@ -32,8 +32,8 @@ Item {
                             Scale {
                                 origin.x: parent.width / 2
                                 origin.y: parent.height / 2
-                                xScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
-                                yScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
+                                xScale: 0.94 + 0.06 * (launcherWindow ? launcherWindow.shareViewBlend : 0)
+                                yScale: 0.94 + 0.06 * (launcherWindow ? launcherWindow.shareViewBlend : 0)
                                 Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
                                 Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
                             }
@@ -95,7 +95,7 @@ Item {
                                 radius: 18
                                 color: "#ffffff"
 
-                                layer.enabled: launcherWindow.shareViewBlend > 0.02
+                                layer.enabled: launcherWindow ? launcherWindow.shareViewBlend > 0.02 : false
                                 layer.effect: MultiEffect {
                                     shadowEnabled: true
                                     shadowBlur: 0.6
@@ -179,8 +179,8 @@ Item {
                     // Normal preview (fades out when share view is active)
                     Item {
                         anchors.fill: parent
-                        opacity: 1 - launcherWindow.shareViewBlend
-                        visible: launcherWindow.shareViewBlend < 0.98
+                        opacity: launcherWindow ? 1 - launcherWindow.shareViewBlend : 1
+                        visible: !launcherWindow || launcherWindow.shareViewBlend < 0.98
 
                         Behavior on opacity {
                             NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
@@ -200,7 +200,7 @@ Item {
                             id: imagePreview
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path))
+                            visible: ctrl && ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path))
                             source: {
                                 if (!ctrl.filePreview) return "";
                                 if (ctrl.filePreview.preview_type === "image")
@@ -239,7 +239,7 @@ Item {
                             id: textFlickable
                             anchors.fill: parent
                             anchors.margins: 16
-                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "text"
+                            visible: ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "text"
                             contentWidth: width
                             contentHeight: textPreview.implicitHeight
                             clip: true
@@ -248,25 +248,25 @@ Item {
                             Text {
                                 id: textPreview
                                 width: textFlickable.width
-                                text: (ctrl.filePreview && ctrl.filePreview.content) || ""
+                                text: (ctrl && ctrl.filePreview && ctrl.filePreview.content) || ""
                                 // Mocha foreground for code so unstyled tokens match the theme;
                                 // markdown keeps the panel's surface contrast color.
-                                color: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md")
+                                color: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md")
                                     ? Theme.on_surface
                                     : "#cdd6f4"
                                 wrapMode: Text.Wrap
                                 font {
-                                    family: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
-                                    pixelSize: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
+                                    family: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
+                                    pixelSize: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
                                 }
                                 lineHeight: 1.4
-                                textFormat: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.RichText
+                                textFormat: (launcherWindow && launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.RichText
                             }
                         }
 
                         // Truncation indicator for text
                         Rectangle {
-                            visible: textFlickable.visible && ctrl.filePreview && ctrl.filePreview.line_count >= 60
+                            visible: textFlickable.visible && ctrl && ctrl.filePreview && ctrl.filePreview.line_count >= 60
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left
                             anchors.right: parent.right
@@ -282,7 +282,7 @@ Item {
                             id: archivePreview
                             anchors.fill: parent
                             anchors.margins: 12
-                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "archive"
+                            visible: ctrl && ctrl.filePreview && ctrl.filePreview.preview_type === "archive"
 
                             property var listing: {
                                 if (!ctrl.filePreview || ctrl.filePreview.preview_type !== "archive" || !ctrl.filePreview.content)
@@ -494,7 +494,7 @@ Item {
                             id: fallbackIcon
                             anchors.centerIn: parent
                             visible: {
-                                if (!ctrl.filePreview) return true;
+                                if (!ctrl || !ctrl.filePreview) return true;
                                 var pt = ctrl.filePreview.preview_type;
                                 if ((pt === "pdf" || pt === "video") && ctrl.filePreview.preview_path) return false;
                                 return pt !== "image" && pt !== "text" && pt !== "archive";
@@ -506,7 +506,7 @@ Item {
 
                                 MaterialIcon {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    icon: launcherWindow.selectedFileData ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
+                                    icon: (launcherWindow && launcherWindow.selectedFileData) ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
                                     color: Theme.primary
                                     opacity: 0.6
                                     font.pixelSize: 72
@@ -515,7 +515,7 @@ Item {
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: {
-                                        if (!ctrl.filePreview) return "Loading...";
+                                        if (!ctrl || !ctrl.filePreview) return "Loading...";
                                         if (ctrl.filePreview.preview_type === "text_too_large") return "File too large to preview";
                                         if (ctrl.filePreview.preview_type === "binary") return "Binary file";
                                         if (ctrl.filePreview.preview_type === "pdf") return "PDF preview unavailable";
@@ -535,7 +535,7 @@ Item {
                         // Loading spinner
                         Text {
                             anchors.centerIn: parent
-                            visible: !ctrl.filePreview && launcherWindow.hasFileSelected
+                            visible: ctrl && !ctrl.filePreview && launcherWindow && launcherWindow.hasFileSelected
                             text: "Loading..."
                             color: Theme.on_surface_variant
                             opacity: 0.6
@@ -812,7 +812,7 @@ Item {
                             // would otherwise look "dead" (no animation/no view).
                             Text {
                                 width: parent.width
-                                visible: BackendDaemon.fileShareError !== "" && !launcherWindow.shareModeActive
+                                visible: BackendDaemon.fileShareError !== "" && (!launcherWindow || !launcherWindow.shareModeActive)
                                 text: BackendDaemon.fileShareError
                                 color: Theme.critical
                                 elide: Text.ElideRight

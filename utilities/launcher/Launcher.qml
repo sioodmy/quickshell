@@ -2279,8 +2279,8 @@ PanelWindow {
                         id: previewPanel
                         launcherWindow: launcherWindow
                         ctrl: ctrl
-                        visible: launcherWindow.fileSplitBlend > 0
-                        opacity: launcherWindow.fileSplitBlend
+                        visible: launcherWindow ? launcherWindow.fileSplitBlend > 0 : false
+                        opacity: launcherWindow ? launcherWindow.fileSplitBlend : 0
                         anchors.right: parent.right
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
