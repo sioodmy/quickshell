@@ -48,6 +48,41 @@ Item {
     readonly property real volumeLevel: activeSink?.audio?.volume ?? 0.0
     readonly property bool isMuted: activeSink?.audio?.muted ?? true
 
+    property string lastSinkDesc: ""
+    property bool speakerWarningInitialized: false
+
+    onActiveSinkChanged: checkSpeakerWarning()
+
+    Connections {
+        target: root.activeSink
+        function onDescriptionChanged() {
+            root.checkSpeakerWarning();
+        }
+    }
+
+    function checkSpeakerWarning() {
+        if (!root.activeSink) return;
+        var currentDesc = root.activeSink.description || "";
+        
+        if (!speakerWarningInitialized) {
+            if (currentDesc !== "") {
+                lastSinkDesc = currentDesc;
+                speakerWarningInitialized = true;
+            }
+            return;
+        }
+
+        if (currentDesc === lastSinkDesc || currentDesc === "") return;
+        
+        lastSinkDesc = currentDesc;
+        
+        if (currentDesc.toLowerCase().indexOf("speakers") !== -1) {
+            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1"] });
+            root.activeMode = "speaker_warning";
+        }
+    }
+
+
     PwObjectTracker {
         objects: root.activeSink ? [root.activeSink] : []
     }
@@ -271,6 +306,7 @@ Item {
                 if (root.activeMode === "screenshot_result") return screenshotResultComp;
                 if (root.activeMode === "recording") return recordingComp;
                 if (root.activeMode === "polkit") return polkitComp;
+                if (root.activeMode === "speaker_warning") return speakerWarningComp;
                 if (root.activeMode === "calendar") return calendarComp;
                 if (root.activeMode === "osd") return osdComp;
                 if (root.activeMode === "charging") return chargingComp;
@@ -309,6 +345,13 @@ Item {
             isWindowVisible: root.activeMode === "calendar"
             clockSettled: true
             onRequestClose: root.activeMode = "dock"
+        }
+    }
+
+    Component {
+        id: speakerWarningComp
+        IslandSpeakerWarning {
+            onDismissed: root.activeMode = "dock"
         }
     }
 

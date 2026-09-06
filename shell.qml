@@ -30,9 +30,6 @@ ShellRoot {
         id: launcherWindow
     }
 
-    SpeakerWarningPopup {
-        id: speakerWarningPopupWindow
-    }
 
     Loader {
         active: Screenshot.editorActive
