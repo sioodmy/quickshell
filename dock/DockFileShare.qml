@@ -9,7 +9,7 @@ Item {
     readonly property bool isVisible: FileShare.active
     
     // Smooth appearance horizontally
-    implicitWidth: isVisible ? layout.implicitWidth + 16 : 0
+    implicitWidth: isVisible ? 22 : 0
     implicitHeight: 22
     
     clip: true
@@ -21,9 +21,9 @@ Item {
     Rectangle {
         id: visualPill
         anchors.centerIn: parent
-        width: layout.implicitWidth + 16
+        width: 22
         height: 22
-        radius: height / 2
+        radius: 11
         
         color: {
             if (pillMouse.containsMouse)
@@ -35,26 +35,13 @@ Item {
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
         
-        Row {
+        MaterialIcon {
             id: layout
             anchors.centerIn: parent
-            spacing: 6
-            
-            MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                icon: pillMouse.containsMouse ? "close" : "wifi_tethering"
-                font.pixelSize: 13
-                color: pillMouse.containsMouse ? Theme.critical : Theme.primary
-                Behavior on color { ColorAnimation { duration: 150 } }
-            }
-            
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: "Sharing"
-                color: Theme.on_surface
-                font.pixelSize: 13
-                font.weight: Font.Medium
-            }
+            icon: pillMouse.containsMouse ? "close" : "wifi_tethering"
+            font.pixelSize: 13
+            color: pillMouse.containsMouse ? Theme.critical : Theme.primary
+            Behavior on color { ColorAnimation { duration: 150 } }
         }
         
         MouseArea {
