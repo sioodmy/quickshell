@@ -1,14 +1,14 @@
+use crate::music;
 use axum::{
-    extract::{Path, State, ConnectInfo},
+    extract::{ConnectInfo, Path, State},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
     Router,
 };
 use serde::Serialize;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use uuid::Uuid;
-use crate::music;
 
 pub struct MusicRemoteState {
     pub token: String,
@@ -76,14 +76,15 @@ impl Drop for MusicRemoteHandle {
 
 pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemoteState>)> {
     let token = Uuid::new_v4().to_string();
-    
+
     let local_ip = detect_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
-    
+
     let port = 45455;
     let url = format!("http://{}:{}/remote/{}", local_ip, port, token);
 
     let qr_code = qrcode::QrCode::new(url.as_bytes())?;
-    let qr_svg = qr_code.render::<qrcode::render::svg::Color>()
+    let qr_svg = qr_code
+        .render::<qrcode::render::svg::Color>()
         .min_dimensions(200, 200)
         .dark_color(qrcode::render::svg::Color("#1c1b1f"))
         .light_color(qrcode::render::svg::Color("#ffffff"))
@@ -113,11 +114,14 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
     tokio::spawn(async move {
         let addr = format!("0.0.0.0:{}", port);
         if let Ok(listener) = tokio::net::TcpListener::bind(&addr).await {
-            let _ = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-                .with_graceful_shutdown(async move {
-                    let _ = shutdown_rx.await;
-                })
-                .await;
+            let _ = axum::serve(
+                listener,
+                app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .with_graceful_shutdown(async move {
+                let _ = shutdown_rx.await;
+            })
+            .await;
         }
     });
 
@@ -129,10 +133,11 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
             if !state_clone.is_active.load(Ordering::Relaxed) {
                 break;
             }
-            let playing = music::PLAYER.get()
+            let playing = music::PLAYER
+                .get()
                 .map(|p| p.state.lock().unwrap().playing)
                 .unwrap_or(false);
-            
+
             if !playing {
                 idle_minutes += 1;
                 if idle_minutes >= 15 {
@@ -145,11 +150,14 @@ pub async fn start_server() -> anyhow::Result<(MusicRemoteHandle, Arc<MusicRemot
         }
     });
 
-    Ok((MusicRemoteHandle { 
-        url, 
-        qr_svg, 
-        shutdown_tx: std::sync::Mutex::new(Some(shutdown_tx)),
-    }, state))
+    Ok((
+        MusicRemoteHandle {
+            url,
+            qr_svg,
+            shutdown_tx: std::sync::Mutex::new(Some(shutdown_tx)),
+        },
+        state,
+    ))
 }
 
 async fn serve_ui(
@@ -207,10 +215,13 @@ async fn cmd_action(
                 if action.starts_with("play_album_") {
                     let parts: Vec<&str> = action.split('_').collect();
                     if parts.len() == 4 {
-                        if let (Ok(album_idx), Ok(track_idx)) = (parts[2].parse::<usize>(), parts[3].parse::<usize>()) {
+                        if let (Ok(album_idx), Ok(track_idx)) =
+                            (parts[2].parse::<usize>(), parts[3].parse::<usize>())
+                        {
                             if let Ok(lib) = music::scan_library() {
                                 if let Some(album) = lib.albums.get(album_idx) {
-                                    let paths = album.tracks.iter().map(|t| t.path.clone()).collect();
+                                    let paths =
+                                        album.tracks.iter().map(|t| t.path.clone()).collect();
                                     player.play_album(paths, track_idx);
                                 }
                             }
@@ -231,8 +242,15 @@ async fn get_state(
 ) -> impl IntoResponse {
     if !check_auth(&token, addr, &state) {
         return Json(RemoteStateDto {
-            playing: false, title: String::new(), artist: String::new(), album: String::new(),
-            duration_us: 0, position_us: 0, loop_album: false, has_player: false, art_url: String::new(),
+            playing: false,
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+            duration_us: 0,
+            position_us: 0,
+            loop_album: false,
+            has_player: false,
+            art_url: String::new(),
         });
     }
 
@@ -251,8 +269,15 @@ async fn get_state(
         })
     } else {
         Json(RemoteStateDto {
-            playing: false, title: String::new(), artist: String::new(), album: String::new(),
-            duration_us: 0, position_us: 0, loop_album: false, has_player: false, art_url: String::new(),
+            playing: false,
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+            duration_us: 0,
+            position_us: 0,
+            loop_album: false,
+            has_player: false,
+            art_url: String::new(),
         })
     }
 }
@@ -265,12 +290,15 @@ async fn get_library(
     if !check_auth(&token, addr, &state) {
         return Json(music::Library { albums: vec![] });
     }
-    
+
     let lib_opt = state.cached_library.lock().unwrap().clone();
     let lib = match lib_opt {
         Some(l) => l,
         None => {
-            let scanned = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap().unwrap_or(music::Library { albums: vec![] });
+            let scanned = tokio::task::spawn_blocking(|| music::scan_library())
+                .await
+                .unwrap()
+                .unwrap_or(music::Library { albums: vec![] });
             *state.cached_library.lock().unwrap() = Some(scanned.clone());
             scanned
         }
@@ -286,12 +314,15 @@ async fn get_cover(
     if !check_auth(&token, addr, &state) {
         return (axum::http::StatusCode::NOT_FOUND, vec![]).into_response();
     }
-    
+
     let lib_opt = state.cached_library.lock().unwrap().clone();
     let lib = match lib_opt {
         Some(l) => l,
         None => {
-            let scanned = tokio::task::spawn_blocking(|| music::scan_library()).await.unwrap().unwrap_or(music::Library { albums: vec![] });
+            let scanned = tokio::task::spawn_blocking(|| music::scan_library())
+                .await
+                .unwrap()
+                .unwrap_or(music::Library { albums: vec![] });
             *state.cached_library.lock().unwrap() = Some(scanned.clone());
             scanned
         }
@@ -300,7 +331,11 @@ async fn get_cover(
     if let Some(album) = lib.albums.get(index) {
         if let Some(ref path) = album.cover_path {
             if let Ok(data) = tokio::fs::read(path).await {
-                let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
+                let mime = if path.ends_with(".png") {
+                    "image/png"
+                } else {
+                    "image/jpeg"
+                };
                 return ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response();
             }
         }
@@ -324,7 +359,11 @@ async fn get_current_art(
     if art_url.starts_with("file://") {
         let path = art_url.trim_start_matches("file://");
         if let Ok(data) = tokio::fs::read(path).await {
-            let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
+            let mime = if path.ends_with(".png") {
+                "image/png"
+            } else {
+                "image/jpeg"
+            };
             return ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response();
         }
     }
@@ -348,7 +387,7 @@ async fn get_lyrics(
         if artist.is_empty() || title.is_empty() {
             return Json(serde_json::json!({"lyrics": ""}));
         }
-        
+
         let client = reqwest::Client::new();
         if let Ok(content) = crate::lyrics::fetch_lyrics(&client, &artist, &title).await {
             return Json(serde_json::json!({"lyrics": content}));
@@ -358,7 +397,8 @@ async fn get_lyrics(
 }
 
 fn html_page(token: &str) -> String {
-    format!(r#"<!DOCTYPE html>
+    format!(
+        r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -918,7 +958,9 @@ fn html_page(token: &str) -> String {
         loadLyrics();
     </script>
 </body>
-</html>"#, token=token)
+</html>"#,
+        token = token
+    )
 }
 
 fn detect_local_ip() -> Option<String> {

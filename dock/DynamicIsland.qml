@@ -11,6 +11,14 @@ import "calendar"
 import "island"
 
 Item {
+    Connections {
+        target: KeepassBackend
+        function onEntrySelected(entry) {
+            root.keepassEntry = entry;
+            root.activeMode = "keepass";
+        }
+    }
+
     id: root
     
     // Explicit sizing for Dock.qml to animate notchBg
@@ -31,6 +39,7 @@ Item {
     property string polkitPrompt: ""
     property bool polkitError: false
     property bool polkitYubikey: false
+    property var keepassEntry: null
 
     // OSD state
     property real osdDockWidth: 300
@@ -53,12 +62,8 @@ Item {
 
     onActiveSinkChanged: checkSpeakerWarning()
 
-    Connections {
-        target: root.activeSink
-        function onDescriptionChanged() {
-            root.checkSpeakerWarning();
-        }
-    }
+    readonly property string currentSinkDesc: activeSink?.description ?? ""
+    onCurrentSinkDescChanged: checkSpeakerWarning()
 
     function checkSpeakerWarning() {
         if (!root.activeSink) return;
@@ -306,6 +311,7 @@ Item {
                 if (root.activeMode === "screenshot_result") return screenshotResultComp;
                 if (root.activeMode === "recording") return recordingComp;
                 if (root.activeMode === "polkit") return polkitComp;
+                if (root.activeMode === "keepass") return keepassComp;
                 if (root.activeMode === "speaker_warning") return speakerWarningComp;
                 if (root.activeMode === "calendar") return calendarComp;
                 if (root.activeMode === "osd") return osdComp;
@@ -317,6 +323,17 @@ Item {
     }
 
     // --- Components ---
+    Component {
+        id: keepassComp
+        IslandKeepass {
+            entry: root.keepassEntry
+            onCloseRequested: {
+                root.activeMode = "dock";
+                root.keepassEntry = null;
+            }
+        }
+    }
+
 
     Component {
         id: chargingComp

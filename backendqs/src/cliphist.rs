@@ -68,9 +68,7 @@ fn cache_path() -> PathBuf {
         .ok()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache")
-        });
+        .unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cache"));
     base.join("quickshell").join("cliphist_ocr.json")
 }
 
@@ -250,10 +248,7 @@ pub fn run_ocr(image_path: &str) -> Option<String> {
     let text = String::from_utf8_lossy(&output.stdout);
     // Collapse the noisy whitespace tesseract emits into single spaces so the
     // fuzzy matcher sees a clean, single-line blob.
-    let cleaned = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let cleaned = text.split_whitespace().collect::<Vec<_>>().join(" ");
     Some(cleaned)
 }
 
@@ -287,7 +282,8 @@ pub fn copy_item(raw: &str, image_path: &str) -> Result<()> {
                 opts.copy(
                     wl_clipboard_rs::copy::Source::Bytes(bytes.into()),
                     wl_clipboard_rs::copy::MimeType::Specific(mime.to_string()),
-                ).map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
+                )
+                .map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
                 return Ok(());
             }
         }
@@ -310,7 +306,8 @@ pub fn copy_item(raw: &str, image_path: &str) -> Result<()> {
     opts.copy(
         wl_clipboard_rs::copy::Source::Bytes(decoded.stdout.into()),
         wl_clipboard_rs::copy::MimeType::Text,
-    ).map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
+    )
+    .map_err(|e| anyhow::anyhow!("Clipboard copy error: {e}"))?;
     Ok(())
 }
 
@@ -363,7 +360,11 @@ fn decode_entry(raw: &str, path: &Path) -> Result<()> {
 fn hash_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect()
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 fn is_binary_preview(preview: &str) -> bool {
@@ -404,7 +405,13 @@ fn dims_from_preview(preview: &str) -> (u32, u32) {
 }
 
 fn mime_for_path(path: &str) -> &'static str {
-    match path.rsplit('.').next().unwrap_or("").to_lowercase().as_str() {
+    match path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_lowercase()
+        .as_str()
+    {
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "bmp" => "image/bmp",

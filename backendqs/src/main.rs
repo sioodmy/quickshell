@@ -1,29 +1,30 @@
-mod idle_manager;
-mod music;
-mod logind_listener;
-mod dictionary;
 mod agenda;
-mod lyrics;
-mod state;
-mod weather;
-mod frecency;
-mod filesearch;
-mod archivepreview;
-mod pdfpreview;
-mod videopreview;
-mod sysctl;
-mod cliphist;
-mod bookmarks;
-mod appsearch;
-mod fileshare;
-mod music_remote;
 mod api;
+mod appsearch;
+mod archivepreview;
+mod bookmarks;
+mod cliphist;
 mod context;
+mod dictionary;
+mod filesearch;
+mod fileshare;
+mod frecency;
 mod handler;
+mod idle_manager;
+pub mod keepass_db;
+mod logind_listener;
+mod lyrics;
+mod music;
+mod music_remote;
+mod pdfpreview;
+mod state;
+mod sysctl;
+mod videopreview;
+mod weather;
 
+pub mod battery;
 pub mod org_renderer;
 pub mod polkit;
-pub mod battery;
 
 #[macro_export]
 macro_rules! debug_log {
@@ -35,16 +36,14 @@ macro_rules! debug_log {
 }
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use tokio::io::{AsyncBufReadExt, BufReader};
 use reqwest::Client;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
+use notify::{Event, RecursiveMode, Watcher};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use notify::{Watcher, RecursiveMode, Event};
 use tokio::sync::mpsc as tmpsc;
-
-
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -68,9 +67,6 @@ enum Commands {
     Daemon,
 }
 
-
-
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -93,11 +89,11 @@ async fn main() -> Result<()> {
         }
         Commands::Daemon => {
             idle_manager::spawn_idle_manager();
-            
+
             tokio::spawn(async move {
                 logind_listener::start_logind_listener().await;
             });
-            
+
             let player = music::PLAYER.get_or_init(music::Player::new);
             // Start MPRIS D-Bus server
             let mpris_state = player.state.clone();
@@ -140,13 +136,17 @@ async fn main() -> Result<()> {
                                 has_player: !state.title.is_empty(),
                             }
                         };
-                        let _ = tx_event_clone.send(api::DaemonEvent::MusicStateUpdate { state: dto }).await;
+                        let _ = tx_event_clone
+                            .send(api::DaemonEvent::MusicStateUpdate { state: dto })
+                            .await;
                     }
                 }
             });
 
             // Setup file watcher for Agenda
-            let notes_dir = std::env::var("HOME").map(|h| PathBuf::from(h).join("Notes")).unwrap_or_default();
+            let notes_dir = std::env::var("HOME")
+                .map(|h| PathBuf::from(h).join("Notes"))
+                .unwrap_or_default();
             if notes_dir.exists() {
                 let (tx_notify, rx_notify) = std::sync::mpsc::channel();
                 if let Ok(mut watcher) = notify::recommended_watcher(tx_notify) {
@@ -160,7 +160,9 @@ async fn main() -> Result<()> {
                                 Ok(Event { kind, .. }) => {
                                     if kind.is_modify() || kind.is_create() || kind.is_remove() {
                                         if let Ok(items) = agenda::parse_directory(&ndir) {
-                                            let _ = tx_ev.blocking_send(api::DaemonEvent::AgendaUpdate { data: items });
+                                            let _ = tx_ev.blocking_send(
+                                                api::DaemonEvent::AgendaUpdate { data: items },
+                                            );
                                         }
                                     }
                                 }
@@ -173,12 +175,16 @@ async fn main() -> Result<()> {
 
             // Trigger initial agenda load
             let initial_items = agenda::parse_directory(&notes_dir).unwrap_or_default();
-            let _ = tx_event.send(api::DaemonEvent::AgendaUpdate { data: initial_items }).await;
+            let _ = tx_event
+                .send(api::DaemonEvent::AgendaUpdate {
+                    data: initial_items,
+                })
+                .await;
 
             // Setup Frecency state (scores cached; refreshed only on load/record)
-            let frecency_state = Arc::new(std::sync::Mutex::new(crate::frecency::FrecencyState::new(
-                frecency::load_or_migrate(),
-            )));
+            let frecency_state = Arc::new(std::sync::Mutex::new(
+                crate::frecency::FrecencyState::new(frecency::load_or_migrate()),
+            ));
             // Initial frecency load event
             {
                 let state = frecency_state.lock().unwrap();
@@ -193,9 +199,17 @@ async fn main() -> Result<()> {
             // tesseract OCR pass runs at a time (battery friendly).
             let cliphist_state = cliphist::new_state();
             let ocr_sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
-            let file_share: Arc<tokio::sync::Mutex<Option<fileshare::FileShareHandle>>> = Arc::new(tokio::sync::Mutex::new(None));
+            let file_share: Arc<tokio::sync::Mutex<Option<fileshare::FileShareHandle>>> =
+                Arc::new(tokio::sync::Mutex::new(None));
             let file_share_progress_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let music_remote_state: Arc<tokio::sync::Mutex<Option<(music_remote::MusicRemoteHandle, std::sync::Arc<music_remote::MusicRemoteState>)>>> = Arc::new(tokio::sync::Mutex::new(None));
+            let music_remote_state: Arc<
+                tokio::sync::Mutex<
+                    Option<(
+                        music_remote::MusicRemoteHandle,
+                        std::sync::Arc<music_remote::MusicRemoteState>,
+                    )>,
+                >,
+            > = Arc::new(tokio::sync::Mutex::new(None));
 
             // Build file search index in background
             let file_index = filesearch::new_index();
@@ -245,8 +259,7 @@ async fn main() -> Result<()> {
                 let tx_prog = tx_event.clone();
                 let active = file_share_progress_active.clone();
                 tokio::spawn(async move {
-                    let mut interval =
-                        tokio::time::interval(std::time::Duration::from_millis(500));
+                    let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
                     loop {
                         interval.tick().await;
                         if !active.load(Ordering::Relaxed) {
@@ -271,18 +284,18 @@ async fn main() -> Result<()> {
                 });
             }
 
-
-
             // Setup rink
-            let mut rink = rink_core::Context::new();
+            let rink = rink_core::Context::new();
             let rink_ctx = Arc::new(tokio::sync::Mutex::new(rink));
 
             // Stdin reading loop
             let mut reader = BufReader::new(tokio::io::stdin()).lines();
 
             while let Ok(Some(line)) = reader.next_line().await {
-                if line.trim().is_empty() { continue; }
-                
+                if line.trim().is_empty() {
+                    continue;
+                }
+
                 let req: api::DaemonRequest = match serde_json::from_str(&line) {
                     Ok(r) => r,
                     Err(e) => {
@@ -317,7 +330,6 @@ async fn main() -> Result<()> {
                     _ => None,
                 };
 
-
                 let ctx = context::AppContext {
                     tx: tx_event.clone(),
                     client: client.clone(),
@@ -338,7 +350,7 @@ async fn main() -> Result<()> {
 
                 tokio::spawn(async move {
                     handler::handle_request(req, ctx, assigned_search_gen).await;
-});
+                });
             }
         }
     }

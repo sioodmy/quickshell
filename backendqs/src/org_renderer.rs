@@ -1,7 +1,7 @@
-use orgize::Org;
-use orgize::elements::{Element, Timestamp, Datetime};
+use orgize::elements::{Datetime, Element, Timestamp};
 use orgize::export::{DefaultHtmlHandler, HtmlHandler};
-use std::io::{Write, Result as IOResult, Error as IOError};
+use orgize::Org;
+use std::io::{Error as IOError, Result as IOResult, Write};
 use urlencoding::encode;
 
 pub struct AgendaEvent {
@@ -29,25 +29,37 @@ fn dt_to_ics(dt: &Datetime) -> String {
 }
 
 fn format_dt_display(dt: &Datetime) -> String {
-    let mut s = format!("{:04}-{:02}-{:02} {}", dt.year, dt.month, dt.day, dt.dayname);
+    let mut s = format!(
+        "{:04}-{:02}-{:02} {}",
+        dt.year, dt.month, dt.day, dt.dayname
+    );
     if let (Some(h), Some(m)) = (dt.hour, dt.minute) {
         s.push_str(&format!(" {:02}:{:02}", h, m));
     }
     s
 }
 
-fn render_m3_date_widget<W: Write>(w: &mut W, label: &str, dt: &Datetime, summary: &str) -> IOResult<()> {
+fn render_m3_date_widget<W: Write>(
+    w: &mut W,
+    label: &str,
+    dt: &Datetime,
+    summary: &str,
+) -> IOResult<()> {
     let dt_str = dt_to_ics(dt);
     let display_str = format_dt_display(dt);
-    
+
     let ics_content = format!(
         "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nDTSTART:{}\r\nSUMMARY:{}\r\nEND:VEVENT\r\nEND:VCALENDAR",
         dt_str, summary
     );
     let b64_ics = encode(&ics_content);
     let data_uri = format!("data:text/calendar;charset=utf-8,{}", b64_ics);
-    
-    write!(w, r#"<a href="{}" download="event.ics" class="m3-date-widget" title="Add to Calendar">"#, data_uri)?;
+
+    write!(
+        w,
+        r#"<a href="{}" download="event.ics" class="m3-date-widget" title="Add to Calendar">"#,
+        data_uri
+    )?;
     write!(w, r#"<span class="m3-date-icon">📅</span>"#)?;
     if !label.is_empty() {
         write!(w, r#"<span class="m3-date-title">{}</span>"#, label)?;
@@ -58,7 +70,10 @@ fn render_m3_date_widget<W: Write>(w: &mut W, label: &str, dt: &Datetime, summar
 
 fn get_timestamp_dt<'a>(ts: &'a Timestamp<'a>) -> Option<&'a Datetime<'a>> {
     match ts {
-        Timestamp::Active { start, .. } | Timestamp::Inactive { start, .. } | Timestamp::ActiveRange { start, .. } | Timestamp::InactiveRange { start, .. } => Some(start),
+        Timestamp::Active { start, .. }
+        | Timestamp::Inactive { start, .. }
+        | Timestamp::ActiveRange { start, .. }
+        | Timestamp::InactiveRange { start, .. } => Some(start),
         _ => None,
     }
 }
@@ -69,7 +84,7 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
             Element::Title(title) => {
                 self.headline_counter += 1;
                 let id = format!("headline-{}", self.headline_counter);
-                
+
                 if let Some(planning) = &title.planning {
                     if let Some(scheduled) = &planning.scheduled {
                         if let Some(dt) = get_timestamp_dt(scheduled) {
@@ -92,17 +107,30 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
                         }
                     }
                 }
-                
+
                 write!(w, r#"<div id="{}" class="m3-headline-container">"#, id)?;
                 write!(w, r#"<div class="m3-headline-header">"#)?;
-                
+
                 if let Some(keyword) = &title.keyword {
                     let is_done = keyword == "DONE" || keyword == "CANCELED";
-                    let state_class = if is_done { "m3-todo-done" } else { "m3-todo-active" };
-                    write!(w, r#"<span class="m3-todo-widget {}">{}</span>"#, state_class, keyword)?;
+                    let state_class = if is_done {
+                        "m3-todo-done"
+                    } else {
+                        "m3-todo-active"
+                    };
+                    write!(
+                        w,
+                        r#"<span class="m3-todo-widget {}">{}</span>"#,
+                        state_class, keyword
+                    )?;
                 }
-                
-                write!(w, "<h{} class=\"m3-headline-title level-{}\">", if title.level <= 6 { title.level } else { 6 }, title.level)?;
+
+                write!(
+                    w,
+                    "<h{} class=\"m3-headline-title level-{}\">",
+                    if title.level <= 6 { title.level } else { 6 },
+                    title.level
+                )?;
                 return Ok(());
             }
             Element::Timestamp(ts) => {
@@ -113,24 +141,30 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
             }
             Element::Text { value } => {
                 let escaped = orgize::export::HtmlEscape(value).to_string();
-                
+
                 lazy_static::lazy_static! {
                     static ref URL_REGEX: regex::Regex = regex::Regex::new(r"https?://[^\s<>]+").unwrap();
                 }
                 let result = URL_REGEX.replace_all(&escaped, |caps: &regex::Captures| {
                     let url = &caps[0];
                     let mut short_url = url;
-                    if short_url.starts_with("https://") { short_url = &short_url[8..]; }
-                    else if short_url.starts_with("http://") { short_url = &short_url[7..]; }
-                    
+                    if short_url.starts_with("https://") {
+                        short_url = &short_url[8..];
+                    } else if short_url.starts_with("http://") {
+                        short_url = &short_url[7..];
+                    }
+
                     let short_url_display = if short_url.len() > 30 {
                         format!("{}...", &short_url[..27])
                     } else {
                         short_url.to_string()
                     };
-                    format!(r#"<a href="{}" class="raw-url" target="_blank">{}</a>"#, url, short_url_display)
+                    format!(
+                        r#"<a href="{}" class="raw-url" target="_blank">{}</a>"#,
+                        url, short_url_display
+                    )
                 });
-                
+
                 write!(w, "{}", result)?;
                 return Ok(());
             }
@@ -142,7 +176,7 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
         match element {
             Element::Title(title) => {
                 write!(w, "</h{}>", if title.level <= 6 { title.level } else { 6 })?;
-                
+
                 if !title.tags.is_empty() {
                     write!(w, r#"<div class="m3-tags">"#)?;
                     for tag in &title.tags {
@@ -150,12 +184,15 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
                     }
                     write!(w, r#"</div>"#)?;
                 }
-                
+
                 write!(w, r#"</div>"#)?; // end m3-headline-header
-                
+
                 if let Some(planning) = &title.planning {
                     let mut has_dates = false;
-                    if planning.scheduled.is_some() || planning.deadline.is_some() || planning.closed.is_some() {
+                    if planning.scheduled.is_some()
+                        || planning.deadline.is_some()
+                        || planning.closed.is_some()
+                    {
                         has_dates = true;
                         write!(w, r#"<div class="m3-planning">"#)?;
                     }
@@ -179,7 +216,7 @@ impl HtmlHandler<IOError> for CustomHtmlHandler {
                         write!(w, r#"</div>"#)?;
                     }
                 }
-                
+
                 write!(w, r#"</div>"#)?; // end m3-headline-container
                 return Ok(());
             }
@@ -202,9 +239,11 @@ pub fn render_org_to_html(content: &str) -> String {
     let mut handler = CustomHtmlHandler::default();
     let _ = org.write_html_custom(&mut writer, &mut handler);
     let body = String::from_utf8_lossy(&writer).to_string();
-    
+
     if handler.events.len() > 2 {
-        let mut agenda_html = String::from(r#"<div class="m3-agenda"><h2>Upcoming Events</h2><div class="m3-agenda-list">"#);
+        let mut agenda_html = String::from(
+            r#"<div class="m3-agenda"><h2>Upcoming Events</h2><div class="m3-agenda-list">"#,
+        );
         for ev in &handler.events {
             agenda_html.push_str(&format!(
                 "<a href=\"#{}\" class=\"m3-agenda-item\" onclick=\"smoothScroll(event, '{}')\">\n\
@@ -224,7 +263,7 @@ pub fn render_org_to_html(content: &str) -> String {
 
 pub fn render_org_share_page(name: &str, content: &str) -> String {
     let html_content = render_org_to_html(content);
-    
+
     // Capitalize first letter and strip .org
     let name_without_ext = name.strip_suffix(".org").unwrap_or(name);
     let mut c = name_without_ext.chars();
@@ -232,7 +271,7 @@ pub fn render_org_share_page(name: &str, content: &str) -> String {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
     };
-    
+
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">

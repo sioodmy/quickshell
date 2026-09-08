@@ -8,6 +8,7 @@ import "lock"
 import "desktop"
 
 import qs.utilities.launcher
+import qs.utilities.keepass
 import qs.popups
 import qs.services
 
@@ -29,6 +30,11 @@ ShellRoot {
     Launcher {
         id: launcherWindow
     }
+
+    KeepassPopup {
+        id: keepassWindow
+    }
+
 
 
     Loader {
@@ -56,6 +62,19 @@ ShellRoot {
         active: RsvpReader.active
         asynchronous: true
         sourceComponent: RsvpOverlay { id: rsvpOverlay }
+    }
+
+    IpcHandler {
+        target: "keepass"
+        function toggle() {
+            keepassWindow.toggle();
+        }
+        function open() {
+            keepassWindow.openMenu();
+        }
+        function close() {
+            keepassWindow.closeMenu();
+        }
     }
 
     IpcHandler {

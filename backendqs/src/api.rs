@@ -4,13 +4,20 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "action")]
 pub enum DaemonRequest {
     #[serde(rename = "math")]
-    Math { query: String, out: Option<String>, color: Option<String> },
+    Math {
+        query: String,
+        out: Option<String>,
+        color: Option<String>,
+    },
     #[serde(rename = "dictionary")]
     Dictionary { query: String },
     #[serde(rename = "calc")]
     Calc { query: String },
     #[serde(rename = "save_json")]
-    SaveJson { path: String, data: serde_json::Value },
+    SaveJson {
+        path: String,
+        data: serde_json::Value,
+    },
     #[serde(rename = "lyrics")]
     Lyrics { artist: String, title: String },
     #[serde(rename = "lyrics_prefetch")]
@@ -24,7 +31,10 @@ pub enum DaemonRequest {
     #[serde(rename = "music_library")]
     MusicLibrary,
     #[serde(rename = "music_play_album")]
-    MusicPlayAlbum { tracks: Vec<String>, start_index: usize },
+    MusicPlayAlbum {
+        tracks: Vec<String>,
+        start_index: usize,
+    },
     #[serde(rename = "music_pause")]
     MusicPause,
     #[serde(rename = "music_resume")]
@@ -56,7 +66,10 @@ pub enum DaemonRequest {
     #[serde(rename = "cliphist_list")]
     CliphistList,
     #[serde(rename = "cliphist_copy")]
-    CliphistCopy { raw: String, image_path: Option<String> },
+    CliphistCopy {
+        raw: String,
+        image_path: Option<String>,
+    },
     #[serde(rename = "cliphist_delete")]
     CliphistDelete { raw: String },
     #[serde(rename = "cliphist_wipe")]
@@ -84,43 +97,103 @@ pub enum DaemonRequest {
     PolkitSubmit { cookie: String, response: String },
     #[serde(rename = "polkit_cancel")]
     PolkitCancel { cookie: String },
+    #[serde(rename = "keepass_unlock")]
+    KeepassUnlock { password: String },
+    #[serde(rename = "keepass_search")]
+    KeepassSearch { query: String },
+    #[serde(rename = "keepass_copy")]
+    KeepassCopy { id: String, field: String },
+    #[serde(rename = "keepass_lock")]
+    KeepassLock,
+    #[serde(rename = "keepass_get_otp")]
+    KeepassGetOtp { id: String },
 }
 
 #[derive(Serialize)]
 #[serde(tag = "type")]
 pub enum DaemonEvent {
     #[serde(rename = "math_result")]
-    MathResult { status: String, error: Option<String>, svg_file: Option<String>, svg_content: Option<String> },
+    MathResult {
+        status: String,
+        error: Option<String>,
+        svg_file: Option<String>,
+        svg_content: Option<String>,
+    },
     #[serde(rename = "dictionary_result")]
-    DictionaryResult { status: String, error: Option<String>, word: Option<String>, phonetic: Option<String>, definition: Option<String> },
+    DictionaryResult {
+        status: String,
+        error: Option<String>,
+        word: Option<String>,
+        phonetic: Option<String>,
+        definition: Option<String>,
+    },
     #[serde(rename = "calc_result")]
-    CalcResult { status: String, error: Option<String>, result: Option<String>, query: String },
+    CalcResult {
+        status: String,
+        error: Option<String>,
+        result: Option<String>,
+        query: String,
+    },
     #[serde(rename = "lyrics_result")]
-    LyricsResult { status: String, error: Option<String>, lyrics: Option<String> },
+    LyricsResult {
+        status: String,
+        error: Option<String>,
+        lyrics: Option<String>,
+    },
     #[serde(rename = "weather_result")]
-    WeatherResult { status: String, error: Option<String>, data: Option<crate::weather::WeatherData> },
+    WeatherResult {
+        status: String,
+        error: Option<String>,
+        data: Option<crate::weather::WeatherData>,
+    },
     #[serde(rename = "agenda_update")]
-    AgendaUpdate { data: Vec<crate::agenda::AgendaItem> },
+    AgendaUpdate {
+        data: Vec<crate::agenda::AgendaItem>,
+    },
     #[serde(rename = "music_library_result")]
-    MusicLibraryResult { status: String, error: Option<String>, library: Option<crate::music::Library> },
+    MusicLibraryResult {
+        status: String,
+        error: Option<String>,
+        library: Option<crate::music::Library>,
+    },
     #[serde(rename = "music_state_update")]
     MusicStateUpdate { state: MusicStateDto },
     #[serde(rename = "frecency_update")]
-    FrecencyUpdate { scores: crate::frecency::FrecencyScores },
+    FrecencyUpdate {
+        scores: crate::frecency::FrecencyScores,
+    },
     #[serde(rename = "file_search_result")]
-    FileSearchResult { query: String, results: Vec<crate::filesearch::FileResult> },
+    FileSearchResult {
+        query: String,
+        results: Vec<crate::filesearch::FileResult>,
+    },
     #[serde(rename = "app_search_result")]
-    AppSearchResult { query: String, results: Vec<crate::appsearch::AppSearchResult> },
+    AppSearchResult {
+        query: String,
+        results: Vec<crate::appsearch::AppSearchResult>,
+    },
     #[serde(rename = "bookmark_search_result")]
-    BookmarkSearchResult { query: String, results: Vec<crate::bookmarks::BookmarkResult> },
+    BookmarkSearchResult {
+        query: String,
+        results: Vec<crate::bookmarks::BookmarkResult>,
+    },
     #[serde(rename = "file_preview_result")]
     FilePreviewResult(crate::filesearch::PreviewResult),
     #[serde(rename = "sysctl_list_result")]
-    SysctlListResult { kind: String, devices: Vec<crate::sysctl::DeviceItem> },
+    SysctlListResult {
+        kind: String,
+        devices: Vec<crate::sysctl::DeviceItem>,
+    },
     #[serde(rename = "cliphist_list_result")]
-    CliphistListResult { items: Vec<crate::cliphist::ClipItem> },
+    CliphistListResult {
+        items: Vec<crate::cliphist::ClipItem>,
+    },
     #[serde(rename = "cliphist_ocr_update")]
-    CliphistOcrUpdate { id: String, ocr_text: String, search_text: String },
+    CliphistOcrUpdate {
+        id: String,
+        ocr_text: String,
+        search_text: String,
+    },
     #[serde(rename = "cliphist_action_done")]
     CliphistActionDone { action: String },
     #[serde(rename = "file_share_started")]
@@ -134,10 +207,17 @@ pub enum DaemonEvent {
         size: Option<u64>,
     },
     #[serde(rename = "file_share_progress")]
-    FileShareProgress { shares: Vec<crate::fileshare::ShareInfo> },
+    FileShareProgress {
+        shares: Vec<crate::fileshare::ShareInfo>,
+    },
 
     #[serde(rename = "music_remote_started")]
-    MusicRemoteStarted { status: String, error: Option<String>, url: Option<String>, qr_svg: Option<String> },
+    MusicRemoteStarted {
+        status: String,
+        error: Option<String>,
+        url: Option<String>,
+        qr_svg: Option<String>,
+    },
     #[serde(rename = "music_remote_stopped")]
     MusicRemoteStopped,
     #[serde(rename = "music_remote_connected")]
@@ -155,6 +235,21 @@ pub enum DaemonEvent {
     PolkitResult { cookie: String, success: bool },
     #[serde(rename = "polkit_dismiss")]
     PolkitDismiss { cookie: String },
+    #[serde(rename = "keepass_unlock_result")]
+    KeepassUnlockResult {
+        success: bool,
+        error: Option<String>,
+    },
+    #[serde(rename = "keepass_search_result")]
+    KeepassSearchResult { results: Vec<KeepassEntryDto> },
+    #[serde(rename = "keepass_copy_done")]
+    KeepassCopyDone,
+    #[serde(rename = "keepass_otp_result")]
+    KeepassOtpResult {
+        id: String,
+        code: String,
+        remaining: u64,
+    },
 }
 
 #[derive(Serialize)]
@@ -169,4 +264,13 @@ pub struct MusicStateDto {
     pub volume: f32,
     pub loop_album: bool,
     pub has_player: bool,
+}
+
+#[derive(Serialize, Clone)]
+pub struct KeepassEntryDto {
+    pub id: String,
+    pub title: String,
+    pub username: String,
+    pub has_otp: bool,
+    pub is_smart: bool,
 }

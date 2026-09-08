@@ -11,8 +11,8 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Clone, Debug)]
 pub struct AppEntry {
-    pub id: String,         // e.g. "kitty.desktop"
-    pub stem_id: String,    // e.g. "kitty"
+    pub id: String,      // e.g. "kitty.desktop"
+    pub stem_id: String, // e.g. "kitty"
     pub name: String,
     pub name_utf32: Utf32String,
     pub search_text_utf32: Utf32String,

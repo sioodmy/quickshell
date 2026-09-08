@@ -1,31 +1,37 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 use lofty::file::{AudioFile, TaggedFileExt};
+use lofty::picture::PictureType;
 use lofty::probe::Probe;
 use lofty::tag::ItemKey;
-use lofty::picture::PictureType;
-use sha2::{Sha256, Digest};
+use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::env;
-use std::thread;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::thread;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use rusqlite::Connection;
 
 // ── Player commands ──────────────────────────────────────────────────
 
 pub enum PlayerCmd {
-    PlayAlbum { paths: Vec<String>, start_index: usize },
+    PlayAlbum {
+        paths: Vec<String>,
+        start_index: usize,
+    },
     Pause,
     Resume,
     Stop,
     Next,
     Previous,
-    Seek { position_secs: f64 },
-    SetVolume { volume: f32 },
+    Seek {
+        position_secs: f64,
+    },
+    SetVolume {
+        volume: f32,
+    },
     ToggleLoop,
     ReloadDevice,
 }
@@ -117,21 +123,36 @@ impl Player {
                 if let Ok(tagged) = Probe::open(p).and_then(|pr| pr.read()) {
                     dur = tagged.properties().duration().as_micros() as i64;
                     if let Some(tag) = tagged.primary_tag().or_else(|| tagged.first_tag()) {
-                        title = tag.get_string(ItemKey::TrackTitle).unwrap_or("").to_string();
-                        artist = tag.get_string(ItemKey::TrackArtist)
+                        title = tag
+                            .get_string(ItemKey::TrackTitle)
+                            .unwrap_or("")
+                            .to_string();
+                        artist = tag
+                            .get_string(ItemKey::TrackArtist)
                             .or(tag.get_string(ItemKey::AlbumArtist))
-                            .unwrap_or("").to_string();
-                        album = tag.get_string(ItemKey::AlbumTitle).unwrap_or("").to_string();
+                            .unwrap_or("")
+                            .to_string();
+                        album = tag
+                            .get_string(ItemKey::AlbumTitle)
+                            .unwrap_or("")
+                            .to_string();
 
                         // Extract embedded cover art to cache
                         for pic in tag.pictures() {
-                            if pic.pic_type() == PictureType::CoverFront || pic.pic_type() == PictureType::Other {
+                            if pic.pic_type() == PictureType::CoverFront
+                                || pic.pic_type() == PictureType::Other
+                            {
                                 let home = env::var("HOME").unwrap_or_default();
-                                let covers_dir = PathBuf::from(&home).join(".cache/quickshell/covers");
+                                let covers_dir =
+                                    PathBuf::from(&home).join(".cache/quickshell/covers");
                                 let _ = fs::create_dir_all(&covers_dir);
                                 let mut hasher = Sha256::new();
                                 hasher.update(pic.data());
-                                let hash: String = hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect();
+                                let hash: String = hasher
+                                    .finalize()
+                                    .iter()
+                                    .map(|b| format!("{:02x}", b))
+                                    .collect();
                                 let out = covers_dir.join(format!("{}.jpg", hash));
                                 if !out.exists() {
                                     if let Ok(img) = image::load_from_memory(pic.data()) {
@@ -148,7 +169,16 @@ impl Player {
                 // Fallback cover from directory
                 if art.is_empty() {
                     if let Some(parent) = p.parent() {
-                        for f in &["cover.jpg","cover.png","folder.jpg","folder.png","Folder.jpg","Cover.jpg","front.jpg","Front.jpg"] {
+                        for f in &[
+                            "cover.jpg",
+                            "cover.png",
+                            "folder.jpg",
+                            "folder.png",
+                            "Folder.jpg",
+                            "Cover.jpg",
+                            "front.jpg",
+                            "Front.jpg",
+                        ] {
                             let fp = parent.join(f);
                             if fp.exists() {
                                 art = format!("file://{}", fp.display());
@@ -159,7 +189,11 @@ impl Player {
                 }
 
                 if title.is_empty() {
-                    title = p.file_stem().and_then(|s| s.to_str()).unwrap_or("Unknown").to_string();
+                    title = p
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("Unknown")
+                        .to_string();
                 }
                 (title, artist, album, art, dur)
             };
@@ -167,7 +201,9 @@ impl Player {
             // Helper: play track at index
             let play_index = |player: &rodio::Player, state: &SharedState, idx: usize| {
                 let s = state.lock().unwrap();
-                if idx >= s.playlist.len() { return; }
+                if idx >= s.playlist.len() {
+                    return;
+                }
                 let path = s.playlist[idx].clone();
                 drop(s);
 
@@ -207,7 +243,9 @@ impl Player {
                                 s.position_snapshot_us = s.duration_us;
                                 None
                             }
-                        } else { None }
+                        } else {
+                            None
+                        }
                     };
                     if let Some(i) = next_idx {
                         play_index(&player, &state_clone, i);
@@ -249,18 +287,26 @@ impl Player {
                                         Some(s.playlist_index + 1)
                                     } else if s.loop_album && !s.playlist.is_empty() {
                                         Some(0)
-                                    } else { None }
+                                    } else {
+                                        None
+                                    }
                                 };
-                                if let Some(i) = idx { play_index(&player, &state_clone, i); }
+                                if let Some(i) = idx {
+                                    play_index(&player, &state_clone, i);
+                                }
                             }
                             PlayerCmd::Previous => {
                                 let idx = {
                                     let s = state_clone.lock().unwrap();
                                     if s.playlist_index > 0 {
                                         Some(s.playlist_index - 1)
-                                    } else { Some(0) }
+                                    } else {
+                                        Some(0)
+                                    }
                                 };
-                                if let Some(i) = idx { play_index(&player, &state_clone, i); }
+                                if let Some(i) = idx {
+                                    play_index(&player, &state_clone, i);
+                                }
                             }
                             PlayerCmd::Seek { position_secs } => {
                                 let seek_pos = Duration::from_secs_f64(position_secs);
@@ -290,7 +336,7 @@ impl Player {
                                     }
                                 };
                                 player = rodio::Player::connect_new(&device_handle.mixer());
-                                
+
                                 let (was_playing, playlist_index, pos_us, volume) = {
                                     let mut s = state_clone.lock().unwrap();
                                     let pos = s.live_position_us();
@@ -326,15 +372,33 @@ impl Player {
     pub fn play_album(&self, paths: Vec<String>, start_index: usize) {
         let _ = self.tx.send(PlayerCmd::PlayAlbum { paths, start_index });
     }
-    pub fn pause(&self) { let _ = self.tx.send(PlayerCmd::Pause); }
-    pub fn resume(&self) { let _ = self.tx.send(PlayerCmd::Resume); }
-    pub fn stop(&self) { let _ = self.tx.send(PlayerCmd::Stop); }
-    pub fn next(&self) { let _ = self.tx.send(PlayerCmd::Next); }
-    pub fn previous(&self) { let _ = self.tx.send(PlayerCmd::Previous); }
-    pub fn seek(&self, pos: f64) { let _ = self.tx.send(PlayerCmd::Seek { position_secs: pos }); }
-    pub fn set_volume(&self, vol: f32) { let _ = self.tx.send(PlayerCmd::SetVolume { volume: vol }); }
-    pub fn toggle_loop(&self) { let _ = self.tx.send(PlayerCmd::ToggleLoop); }
-    pub fn reload_device(&self) { let _ = self.tx.send(PlayerCmd::ReloadDevice); }
+    pub fn pause(&self) {
+        let _ = self.tx.send(PlayerCmd::Pause);
+    }
+    pub fn resume(&self) {
+        let _ = self.tx.send(PlayerCmd::Resume);
+    }
+    pub fn stop(&self) {
+        let _ = self.tx.send(PlayerCmd::Stop);
+    }
+    pub fn next(&self) {
+        let _ = self.tx.send(PlayerCmd::Next);
+    }
+    pub fn previous(&self) {
+        let _ = self.tx.send(PlayerCmd::Previous);
+    }
+    pub fn seek(&self, pos: f64) {
+        let _ = self.tx.send(PlayerCmd::Seek { position_secs: pos });
+    }
+    pub fn set_volume(&self, vol: f32) {
+        let _ = self.tx.send(PlayerCmd::SetVolume { volume: vol });
+    }
+    pub fn toggle_loop(&self) {
+        let _ = self.tx.send(PlayerCmd::ToggleLoop);
+    }
+    pub fn reload_device(&self) {
+        let _ = self.tx.send(PlayerCmd::ReloadDevice);
+    }
 }
 
 pub static PLAYER: OnceLock<Player> = OnceLock::new();
@@ -346,18 +410,33 @@ pub struct MprisRoot;
 #[zbus::interface(name = "org.mpris.MediaPlayer2")]
 impl MprisRoot {
     #[zbus(property)]
-    fn can_quit(&self) -> bool { false }
+    fn can_quit(&self) -> bool {
+        false
+    }
     #[zbus(property)]
-    fn can_raise(&self) -> bool { false }
+    fn can_raise(&self) -> bool {
+        false
+    }
     #[zbus(property)]
-    fn has_track_list(&self) -> bool { false }
+    fn has_track_list(&self) -> bool {
+        false
+    }
     #[zbus(property)]
-    fn identity(&self) -> String { "Quickshell Music".into() }
+    fn identity(&self) -> String {
+        "Quickshell Music".into()
+    }
     #[zbus(property)]
-    fn supported_uri_schemes(&self) -> Vec<String> { vec!["file".into()] }
+    fn supported_uri_schemes(&self) -> Vec<String> {
+        vec!["file".into()]
+    }
     #[zbus(property)]
     fn supported_mime_types(&self) -> Vec<String> {
-        vec!["audio/mpeg".into(), "audio/flac".into(), "audio/ogg".into(), "audio/opus".into()]
+        vec![
+            "audio/mpeg".into(),
+            "audio/flac".into(),
+            "audio/ogg".into(),
+            "audio/opus".into(),
+        ]
     }
     fn quit(&self) {}
     fn raise(&self) {}
@@ -368,37 +447,55 @@ pub struct MprisPlayer {
 }
 
 impl MprisPlayer {
-    pub fn new(state: SharedState) -> Self { Self { state } }
+    pub fn new(state: SharedState) -> Self {
+        Self { state }
+    }
 }
 
 #[zbus::interface(name = "org.mpris.MediaPlayer2.Player")]
 impl MprisPlayer {
     fn play(&self) {
-        if let Some(p) = PLAYER.get() { p.resume(); }
+        if let Some(p) = PLAYER.get() {
+            p.resume();
+        }
     }
     fn pause(&self) {
-        if let Some(p) = PLAYER.get() { p.pause(); }
+        if let Some(p) = PLAYER.get() {
+            p.pause();
+        }
     }
     fn play_pause(&self) {
         if let Some(p) = PLAYER.get() {
             let playing = p.state.lock().unwrap().playing;
-            if playing { p.pause(); } else { p.resume(); }
+            if playing {
+                p.pause();
+            } else {
+                p.resume();
+            }
         }
     }
     fn stop(&self) {
-        if let Some(p) = PLAYER.get() { p.stop(); }
+        if let Some(p) = PLAYER.get() {
+            p.stop();
+        }
     }
     fn next(&self) {
-        if let Some(p) = PLAYER.get() { p.next(); }
+        if let Some(p) = PLAYER.get() {
+            p.next();
+        }
     }
     fn previous(&self) {
-        if let Some(p) = PLAYER.get() { p.previous(); }
+        if let Some(p) = PLAYER.get() {
+            p.previous();
+        }
     }
     fn seek(&self, offset: i64) {
         if let Some(p) = PLAYER.get() {
             let current = p.state.lock().unwrap().live_position_us();
             let new_pos = ((current + offset) as f64) / 1_000_000.0;
-            if new_pos >= 0.0 { p.seek(new_pos); }
+            if new_pos >= 0.0 {
+                p.seek(new_pos);
+            }
         }
     }
     fn set_position(&self, _track_id: zbus::zvariant::ObjectPath<'_>, position: i64) {
@@ -410,23 +507,46 @@ impl MprisPlayer {
     #[zbus(property)]
     fn playback_status(&self) -> String {
         let s = self.state.lock().unwrap();
-        if s.title.is_empty() { "Stopped".into() }
-        else if s.playing { "Playing".into() }
-        else { "Paused".into() }
+        if s.title.is_empty() {
+            "Stopped".into()
+        } else if s.playing {
+            "Playing".into()
+        } else {
+            "Paused".into()
+        }
     }
 
     #[zbus(property)]
     fn metadata(&self) -> HashMap<String, zbus::zvariant::Value<'_>> {
         let s = self.state.lock().unwrap();
         let mut m = HashMap::new();
-        m.insert("mpris:trackid".into(),
-            zbus::zvariant::Value::new(zbus::zvariant::ObjectPath::try_from("/org/quickshell/track").unwrap()));
-        m.insert("mpris:length".into(), zbus::zvariant::Value::new(s.duration_us));
-        m.insert("xesam:title".into(), zbus::zvariant::Value::new(s.title.clone()));
-        m.insert("xesam:artist".into(), zbus::zvariant::Value::new(vec![s.artist.clone()]));
-        m.insert("xesam:album".into(), zbus::zvariant::Value::new(s.album.clone()));
+        m.insert(
+            "mpris:trackid".into(),
+            zbus::zvariant::Value::new(
+                zbus::zvariant::ObjectPath::try_from("/org/quickshell/track").unwrap(),
+            ),
+        );
+        m.insert(
+            "mpris:length".into(),
+            zbus::zvariant::Value::new(s.duration_us),
+        );
+        m.insert(
+            "xesam:title".into(),
+            zbus::zvariant::Value::new(s.title.clone()),
+        );
+        m.insert(
+            "xesam:artist".into(),
+            zbus::zvariant::Value::new(vec![s.artist.clone()]),
+        );
+        m.insert(
+            "xesam:album".into(),
+            zbus::zvariant::Value::new(s.album.clone()),
+        );
         if !s.art_url.is_empty() {
-            m.insert("mpris:artUrl".into(), zbus::zvariant::Value::new(s.art_url.clone()));
+            m.insert(
+                "mpris:artUrl".into(),
+                zbus::zvariant::Value::new(s.art_url.clone()),
+            );
         }
         m
     }
@@ -447,21 +567,37 @@ impl MprisPlayer {
         s.playlist_index > 0
     }
     #[zbus(property)]
-    fn can_play(&self) -> bool { true }
+    fn can_play(&self) -> bool {
+        true
+    }
     #[zbus(property)]
-    fn can_pause(&self) -> bool { true }
+    fn can_pause(&self) -> bool {
+        true
+    }
     #[zbus(property)]
-    fn can_seek(&self) -> bool { true }
+    fn can_seek(&self) -> bool {
+        true
+    }
     #[zbus(property)]
-    fn can_control(&self) -> bool { true }
+    fn can_control(&self) -> bool {
+        true
+    }
     #[zbus(property)]
-    fn minimum_rate(&self) -> f64 { 1.0 }
+    fn minimum_rate(&self) -> f64 {
+        1.0
+    }
     #[zbus(property)]
-    fn maximum_rate(&self) -> f64 { 1.0 }
+    fn maximum_rate(&self) -> f64 {
+        1.0
+    }
     #[zbus(property)]
-    fn rate(&self) -> f64 { 1.0 }
+    fn rate(&self) -> f64 {
+        1.0
+    }
     #[zbus(property)]
-    fn volume(&self) -> f64 { 1.0 }
+    fn volume(&self) -> f64 {
+        1.0
+    }
     #[zbus(property)]
     fn set_volume(&self, _vol: f64) {}
 }
@@ -522,27 +658,29 @@ pub struct Library {
 pub fn get_db_connection() -> rusqlite::Result<Connection> {
     let home = env::var("HOME").unwrap_or_else(|_| "/home/sioodmy".to_string());
     let db_path = Path::new(&home).join("Music").join("ceca.db");
-    
+
     let conn = Connection::open(db_path)?;
     Ok(conn)
 }
 
 pub fn scan_library() -> anyhow::Result<Library> {
-    let mut conn = get_db_connection()?;
+    let conn = get_db_connection()?;
     let home = env::var("HOME").unwrap_or_else(|_| "/home/sioodmy".to_string());
     let music_dir = Path::new(&home).join("Music");
 
     let mut albums_map: HashMap<i64, Album> = HashMap::new();
-    let mut stmt = conn.prepare("
+    let mut stmt = conn.prepare(
+        "
         SELECT albums.id, albums.title, artists.name, albums.cover_path 
         FROM albums 
         JOIN artists ON albums.artist_id = artists.id
-    ")?;
-    
+    ",
+    )?;
+
     let album_iter = stmt.query_map([], |row| {
         let cover_path: Option<String> = row.get(3)?;
         let abs_cover_path = cover_path.map(|p| music_dir.join(p).to_string_lossy().to_string());
-        
+
         Ok((
             row.get::<_, i64>(0)?,
             Album {
@@ -550,24 +688,26 @@ pub fn scan_library() -> anyhow::Result<Library> {
                 artist: row.get(2)?,
                 cover_path: abs_cover_path,
                 tracks: Vec::new(),
-            }
+            },
         ))
     })?;
-    
+
     for a in album_iter {
         if let Ok((id, album)) = a {
             albums_map.insert(id, album);
         }
     }
-    
-    let mut stmt = conn.prepare("SELECT album_id, title, file_path, track_number, duration_secs, lyrics_path FROM tracks")?;
+
+    let mut stmt = conn.prepare(
+        "SELECT album_id, title, file_path, track_number, duration_secs, lyrics_path FROM tracks",
+    )?;
     let track_iter = stmt.query_map([], |row| {
         let file_path: String = row.get(2)?;
         let abs_file_path = music_dir.join(file_path).to_string_lossy().to_string();
-        
+
         let lyrics_path: Option<String> = row.get(5)?;
         let abs_lyrics_path = lyrics_path.map(|p| music_dir.join(p).to_string_lossy().to_string());
-        
+
         Ok((
             row.get::<_, i64>(0)?,
             Track {
@@ -576,10 +716,10 @@ pub fn scan_library() -> anyhow::Result<Library> {
                 track_number: row.get::<_, Option<u32>>(3)?.unwrap_or(0),
                 duration_secs: row.get::<_, f64>(4)? as u64,
                 lyrics_path: abs_lyrics_path,
-            }
+            },
         ))
     })?;
-    
+
     for t in track_iter {
         if let Ok((album_id, track)) = t {
             if let Some(album) = albums_map.get_mut(&album_id) {
@@ -587,12 +727,12 @@ pub fn scan_library() -> anyhow::Result<Library> {
             }
         }
     }
-    
+
     let mut albums: Vec<Album> = albums_map.into_values().collect();
     albums.sort_by(|a, b| a.artist.cmp(&b.artist).then(a.title.cmp(&b.title)));
     for album in &mut albums {
         album.tracks.sort_by_key(|t| t.track_number);
     }
-    
+
     Ok(Library { albums })
 }

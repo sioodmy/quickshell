@@ -30,7 +30,7 @@ rayon = "1.12.0"
 syntect = "5.2.0"
 
 # Archive listing (central directory / headers only — no extract)
-zip = { version = "2.4", default-features = false, features = ["deflate", "bzip2", "zstd", "aes-crypto"] }
+zip = { version = "2.4", default-features = false, features = ["deflate", "bzip2", "zstd", ] }
 tar = "0.4"
 flate2 = "1"
 bzip2 = "0.5"
@@ -56,6 +56,11 @@ orgize = "0.9.0"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 mathtosvg = { git = "https://github.com/sioodmy/mathtosvg", version = "0.1.0" }
 zbus-polkit-agent = "0.4.3"
+keepass = { version = "0.13.25", default-features = false }
+niri-ipc = "26.4.0"
+hmac = "0.12.1"
+sha1 = "0.10.6"
+secrecy = "0.10.3"
 
 [profile.release]
 opt-level = 3

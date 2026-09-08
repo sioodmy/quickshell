@@ -1,15 +1,18 @@
+use futures::StreamExt;
 use std::process::Command;
 use zbus::Connection;
-use futures::StreamExt;
 
 async fn acquire_sleep_inhibitor(conn: &Connection) -> Option<zbus::zvariant::OwnedFd> {
-    match conn.call_method(
-        Some("org.freedesktop.login1"),
-        "/org/freedesktop/login1",
-        Some("org.freedesktop.login1.Manager"),
-        "Inhibit",
-        &("sleep", "quickshell", "Lock screen before sleep", "delay"),
-    ).await {
+    match conn
+        .call_method(
+            Some("org.freedesktop.login1"),
+            "/org/freedesktop/login1",
+            Some("org.freedesktop.login1.Manager"),
+            "Inhibit",
+            &("sleep", "quickshell", "Lock screen before sleep", "delay"),
+        )
+        .await
+    {
         Ok(reply) => {
             if let Ok((fd,)) = reply.body().deserialize::<(zbus::zvariant::OwnedFd,)>() {
                 crate::debug_log!("Successfully acquired logind sleep delay inhibitor");
@@ -33,16 +36,21 @@ pub async fn start_logind_listener() {
         if let Ok(dbus_proxy) = zbus::fdo::DBusProxy::new(&conn).await {
             if let Ok(rule) = zbus::MatchRule::builder()
                 .msg_type(zbus::message::Type::Signal)
-                .interface("org.freedesktop.login1.Session").unwrap()
-                .build().try_into() 
+                .interface("org.freedesktop.login1.Session")
+                .unwrap()
+                .build()
+                .try_into()
             {
                 let _ = dbus_proxy.add_match_rule(rule).await;
             }
             if let Ok(rule) = zbus::MatchRule::builder()
                 .msg_type(zbus::message::Type::Signal)
-                .interface("org.freedesktop.login1.Manager").unwrap()
-                .member("PrepareForSleep").unwrap()
-                .build().try_into()
+                .interface("org.freedesktop.login1.Manager")
+                .unwrap()
+                .member("PrepareForSleep")
+                .unwrap()
+                .build()
+                .try_into()
             {
                 let _ = dbus_proxy.add_match_rule(rule).await;
             }
@@ -56,7 +64,9 @@ pub async fn start_logind_listener() {
                     if interface.as_str() == "org.freedesktop.login1.Session" {
                         if let Some(member) = header.member() {
                             if member.as_str() == "Lock" {
-                                crate::debug_log!("Received logind Lock signal, triggering quickshell lock!");
+                                crate::debug_log!(
+                                    "Received logind Lock signal, triggering quickshell lock!"
+                                );
                                 let _ = Command::new("quickshell")
                                     .args(["ipc", "call", "lock", "lock"])
                                     .spawn();
@@ -68,13 +78,19 @@ pub async fn start_logind_listener() {
                                 if let Ok(is_sleep) = msg.body().deserialize::<bool>() {
                                     if is_sleep {
                                         crate::debug_log!("Received PrepareForSleep(true), locking quickshell before sleep!");
-                                        let _ = Command::new("playerctl").args(["-a", "pause"]).spawn();
-                                        let _ = Command::new("wpctl").args(["set-mute", "@DEFAULT_AUDIO_SINK@", "1"]).spawn();
+                                        let _ =
+                                            Command::new("playerctl").args(["-a", "pause"]).spawn();
+                                        let _ = Command::new("wpctl")
+                                            .args(["set-mute", "@DEFAULT_AUDIO_SINK@", "1"])
+                                            .spawn();
                                         let _ = Command::new("quickshell")
                                             .args(["ipc", "call", "lock", "lock"])
                                             .spawn();
                                         if sleep_inhibitor.is_some() {
-                                            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                            tokio::time::sleep(std::time::Duration::from_millis(
+                                                200,
+                                            ))
+                                            .await;
                                             sleep_inhibitor = None;
                                         }
                                     } else {
@@ -93,4 +109,3 @@ pub async fn start_logind_listener() {
         }
     }
 }
-

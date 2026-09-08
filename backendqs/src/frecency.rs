@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct FrecencyState {
     pub data: FrecencyData,
@@ -15,7 +15,11 @@ impl FrecencyState {
     pub fn new(data: FrecencyData) -> Self {
         let scores = get_scores(&data);
         let app_scores = Arc::new(scores.apps.clone());
-        Self { data, scores, app_scores }
+        Self {
+            data,
+            scores,
+            app_scores,
+        }
     }
 
     pub fn refresh_scores(&mut self) {
@@ -80,10 +84,15 @@ pub fn check_exists(id: &str) -> bool {
 }
 
 pub fn get_scores(data: &FrecencyData) -> FrecencyScores {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
     let mut apps = HashMap::new();
     for (id, entry) in &data.apps {
-        if !check_exists(id) { continue; }
+        if !check_exists(id) {
+            continue;
+        }
         apps.insert(id.clone(), compute_frecency_score(&entry.launches, now));
     }
 
@@ -91,13 +100,22 @@ pub fn get_scores(data: &FrecencyData) -> FrecencyScores {
     for (query, mapping) in &data.quickkeys {
         let mut scores = Vec::new();
         for (id, entry) in mapping {
-            if !check_exists(id) { continue; }
+            if !check_exists(id) {
+                continue;
+            }
             let score = compute_frecency_score(&entry.launches, now);
             if score > 0.1 {
-                scores.push(QuickkeyScore { id: id.clone(), score });
+                scores.push(QuickkeyScore {
+                    id: id.clone(),
+                    score,
+                });
             }
         }
-        scores.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scores.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         if !scores.is_empty() {
             quickkeys.insert(query.clone(), scores);
         }
@@ -107,9 +125,15 @@ pub fn get_scores(data: &FrecencyData) -> FrecencyScores {
 }
 
 pub fn record_launch(data: &mut FrecencyData, id: &str, query: Option<&str>) {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-    
-    let app_entry = data.apps.entry(id.to_string()).or_insert_with(AppEntry::default);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+
+    let app_entry = data
+        .apps
+        .entry(id.to_string())
+        .or_insert_with(AppEntry::default);
     app_entry.launches.push(now);
     app_entry.total_launches += 1;
     if app_entry.launches.len() > MAX_TIMESTAMPS {
@@ -120,7 +144,8 @@ pub fn record_launch(data: &mut FrecencyData, id: &str, query: Option<&str>) {
     if let Some(q) = query {
         let q = q.trim().to_lowercase();
         if q.len() >= MIN_QUICKKEY_LENGTH {
-            let qk_entry = data.quickkeys
+            let qk_entry = data
+                .quickkeys
                 .entry(q)
                 .or_insert_with(HashMap::new)
                 .entry(id.to_string())
@@ -136,18 +161,25 @@ pub fn record_launch(data: &mut FrecencyData, id: &str, query: Option<&str>) {
 }
 
 pub fn prune_stale_data(data: &mut FrecencyData) {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
     let cutoff = now.saturating_sub(STALE_DAYS * 86_400_000);
 
     data.apps.retain(|id, entry| {
-        if !check_exists(id) { return false; }
+        if !check_exists(id) {
+            return false;
+        }
         entry.launches.retain(|&ts| ts > cutoff);
         !entry.launches.is_empty()
     });
 
     data.quickkeys.retain(|_, mapping| {
         mapping.retain(|id, entry| {
-            if !check_exists(id) { return false; }
+            if !check_exists(id) {
+                return false;
+            }
             entry.launches.retain(|&ts| ts > cutoff);
             !entry.launches.is_empty()
         });
@@ -189,7 +221,10 @@ pub fn load_or_migrate() -> FrecencyData {
     let mut data = FrecencyData::default();
     if let Ok(content) = fs::read_to_string(&old_path) {
         if let Ok(old_freqs) = serde_json::from_str::<HashMap<String, u64>>(&content) {
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64;
             for (id, count) in old_freqs {
                 if count > 0 {
                     let mut launches = Vec::new();
@@ -198,7 +233,13 @@ pub fn load_or_migrate() -> FrecencyData {
                         let age_ms = (7 * 86_400_000) * j / synth_count;
                         launches.push(now.saturating_sub(age_ms));
                     }
-                    data.apps.insert(id, AppEntry { launches, total_launches: count });
+                    data.apps.insert(
+                        id,
+                        AppEntry {
+                            launches,
+                            total_launches: count,
+                        },
+                    );
                 }
             }
         }

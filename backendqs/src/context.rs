@@ -14,7 +14,14 @@ pub struct AppContext {
     pub ocr_sem: Arc<tokio::sync::Semaphore>,
     pub file_share: Arc<tokio::sync::Mutex<Option<crate::fileshare::FileShareHandle>>>,
     pub file_share_progress_active: Arc<std::sync::atomic::AtomicBool>,
-    pub music_remote_state: Arc<tokio::sync::Mutex<Option<(crate::music_remote::MusicRemoteHandle, Arc<crate::music_remote::MusicRemoteState>)>>>,
+    pub music_remote_state: Arc<
+        tokio::sync::Mutex<
+            Option<(
+                crate::music_remote::MusicRemoteHandle,
+                Arc<crate::music_remote::MusicRemoteState>,
+            )>,
+        >,
+    >,
 
     pub rink_ctx: Arc<tokio::sync::Mutex<rink_core::Context>>,
 }

@@ -52,6 +52,7 @@ Singleton {
     signal polkitShowAuth(string action_id, string message, string icon_name, string cookie, string user_name, string prompt)
     signal polkitResult(string cookie, bool success)
     signal polkitDismiss(string cookie)
+    signal eventReceived(var event)
 
     property var musicState: {
         "playing": false,
@@ -68,7 +69,7 @@ Singleton {
 
     Process {
         id: daemon
-        command: ["sh", "-c", "if [ -x \"$HOME/.config/quickshell/backendqs/target/release/backendqs\" ]; then exec \"$HOME/.config/quickshell/backendqs/target/release/backendqs\" daemon; else exec backendqs daemon; fi"]
+        command: ["backendqs", "daemon"]
         running: true
         stdinEnabled: true
         // Survive crashes / binary rebuilds without requiring a full shell restart.
@@ -236,9 +237,12 @@ Singleton {
                         root.polkitShowAuth(parsed.action_id, parsed.message, parsed.icon_name, parsed.cookie, parsed.user_name, parsed.prompt);
                     } else if (type === "polkit_result") {
                         root.polkitResult(parsed.cookie, parsed.success);
-                    } else if (type === "polkit_dismiss") {
+                                        } else if (type === "polkit_dismiss") {
                         root.polkitDismiss(parsed.cookie);
+                    } else {
+                        root.eventReceived(parsed);
                     }
+
                 } catch(e) {
                     console.error("BackendDaemon JSON error:", e, trimmed);
                 }
