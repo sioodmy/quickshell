@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import Quickshell.Networking
+import Quickshell
+import Quickshell.Io
 import "../../theme"
 import qs.components
 
@@ -138,6 +140,16 @@ Item {
     onVisibleChanged: {
         if (visible && wifiDevice)
             wifiDevice.scannerEnabled = true;
+    }
+
+
+    Timer {
+        interval: 10000
+        running: root.visible && Networking.wifiEnabled
+        repeat: true
+        onTriggered: {
+            Quickshell.execDetached({ command: ["nmcli", "device", "wifi", "rescan"] });
+        }
     }
 
     // ─── Status Header ───
