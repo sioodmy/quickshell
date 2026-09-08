@@ -204,7 +204,7 @@ Variants {
                         color: Theme.critical
                         opacity: isDone ? 0.0 : 0.7
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: parent.height / 2 - wordA.paintedHeight / 2 - 8 - height
+                        y: parent.height / 2 - 55 - 8 - height
                         Behavior on opacity { NumberAnimation { duration: 200 } }
                     }
 
@@ -214,44 +214,64 @@ Variants {
 
                     onDisplayIndexChanged: {
                         if (_showA) {
-                            wordB.text = RsvpReader.currentWord;
+                            blockB.leftText = RsvpReader.wordLeft;
+                            blockB.orpText = RsvpReader.wordOrp;
+                            blockB.rightText = RsvpReader.wordRight;
                             _showA = false;
                         } else {
-                            wordA.text = RsvpReader.currentWord;
+                            blockA.leftText = RsvpReader.wordLeft;
+                            blockA.orpText = RsvpReader.wordOrp;
+                            blockA.rightText = RsvpReader.wordRight;
                             _showA = true;
                         }
                     }
 
-                    Text {
-                        id: wordA
-                        anchors.centerIn: parent
-                        text: RsvpReader.currentWord
-                        font {
-                            family: "Google Sans"
-                            pixelSize: 96
-                            weight: Font.Bold
-                            letterSpacing: 2
-                        }
-                        color: Theme.on_surface
-                        opacity: parent._showA && !parent.isDone ? 1.0 : 0.0
+                    component OrpBlock : Item {
+                        id: cBlock
+                        anchors.fill: parent
+                        property string leftText: ""
+                        property string orpText: ""
+                        property string rightText: ""
+                        property bool show: false
+                        
+                        opacity: show && !parent.isDone ? 1.0 : 0.0
                         Behavior on opacity { NumberAnimation { duration: 60; easing.type: Easing.InOutQuad } }
+
+                        Text {
+                            id: orpTextEl
+                            anchors.centerIn: parent
+                            text: cBlock.orpText
+                            font { family: "Google Sans"; pixelSize: 96; weight: Font.Bold; letterSpacing: 2 }
+                            color: Theme.primary
+                        }
+                        Text {
+                            anchors.right: orpTextEl.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: cBlock.leftText
+                            font { family: "Google Sans"; pixelSize: 96; weight: Font.Bold; letterSpacing: 2 }
+                            color: Theme.on_surface
+                        }
+                        Text {
+                            anchors.left: orpTextEl.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: cBlock.rightText
+                            font { family: "Google Sans"; pixelSize: 96; weight: Font.Bold; letterSpacing: 2 }
+                            color: Theme.on_surface
+                        }
                     }
 
-                    Text {
-                        id: wordB
-                        anchors.centerIn: parent
-                        text: ""
-                        font {
-                            family: "Google Sans"
-                            pixelSize: 96
-                            weight: Font.Bold
-                            letterSpacing: 2
-                        }
-                        color: Theme.on_surface
-                        opacity: !parent._showA && !parent.isDone ? 1.0 : 0.0
-                        Behavior on opacity { NumberAnimation { duration: 60; easing.type: Easing.InOutQuad } }
+                    OrpBlock {
+                        id: blockA
+                        show: parent._showA
+                        leftText: RsvpReader.wordLeft
+                        orpText: RsvpReader.wordOrp
+                        rightText: RsvpReader.wordRight
                     }
 
+                    OrpBlock {
+                        id: blockB
+                        show: !parent._showA
+                    }
                     // "Done" label — replaces the word, never overlaps
                     Text {
                         anchors.centerIn: parent
