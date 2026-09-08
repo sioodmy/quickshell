@@ -365,7 +365,6 @@ Item {
                         anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         icon: {
-                            if (!netDelegate.modelData.enabled) return "wifi_off";
                             var s = netDelegate.modelData.signalStrength || 0;
                             if (s >= 0.75) return "wifi";
                             if (s >= 0.5) return "wifi_2_bar";
