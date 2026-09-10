@@ -64,6 +64,7 @@ pub async fn start_logind_listener() {
                     if interface.as_str() == "org.freedesktop.login1.Session" {
                         if let Some(member) = header.member() {
                             if member.as_str() == "Lock" {
+                                crate::keepass_db::lock();
                                 crate::debug_log!(
                                     "Received logind Lock signal, triggering quickshell lock!"
                                 );
@@ -77,6 +78,7 @@ pub async fn start_logind_listener() {
                             if member.as_str() == "PrepareForSleep" {
                                 if let Ok(is_sleep) = msg.body().deserialize::<bool>() {
                                     if is_sleep {
+                                        crate::keepass_db::lock();
                                         crate::debug_log!("Received PrepareForSleep(true), locking quickshell before sleep!");
                                         let _ =
                                             Command::new("playerctl").args(["-a", "pause"]).spawn();

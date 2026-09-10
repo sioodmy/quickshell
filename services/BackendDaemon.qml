@@ -7,6 +7,7 @@ import Quickshell.Io
 Singleton {
     id: root
 
+    property bool available: false
     property var agendaItems: null
     property var weatherData: null
     property string dictStatus: ""
@@ -53,6 +54,8 @@ Singleton {
     signal polkitResult(string cookie, bool success)
     signal polkitDismiss(string cookie)
     signal eventReceived(var event)
+    signal backendStarted()
+    signal backendStopped()
 
     property var musicState: {
         "playing": false,
@@ -72,8 +75,16 @@ Singleton {
         command: ["backendqs", "daemon"]
         running: true
         stdinEnabled: true
+        onStarted: {
+            root.available = true;
+            root.backendStarted();
+        }
         // Survive crashes / binary rebuilds without requiring a full shell restart.
-        onExited: restartDaemon.restart()
+        onExited: {
+            root.available = false;
+            root.backendStopped();
+            restartDaemon.restart();
+        }
         stdout: SplitParser {
             onRead: data => {
                 var trimmed = data.trim();
@@ -244,7 +255,7 @@ Singleton {
                     }
 
                 } catch(e) {
-                    console.error("BackendDaemon JSON error:", e, trimmed);
+                    console.error("BackendDaemon: failed to process event");
                 }
             }
         }

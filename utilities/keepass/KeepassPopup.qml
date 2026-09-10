@@ -25,14 +25,21 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     exclusiveZone: -1
 
-    property bool isUnlocked: false
+    readonly property bool isUnlocked: KeepassBackend.isUnlocked
     property var searchResults: []
     property string searchText: ""
-    property bool authenticating: false
+    readonly property bool authenticating: KeepassBackend.unlockPending
     property string authError: ""
     property bool menuOpen: false
     property real openProgress: 0.0
     property int selectedIndex: 0
+
+    onMenuOpenChanged: {
+        if (!menuOpen) {
+            passwordInput.clear();
+            if (authenticating) KeepassBackend.lock();
+        }
+    }
 
     NumberAnimation {
         id: openAnim
@@ -54,7 +61,8 @@ PanelWindow {
     }
 
     function openMenu() {
-        if (menuOpen) return;
+        if (SessionState.locked || menuOpen) return;
+        closeAnim.stop();
         menuOpen = true;
         authError = "";
         if (isUnlocked) {
@@ -69,7 +77,12 @@ PanelWindow {
     }
 
     function closeMenu() {
+        passwordInput.clear();
+        authError = "";
+        if (authenticating) KeepassBackend.lock();
         if (!menuOpen) return;
+        menuOpen = false;
+        openAnim.stop();
         closeAnim.start();
     }
 
@@ -91,21 +104,36 @@ PanelWindow {
     Connections {
         target: KeepassBackend
         function onUnlocked(success, error) {
-            authenticating = false;
+            passwordInput.clear();
+            if (!menuOpen) return;
             if (success) {
-                isUnlocked = true;
                 authError = "";
                 KeepassBackend.search("");
                 searchInput.forceActiveFocus();
             } else {
-                authError = error;
-                passwordInput.clear();
+                authError = error || "Unable to unlock database";
                 passwordInput.forceActiveFocus();
             }
         }
+        function onLocked() {
+            passwordInput.clear();
+            searchInput.clear();
+            searchText = "";
+            searchResults = [];
+            selectedIndex = 0;
+            keepassWindow.closeMenu();
+        }
         function onSearchResult(results) {
+            if (!menuOpen || !isUnlocked) return;
             searchResults = results;
             selectedIndex = 0;
+        }
+    }
+
+    Connections {
+        target: SessionState
+        function onLockedChanged() {
+            if (SessionState.locked) keepassWindow.closeMenu();
         }
     }
 
@@ -124,6 +152,7 @@ PanelWindow {
 
     Item {
         id: mainUi
+        enabled: keepassWindow.menuOpen && !SessionState.locked
         width: 600
         height: isUnlocked ? Math.min(520, 88 + Math.max((entriesList.contentHeight || 0) + 32, 120)) : 160
         anchors.horizontalCenter: parent.horizontalCenter
@@ -246,6 +275,7 @@ PanelWindow {
                             }
                             Text {
                                 text: keepassWindow.authError !== "" ? keepassWindow.authError : "Enter master password"
+                                textFormat: Text.PlainText
                                 font.family: "Google Sans"
                                 font.pixelSize: 13
                                 color: keepassWindow.authError !== "" ? Theme.error : Theme.on_surface_variant
@@ -275,15 +305,17 @@ PanelWindow {
                             selectionColor: Theme.primary
                             selectedTextColor: "transparent"
                             echoMode: TextInput.Password
+                            inputMethodHints: Qt.ImhHiddenText | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                            readOnly: keepassWindow.authenticating || KeepassBackend.lockPending
                             cursorDelegate: Component { Item {} }
 
                             Keys.onEscapePressed: keepassWindow.closeMenu()
 
                             onAccepted: {
-                                if (text.length > 0) {
-                                    keepassWindow.authenticating = true;
+                                if (text.length > 0 && keepassWindow.menuOpen && !keepassWindow.authenticating && !KeepassBackend.lockPending && !SessionState.locked) {
                                     keepassWindow.authError = "";
                                     KeepassBackend.unlock(text);
+                                    clear();
                                 }
                             }
                         }
@@ -476,7 +508,6 @@ PanelWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 KeepassBackend.lock();
-                                keepassWindow.isUnlocked = false;
                                 keepassWindow.closeMenu();
                             }
                         }
@@ -555,21 +586,9 @@ PanelWindow {
                                 anchors.leftMargin: 4
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: 2
-                                color: modelData.is_smart ? Theme.tertiary : Theme.primary
+                                color: Theme.primary
                                 Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutQuart } }
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
-                            }
-
-                            // Smart match glow
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                visible: modelData.is_smart
-                                gradient: Gradient {
-                                    orientation: Gradient.Horizontal
-                                    GradientStop { position: 0.0; color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.08) }
-                                    GradientStop { position: 1.0; color: Qt.rgba(Theme.tertiary.r, Theme.tertiary.g, Theme.tertiary.b, 0.08) }
-                                }
                             }
 
                             Row {
@@ -583,17 +602,13 @@ PanelWindow {
                                     width: 42; height: 42
                                     radius: 12
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: modelData.is_smart
-                                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18)
-                                        : (delegateRoot.isSelected ? Theme.surface : Theme.surface_container_low)
+                                    color: delegateRoot.isSelected ? Theme.surface : Theme.surface_container_low
 
                                     MaterialIcon {
                                         anchors.centerIn: parent
-                                        icon: modelData.is_smart ? "auto_awesome" : "key"
+                                        icon: "key"
                                         font.pixelSize: 22
-                                        color: modelData.is_smart
-                                            ? Theme.primary
-                                            : (delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant)
+                                        color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                                     }
                                 }
 
@@ -604,6 +619,7 @@ PanelWindow {
 
                                     Text {
                                         text: modelData.title || ""
+                                        textFormat: Text.PlainText
                                         width: parent.width
                                         font.family: "Google Sans"
                                         font.pixelSize: 15
@@ -613,6 +629,7 @@ PanelWindow {
                                     }
                                     Text {
                                         text: modelData.username || ""
+                                        textFormat: Text.PlainText
                                         width: parent.width
                                         font.family: "Google Sans"
                                         font.pixelSize: 12
@@ -630,20 +647,6 @@ PanelWindow {
                                 anchors.rightMargin: 16
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 6
-
-                                Rectangle {
-                                    visible: modelData.is_smart
-                                    width: smartLabel.implicitWidth + 14
-                                    height: 20; radius: 10
-                                    color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15)
-                                    Row {
-                                        id: smartLabel
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        MaterialIcon { icon: "auto_awesome"; font.pixelSize: 11; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: "Smart"; font.family: "Google Sans"; font.pixelSize: 10; font.weight: Font.Bold; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
 
                                 Rectangle {
                                     visible: modelData.has_otp

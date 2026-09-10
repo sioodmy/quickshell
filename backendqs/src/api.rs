@@ -98,13 +98,20 @@ pub enum DaemonRequest {
     #[serde(rename = "polkit_cancel")]
     PolkitCancel { cookie: String },
     #[serde(rename = "keepass_unlock")]
-    KeepassUnlock { password: String },
+    KeepassUnlock {
+        password: String,
+        request_id: String,
+    },
     #[serde(rename = "keepass_search")]
     KeepassSearch { query: String },
     #[serde(rename = "keepass_copy")]
-    KeepassCopy { id: String, field: String },
+    KeepassCopy {
+        id: String,
+        field: String,
+        request_id: String,
+    },
     #[serde(rename = "keepass_lock")]
-    KeepassLock,
+    KeepassLock { request_id: String },
     #[serde(rename = "keepass_get_otp")]
     KeepassGetOtp { id: String },
 }
@@ -237,13 +244,23 @@ pub enum DaemonEvent {
     PolkitDismiss { cookie: String },
     #[serde(rename = "keepass_unlock_result")]
     KeepassUnlockResult {
+        request_id: String,
         success: bool,
         error: Option<String>,
     },
     #[serde(rename = "keepass_search_result")]
     KeepassSearchResult { results: Vec<KeepassEntryDto> },
-    #[serde(rename = "keepass_copy_done")]
-    KeepassCopyDone,
+    #[serde(rename = "keepass_copy_result")]
+    KeepassCopyResult {
+        request_id: String,
+        id: String,
+        field: String,
+        success: bool,
+    },
+    #[serde(rename = "keepass_locked")]
+    KeepassLocked,
+    #[serde(rename = "keepass_lock_result")]
+    KeepassLockResult { request_id: String },
     #[serde(rename = "keepass_otp_result")]
     KeepassOtpResult {
         id: String,

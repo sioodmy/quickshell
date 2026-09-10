@@ -517,6 +517,7 @@ dependencies = [
  "xz2",
  "zbus",
  "zbus-polkit-agent",
+ "zeroize",
  "zip",
  "zstd",
 ]

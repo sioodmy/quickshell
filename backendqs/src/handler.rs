@@ -523,59 +523,13 @@ pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search
                 }
             });
         }
-        api::DaemonRequest::KeepassUnlock { password } => {
-            match crate::keepass_db::unlock(&password) {
-                Ok(_) => {
-                    let _ = ctx
-                        .tx
-                        .send(crate::api::DaemonEvent::KeepassUnlockResult {
-                            success: true,
-                            error: None,
-                        })
-                        .await;
-                }
-                Err(e) => {
-                    let _ = ctx
-                        .tx
-                        .send(crate::api::DaemonEvent::KeepassUnlockResult {
-                            success: false,
-                            error: Some(e),
-                        })
-                        .await;
-                }
-            }
+        api::DaemonRequest::KeepassUnlock { .. }
+        | api::DaemonRequest::KeepassSearch { .. }
+        | api::DaemonRequest::KeepassCopy { .. }
+        | api::DaemonRequest::KeepassLock { .. }
+        | api::DaemonRequest::KeepassGetOtp { .. } => {
+            // Handled at receipt in main.rs to preserve lock ordering.
         }
-        api::DaemonRequest::KeepassSearch { query } => {
-            let results = crate::keepass_db::search(&query);
-            for (i, r) in results.iter().enumerate().take(3) {
-                eprintln!("Result {}: {} (has_otp: {})", i, r.title, r.has_otp);
-            }
-            let _ = ctx
-                .tx
-                .send(crate::api::DaemonEvent::KeepassSearchResult { results })
-                .await;
-        }
-        api::DaemonRequest::KeepassCopy { id, field } => {
-            if let Ok(_) = crate::keepass_db::copy_field(&id, &field) {
-                let _ = ctx.tx.send(crate::api::DaemonEvent::KeepassCopyDone).await;
-            }
-        }
-        api::DaemonRequest::KeepassLock => {
-            crate::keepass_db::lock();
-        }
-        api::DaemonRequest::KeepassGetOtp { id } => match crate::keepass_db::get_otp(&id) {
-            Ok((code, remaining)) => {
-                let _ = ctx
-                    .tx
-                    .send(crate::api::DaemonEvent::KeepassOtpResult {
-                        id,
-                        code,
-                        remaining,
-                    })
-                    .await;
-            }
-            Err(_) => {}
-        },
         api::DaemonRequest::PolkitSubmit { .. } | api::DaemonRequest::PolkitCancel { .. } => {
             // Handled in main.rs fast-path
         }

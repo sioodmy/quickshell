@@ -65,6 +65,8 @@ enum Commands {
     },
     /// Run in daemon mode (reads JSON from stdin)
     Daemon,
+    #[command(hide = true)]
+    KeepassClipboard,
 }
 
 #[tokio::main]
@@ -72,6 +74,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::KeepassClipboard => keepass_db::serve_clipboard()?,
         Commands::Run { query, out, color } => {
             match mathtosvg::process_query(&query, out.as_deref(), color.as_deref(), None) {
                 Ok((content, path)) => {
@@ -104,6 +107,7 @@ async fn main() -> Result<()> {
             });
             let client = Client::new();
             let (tx_event, mut rx_event) = tmpsc::channel::<api::DaemonEvent>(100);
+            keepass_db::init(tx_event.clone());
 
             // Output task
             tokio::spawn(async move {
@@ -292,16 +296,48 @@ async fn main() -> Result<()> {
             let mut reader = BufReader::new(tokio::io::stdin()).lines();
 
             while let Ok(Some(line)) = reader.next_line().await {
+                let line = zeroize::Zeroizing::new(line);
                 if line.trim().is_empty() {
                     continue;
                 }
 
                 let req: api::DaemonRequest = match serde_json::from_str(&line) {
                     Ok(r) => r,
-                    Err(e) => {
-                        crate::debug_log!("Error deserializing: {} for line: {}", e, line);
+                    Err(_) => {
+                        crate::debug_log!("Invalid backend request");
                         continue;
                     }
+                };
+                drop(line);
+
+                // Assign generations and process locks at receipt, not in scheduled
+                // tasks. Slow decryption/copy work must never undo a later lock.
+                let req = match req {
+                    api::DaemonRequest::KeepassUnlock {
+                        password,
+                        request_id,
+                    } => {
+                        let password = zeroize::Zeroizing::new(password);
+                        let generation = keepass_db::begin_unlock(request_id);
+                        tokio::task::spawn_blocking(move || {
+                            let _ = keepass_db::unlock(&password, generation);
+                        });
+                        continue;
+                    }
+                    api::DaemonRequest::KeepassLock { request_id } => {
+                        keepass_db::lock_request(request_id);
+                        continue;
+                    }
+                    req @ (api::DaemonRequest::KeepassSearch { .. }
+                    | api::DaemonRequest::KeepassCopy { .. }
+                    | api::DaemonRequest::KeepassGetOtp { .. }) => {
+                        let generation = keepass_db::generation();
+                        tokio::task::spawn_blocking(move || {
+                            keepass_db::handle_request(req, generation);
+                        });
+                        continue;
+                    }
+                    req => req,
                 };
 
                 // Fast path for polkit routing to avoid spawning task overhead for password passing
@@ -352,6 +388,7 @@ async fn main() -> Result<()> {
                     handler::handle_request(req, ctx, assigned_search_gen).await;
                 });
             }
+            keepass_db::lock();
         }
     }
     std::process::exit(0);

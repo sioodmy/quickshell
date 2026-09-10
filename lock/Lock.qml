@@ -109,17 +109,6 @@ Scope {
         function lock(): void {
             root.locked = true;
         }
-
-        function unlock(): void {
-            root.finishUnlock();
-        }
-
-        function toggle(): void {
-            if (root.locked)
-                root.finishUnlock();
-            else
-                root.locked = true;
-        }
     }
 
     WlSessionLock {

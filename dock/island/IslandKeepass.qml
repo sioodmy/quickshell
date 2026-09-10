@@ -14,6 +14,41 @@ Row {
     property bool copiedUser: false
     property bool copiedPass: false
     property bool copiedOtp: false
+    property string pendingCopyRequest: ""
+    property string pendingCopyId: ""
+    property string pendingCopyField: ""
+    property string failedCopyField: ""
+
+    function copyField(field) {
+        if (!entry || !BackendDaemon.available || !KeepassBackend.isUnlocked || SessionState.locked || pendingCopyRequest !== "") return;
+        autoCloseDelay.stop();
+        failedCopyField = "";
+        if (field === "username") copiedUser = false;
+        else if (field === "password") copiedPass = false;
+        else if (field === "otp") copiedOtp = false;
+        pendingCopyRequest = KeepassBackend.copyField(entry.id, field);
+        if (pendingCopyRequest === "") {
+            failedCopyField = field;
+            return;
+        }
+        pendingCopyId = entry.id;
+        pendingCopyField = field;
+    }
+
+    function clearState() {
+        currentOtp = "";
+        otpRemaining = 0;
+        otpExpiresAt = 0;
+        otpCountdown.stop();
+        autoCloseDelay.stop();
+        copiedUser = false;
+        copiedPass = false;
+        copiedOtp = false;
+        pendingCopyRequest = "";
+        pendingCopyId = "";
+        pendingCopyField = "";
+        failedCopyField = "";
+    }
 
     function checkAutoClose() {
         let needOtp = root.entry && root.entry.has_otp;
@@ -27,15 +62,36 @@ Row {
 
     property string currentOtp: ""
     property int otpRemaining: 0
+    property double otpExpiresAt: 0
 
     Connections {
         target: KeepassBackend
         function onOtpResult(id, code, remaining) {
-            if (root.entry && root.entry.id === id) {
-                root.currentOtp = code;
-                root.otpRemaining = remaining;
-                otpCountdown.restart();
+            if (root.entry && root.entry.id === id && KeepassBackend.isUnlocked) {
+                root.currentOtp = remaining > 0 ? code : "";
+                root.otpRemaining = Math.max(0, remaining);
+                root.otpExpiresAt = Date.now() + root.otpRemaining * 1000;
+                if (root.otpRemaining > 0) otpCountdown.restart();
+                else otpCountdown.stop();
             }
+        }
+        function onCopyResult(requestId, id, field, success) {
+            if (root.pendingCopyRequest === "" || root.pendingCopyRequest !== requestId || !root.entry || root.entry.id !== id || root.pendingCopyId !== id || root.pendingCopyField !== field) return;
+            root.pendingCopyRequest = "";
+            root.pendingCopyId = "";
+            root.pendingCopyField = "";
+            if (!success) {
+                root.failedCopyField = field;
+                return;
+            }
+            if (field === "username") root.copiedUser = true;
+            else if (field === "password") root.copiedPass = true;
+            else if (field === "otp") root.copiedOtp = true;
+            root.checkAutoClose();
+        }
+        function onLocked() {
+            root.clearState();
+            root.closeRequested();
         }
     }
 
@@ -45,8 +101,10 @@ Row {
         repeat: true
         running: root.otpRemaining > 0
         onTriggered: {
-            root.otpRemaining--;
+            root.otpRemaining = Math.max(0, Math.ceil((root.otpExpiresAt - Date.now()) / 1000));
             if (root.otpRemaining <= 0) {
+                root.currentOtp = "";
+                otpCountdown.stop();
                 if (root.entry && root.entry.has_otp) {
                     KeepassBackend.getOtp(root.entry.id);
                 }
@@ -55,12 +113,9 @@ Row {
     }
 
     onEntryChanged: {
+        clearState();
         if (entry && entry.has_otp) {
             KeepassBackend.getOtp(entry.id);
-        } else {
-            currentOtp = "";
-            otpRemaining = 0;
-            otpCountdown.stop();
         }
     }
 
@@ -86,7 +141,7 @@ Row {
 
         MaterialIcon {
             anchors.centerIn: parent
-            icon: root.entry && root.entry.is_smart ? "auto_awesome" : "vpn_key"
+            icon: "vpn_key"
             font.pixelSize: 16
             color: Theme.primary
         }
@@ -102,6 +157,7 @@ Row {
             width: parent.width
             elide: Text.ElideRight
             text: root.entry ? root.entry.title : ""
+            textFormat: Text.PlainText
             font.family: "Google Sans"
             font.pixelSize: 14
             font.weight: Font.DemiBold
@@ -111,6 +167,7 @@ Row {
             width: parent.width
             elide: Text.ElideRight
             text: root.entry && root.entry.username !== "" ? root.entry.username : "Credentials ready"
+            textFormat: Text.PlainText
             font.family: "Google Sans"
             font.pixelSize: 12
             color: Theme.on_surface_variant
@@ -146,7 +203,8 @@ Row {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: root.copiedUser ? "Copied" : "User"
+                    text: root.pendingCopyField === "username" ? "Copying..." : root.failedCopyField === "username" ? "Copy failed" : root.copiedUser ? "Copied" : "User"
+                    textFormat: Text.PlainText
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
@@ -157,16 +215,11 @@ Row {
 
             MouseArea {
                 id: userBtnMouse
+                enabled: BackendDaemon.available && KeepassBackend.isUnlocked && !SessionState.locked && root.pendingCopyRequest === ""
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (root.entry) {
-                        KeepassBackend.copyField(root.entry.id, "username");
-                        root.copiedUser = true;
-                        root.checkAutoClose();
-                    }
-                }
+                onClicked: root.copyField("username")
             }
         }
 
@@ -190,7 +243,8 @@ Row {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: root.copiedPass ? "Copied" : "Password"
+                    text: root.pendingCopyField === "password" ? "Copying..." : root.failedCopyField === "password" ? "Copy failed" : root.copiedPass ? "Copied" : "Password"
+                    textFormat: Text.PlainText
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
@@ -201,16 +255,11 @@ Row {
 
             MouseArea {
                 id: passBtnMouse
+                enabled: BackendDaemon.available && KeepassBackend.isUnlocked && !SessionState.locked && root.pendingCopyRequest === ""
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (root.entry) {
-                        KeepassBackend.copyField(root.entry.id, "password");
-                        root.copiedPass = true;
-                        root.checkAutoClose();
-                    }
-                }
+                onClicked: root.copyField("password")
             }
         }
 
@@ -271,7 +320,8 @@ Row {
                 }
                 
                 Text {
-                    text: root.copiedOtp ? "Copied" : (root.currentOtp ? root.currentOtp.substring(0, 3) + " " + root.currentOtp.substring(3) : "OTP")
+                    text: root.pendingCopyField === "otp" ? "Copying..." : root.failedCopyField === "otp" ? "Copy failed" : root.copiedOtp ? "Copied" : (root.currentOtp ? root.currentOtp.substring(0, 3) + " " + root.currentOtp.substring(3) : "OTP")
+                    textFormat: Text.PlainText
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
@@ -282,16 +332,11 @@ Row {
 
             MouseArea {
                 id: otpBtnMouse
+                enabled: BackendDaemon.available && KeepassBackend.isUnlocked && !SessionState.locked && root.pendingCopyRequest === ""
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (root.entry) {
-                        KeepassBackend.copyField(root.entry.id, "otp");
-                        root.copiedOtp = true;
-                        root.checkAutoClose();
-                    }
-                }
+                onClicked: root.copyField("otp")
             }
         }
     }

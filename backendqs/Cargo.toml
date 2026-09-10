@@ -61,6 +61,7 @@ niri-ipc = "26.4.0"
 hmac = "0.12.1"
 sha1 = "0.10.6"
 secrecy = "0.10.3"
+zeroize = "1.8"
 
 [profile.release]
 opt-level = 3

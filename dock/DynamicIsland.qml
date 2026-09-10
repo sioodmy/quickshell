@@ -14,8 +14,13 @@ Item {
     Connections {
         target: KeepassBackend
         function onEntrySelected(entry) {
+            if (!KeepassBackend.isUnlocked || SessionState.locked) return;
             root.keepassEntry = entry;
             root.activeMode = "keepass";
+        }
+        function onLocked() {
+            root.keepassEntry = null;
+            if (root.activeMode === "keepass") root.activeMode = "dock";
         }
     }
 

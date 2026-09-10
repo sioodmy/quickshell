@@ -113,6 +113,7 @@ impl Dispatch<ext_idle_notification_v1::ExtIdleNotificationV1, NotificationData>
                 }
 
                 crate::debug_log!("Wayland Idled (is_sleep: {})", data.is_sleep);
+                crate::keepass_db::lock();
                 if data.is_sleep {
                     let _ = Command::new("systemctl").arg("suspend").spawn();
                 } else {
