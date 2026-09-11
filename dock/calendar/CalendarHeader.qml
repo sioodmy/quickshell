@@ -21,7 +21,7 @@ Item {
         width: monthYearText.width + 16
         height: 32
         radius: 16
-        color: monthYearMouse.containsMouse ? Theme.surface_variant : "transparent"
+        color: monthYearMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
         scale: monthYearMouse.pressed ? 0.95 : 1.0
 
         Behavior on scale {
@@ -72,8 +72,8 @@ Item {
             width: 56
             height: 28
             radius: 14
-            color: todayMouse.containsMouse ? Theme.surface_variant : "transparent"
-            border.color: Theme.outline_variant
+            color: todayMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+            border.color: Qt.rgba(1, 1, 1, 0.1)
             border.width: 1
             scale: todayMouse.pressed ? 0.95 : (todayMouse.containsMouse ? 1.04 : 1.0)
 
@@ -111,7 +111,7 @@ Item {
             width: 28
             height: 28
             radius: 14
-            color: prevMouse.containsMouse ? Theme.surface_variant : "transparent"
+            color: prevMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
             scale: prevMouse.pressed ? 0.9 : (prevMouse.containsMouse ? 1.05 : 1.0)
 
             Behavior on scale {
@@ -146,7 +146,7 @@ Item {
             width: 28
             height: 28
             radius: 14
-            color: nextMouse.containsMouse ? Theme.surface_variant : "transparent"
+            color: nextMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
             scale: nextMouse.pressed ? 0.9 : (nextMouse.containsMouse ? 1.05 : 1.0)
 
             Behavior on scale {

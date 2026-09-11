@@ -40,7 +40,7 @@ Item {
     Rectangle {
         id: bgRect
         anchors.fill: parent
-        color: Theme.surface_container_highest
+        color: Qt.rgba(1, 1, 1, 0.05)
         radius: 20
         clip: true
         
@@ -109,7 +109,7 @@ Item {
                     width: 36
                     height: 36
                     radius: 18
-                    color: backMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                    color: backMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                     Behavior on color { ColorAnimation { duration: 150 } }
                     
                     MaterialIcon {
@@ -199,8 +199,8 @@ Item {
                         width: parent.width
                         height: infoCol.implicitHeight + 24
                         radius: 16
-                        color: Theme.surface_container
-                        border.color: Theme.outline_variant
+                        color: Qt.rgba(1, 1, 1, 0.1)
+                        border.color: Qt.rgba(1, 1, 1, 0.1)
                         border.width: 1
                         
                         Column {

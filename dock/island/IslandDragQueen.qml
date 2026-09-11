@@ -7,27 +7,62 @@ import qs.components
 Item {
     id: dqRoot
 
-    property bool dragHover: false
+    property bool dockDragHover: false
+    property bool localDragHover: false
+    readonly property bool dragHover: dockDragHover || localDragHover
     signal requestClose()
 
     readonly property real cardWidth: 104
     readonly property real cardHeight: 116
     readonly property real cardSpacing: 10
     readonly property real maxTrayWidth: 540
-    readonly property real contentWidth: FileStash.count > 0 
+    readonly property real contentWidth: FileStash.count > 0
         ? Math.min(maxTrayWidth, FileStash.count * (cardWidth + cardSpacing) - cardSpacing)
         : 280
 
     implicitWidth: Math.max(320, contentWidth + 28)
     implicitHeight: FileStash.count > 0 ? 170 : 128
 
+    // Accept external drops while the island is open (dock DropArea sits under
+    // this chrome once the notch expands). High z so it wins over content.
+    DropArea {
+        anchors.fill: parent
+        z: 100
+        keys: ["text/uri-list", "text/plain"]
+
+        onEntered: function (drag) {
+            if (drag.hasUrls || (drag.hasText && String(drag.text).indexOf("file:") !== -1)) {
+                drag.accept(Qt.CopyAction);
+                dqRoot.localDragHover = true;
+            }
+        }
+        onExited: dqRoot.localDragHover = false
+        onDropped: function (drop) {
+            dqRoot.localDragHover = false;
+            if (drop.hasUrls) {
+                FileStash.addUrls(drop.urls);
+                drop.acceptProposedAction();
+                return;
+            }
+            if (drop.hasText && drop.text) {
+                const parts = String(drop.text).split(/\s+/).filter(function (p) {
+                    return p.indexOf("file:") === 0;
+                });
+                if (parts.length > 0) {
+                    FileStash.addUrls(parts);
+                    drop.acceptProposedAction();
+                }
+            }
+        }
+    }
+
     Column {
         id: mainColumn
         anchors.fill: parent
         anchors.margins: 10
         spacing: 8
+        z: 1
 
-        // --- HEADER BAR ---
         Item {
             id: headerBar
             width: parent.width
@@ -68,8 +103,8 @@ Item {
                     width: countText.implicitWidth + 10
                     height: 18
                     radius: 9
-                    color: Theme.surface_container_highest
-                    border.color: Theme.outline_variant
+                    color: Theme.glass_raised
+                    border.color: Theme.glass_border
                     border.width: 1
 
                     Text {
@@ -84,7 +119,6 @@ Item {
                 }
             }
 
-            // Header Quick Actions (Copy All, Clear)
             Row {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
@@ -99,15 +133,12 @@ Item {
                     onTriggered: parent.copiedFeedback = false
                 }
 
-                // Copy All Pill Button
                 Rectangle {
                     width: copyRow.implicitWidth + 14
                     height: 24
                     radius: 12
-                    color: copyMouse.containsMouse 
-                        ? Theme.surface_container_highest 
-                        : Theme.surface_container_high
-                    border.color: parent.copiedFeedback ? "#10B981" : Theme.outline_variant
+                    color: copyMouse.containsMouse ? Theme.glass_raised : Theme.glass_panel
+                    border.color: parent.copiedFeedback ? "#10B981" : Theme.glass_border
                     border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -149,17 +180,16 @@ Item {
                     }
                 }
 
-                // Clear Stash Button
                 Rectangle {
                     width: clearRow.implicitWidth + 12
                     height: 24
                     radius: 12
-                    color: clearMouse.containsMouse 
-                        ? Qt.rgba(0.9, 0.2, 0.2, 0.18) 
-                        : Theme.surface_container_high
-                    border.color: clearMouse.containsMouse 
-                        ? Qt.rgba(0.9, 0.2, 0.2, 0.4) 
-                        : Theme.outline_variant
+                    color: clearMouse.containsMouse
+                        ? Qt.rgba(0.9, 0.2, 0.2, 0.18)
+                        : Theme.glass_panel
+                    border.color: clearMouse.containsMouse
+                        ? Qt.rgba(0.9, 0.2, 0.2, 0.4)
+                        : Theme.glass_border
                     border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -200,18 +230,15 @@ Item {
             }
         }
 
-        // --- EMPTY STATE / DROP TARGET BANNER ---
         Rectangle {
             width: parent.width
             height: 74
             radius: 14
             visible: FileStash.count === 0
-            color: dqRoot.dragHover 
-                ? Qt.rgba(0.96, 0.35, 0.65, 0.15) 
-                : Theme.surface_container_low
-            border.color: dqRoot.dragHover 
-                ? "#F472B6" 
-                : Theme.outline_variant
+            color: dqRoot.dragHover
+                ? Qt.rgba(0.96, 0.35, 0.65, 0.15)
+                : Theme.glass_panel
+            border.color: dqRoot.dragHover ? "#F472B6" : Theme.glass_border
             border.width: dqRoot.dragHover ? 2 : 1
 
             Behavior on color { ColorAnimation { duration: 150 } }
@@ -226,10 +253,11 @@ Item {
                     width: 38
                     height: 38
                     radius: 19
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
+                    border.width: 1
+                    border.color: Theme.glass_border
 
                     MaterialIcon {
-                        id: dropIcon
                         anchors.centerIn: parent
                         icon: "file_download"
                         font.pixelSize: 20
@@ -266,7 +294,6 @@ Item {
             }
         }
 
-        // --- STASHED ITEMS LISTVIEW TRAY ---
         Item {
             width: parent.width
             height: dqRoot.cardHeight
@@ -300,218 +327,41 @@ Item {
                     Drag.dragType: Drag.Automatic
                     Drag.supportedActions: Qt.CopyAction
                     Drag.proposedAction: Qt.CopyAction
-                    Drag.mimeData: {
-                        "text/uri-list": chipRoot.url,
+                    Drag.mimeData: ({
+                        "text/uri-list": chipRoot.url + "\r\n",
                         "text/plain": chipRoot.path
-                    }
+                    })
                     Drag.hotSpot.x: width / 2
                     Drag.hotSpot.y: height / 2
 
-                    // Card Outer Background
                     Rectangle {
                         id: cardBg
                         anchors.fill: parent
                         radius: 14
                         color: cardMouse.containsMouse || chipRoot.Drag.active
-                            ? Theme.surface_container_highest
-                            : Theme.surface_container_high
-                        border.color: cardMouse.containsMouse 
-                            ? chipRoot.accentColor 
-                            : Qt.rgba(1, 1, 1, 0.08)
+                            ? Theme.glass_raised
+                            : Theme.glass_panel
+                        border.color: cardMouse.containsMouse
+                            ? chipRoot.accentColor
+                            : Theme.glass_border
                         border.width: cardMouse.containsMouse ? 1.5 : 1
 
-                        opacity: chipRoot.Drag.active ? 0.6 : 1.0
+                        opacity: chipRoot.Drag.active ? 0.55 : 1.0
                         scale: chipRoot.Drag.active ? 0.95 : 1.0
 
                         Behavior on color { ColorAnimation { duration: 140 } }
                         Behavior on border.color { ColorAnimation { duration: 140 } }
                         Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutBack } }
 
-                        Column {
-                            z: 1
-                            anchors.fill: parent
-                            anchors.margins: 6
-                            spacing: 5
-
-                            // Preview Frame
-                            Item {
-                                width: parent.width
-                                height: 70
-
-                                // Image or Gradient Icon Box
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 10
-                                    color: Theme.surface_container_lowest 
-                                    border.color: Theme.surface_container_high
-                                    border.width: 1
-
-                                    // Image Thumbnail
-                                    Image {
-                                        id: thumb
-                                        anchors.fill: parent
-                                        anchors.margins: 1
-                                        visible: chipRoot.isImage
-                                        source: chipRoot.isImage ? ("file://" + chipRoot.path) : ""
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        sourceSize: Qt.size(200, 200)
-                                        layer.enabled: chipRoot.isImage && thumb.status === Image.Ready
-                                        layer.effect: MultiEffect {
-                                            maskEnabled: true
-                                            maskSource: thumbMask
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: thumbMask
-                                        anchors.fill: parent
-                                        anchors.margins: 1
-                                        radius: 9
-                                        visible: false
-                                        layer.enabled: thumb.layer.enabled
-                                    }
-
-                                    // Material Icon for Non-Images or Image Loading
-                                    MaterialIcon {
-                                        anchors.centerIn: parent
-                                        visible: !chipRoot.isImage || thumb.status !== Image.Ready
-                                        icon: chipRoot.glyph
-                                        font.pixelSize: 26
-                                        color: chipRoot.accentColor
-                                    }
-
-                                    // Top Right File Category Tag Badge
-                                    Rectangle {
-                                        anchors.top: parent.top
-                                        anchors.right: parent.right
-                                        anchors.margins: 4
-                                        width: tagText.implicitWidth + 6
-                                        height: 14
-                                        radius: 4
-                                        color: Qt.rgba(0, 0, 0, 0.7)
-                                        border.color: chipRoot.accentColor
-                                        border.width: 1
-
-                                        Text {
-                                            id: tagText
-                                            anchors.centerIn: parent
-                                            text: chipRoot.tag
-                                            font.family: "Google Sans"
-                                            font.pixelSize: 7
-                                            font.weight: Font.Bold
-                                            color: chipRoot.accentColor
-                                        }
-                                    }
-                                }
-
-                                // Hover Glass Action Overlay (Open, Copy, Remove)
-                                Rectangle {
-                                    id: actionOverlay
-                                    anchors.fill: parent
-                                    radius: 10
-                                    color: Qt.rgba(0.05, 0.05, 0.08, 0.85)
-                                    opacity: (cardMouse.containsMouse || openBtnMouse.containsMouse || copyBtnMouse.containsMouse || removeBtnMouse.containsMouse) && !chipRoot.Drag.active ? 1.0 : 0.0
-
-                                    Behavior on opacity { NumberAnimation { duration: 120 } }
-
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 5
-
-                                        // Open File Button
-                                        Rectangle {
-                                            width: 22
-                                            height: 22
-                                            radius: 11
-                                            color: openBtnMouse.containsMouse ? Theme.primary : Theme.surface_container_highest
-
-                                            MaterialIcon {
-                                                anchors.centerIn: parent
-                                                icon: "open_in_new"
-                                                font.pixelSize: 11
-                                                color: openBtnMouse.containsMouse ? Theme.on_primary : Theme.on_surface
-                                            }
-
-                                            MouseArea {
-                                                id: openBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: FileStash.openFile(chipRoot.path)
-                                            }
-                                        }
-
-                                        // Copy Path Button
-                                        Rectangle {
-                                            width: 22
-                                            height: 22
-                                            radius: 11
-                                            color: copyBtnMouse.containsMouse ? Theme.primary : Theme.surface_container_highest
-
-                                            MaterialIcon {
-                                                anchors.centerIn: parent
-                                                icon: "content_copy"
-                                                font.pixelSize: 11
-                                                color: copyBtnMouse.containsMouse ? Theme.on_primary : Theme.on_surface
-                                            }
-
-                                            MouseArea {
-                                                id: copyBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: FileStash.copyPath(chipRoot.path)
-                                            }
-                                        }
-
-                                        // Remove Button
-                                        Rectangle {
-                                            width: 22
-                                            height: 22
-                                            radius: 11
-                                            color: removeBtnMouse.containsMouse ? "#EF4444" : Theme.surface_container_highest
-
-                                            MaterialIcon {
-                                                anchors.centerIn: parent
-                                                icon: "close"
-                                                font.pixelSize: 12
-                                                color: removeBtnMouse.containsMouse ? "#FFFFFF" : Theme.on_surface
-                                            }
-
-                                            MouseArea {
-                                                id: removeBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: FileStash.removePath(chipRoot.path)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Filename Label
-                            Text {
-                                width: parent.width
-                                text: chipRoot.name
-                                font.family: "Google Sans"
-                                font.pixelSize: 10
-                                font.weight: Font.Medium
-                                color: Theme.on_surface
-                                elide: Text.ElideMiddle
-                                horizontalAlignment: Text.AlignHCenter
-                                maximumLineCount: 1
-                            }
-                        }
-
-                        // Interactive Drag & Click Area
+                        // Drag + hover host. Action buttons are children so they
+                        // still receive clicks without covering the drag area.
                         MouseArea {
                             id: cardMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: chipRoot.Drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                             acceptedButtons: Qt.LeftButton
+                            preventStealing: true
 
                             property real pressX: 0
                             property real pressY: 0
@@ -523,20 +373,189 @@ Item {
 
                             onPositionChanged: function (mouse) {
                                 if (!chipRoot.Drag.active && pressed) {
-                                    if (Math.abs(mouse.x - pressX) > 6 || Math.abs(mouse.y - pressY) > 6) {
+                                    if (Math.abs(mouse.x - pressX) > 6 || Math.abs(mouse.y - pressY) > 6)
                                         chipRoot.Drag.active = true;
-                                    }
                                 }
                             }
 
                             onReleased: function (mouse) {
-                                if (chipRoot.Drag.active) {
+                                if (chipRoot.Drag.active)
                                     chipRoot.Drag.active = false;
-                                }
                             }
 
-                            onDoubleClicked: {
-                                FileStash.openFile(chipRoot.path);
+                            onDoubleClicked: FileStash.openFile(chipRoot.path)
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 6
+                                spacing: 5
+
+                                Item {
+                                    width: parent.width
+                                    height: 70
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 10
+                                        color: Theme.glass_card
+                                        border.color: Theme.glass_border
+                                        border.width: 1
+
+                                        Image {
+                                            id: thumb
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            visible: chipRoot.isImage
+                                            source: chipRoot.isImage ? ("file://" + chipRoot.path) : ""
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                            sourceSize: Qt.size(200, 200)
+                                            layer.enabled: chipRoot.isImage && thumb.status === Image.Ready
+                                            layer.effect: MultiEffect {
+                                                maskEnabled: true
+                                                maskSource: thumbMask
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            id: thumbMask
+                                            anchors.fill: parent
+                                            anchors.margins: 1
+                                            radius: 9
+                                            visible: false
+                                            layer.enabled: thumb.layer.enabled
+                                        }
+
+                                        MaterialIcon {
+                                            anchors.centerIn: parent
+                                            visible: !chipRoot.isImage || thumb.status !== Image.Ready
+                                            icon: chipRoot.glyph
+                                            font.pixelSize: 26
+                                            color: chipRoot.accentColor
+                                        }
+
+                                        Rectangle {
+                                            anchors.top: parent.top
+                                            anchors.right: parent.right
+                                            anchors.margins: 4
+                                            width: tagText.implicitWidth + 6
+                                            height: 14
+                                            radius: 4
+                                            color: Qt.rgba(0, 0, 0, 0.55)
+                                            border.color: chipRoot.accentColor
+                                            border.width: 1
+
+                                            Text {
+                                                id: tagText
+                                                anchors.centerIn: parent
+                                                text: chipRoot.tag
+                                                font.family: "Google Sans"
+                                                font.pixelSize: 7
+                                                font.weight: Font.Bold
+                                                color: chipRoot.accentColor
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: actionOverlay
+                                        anchors.fill: parent
+                                        radius: 10
+                                        color: Qt.rgba(0.05, 0.05, 0.08, 0.72)
+                                        opacity: (cardMouse.containsMouse || openBtnMouse.containsMouse || copyBtnMouse.containsMouse || removeBtnMouse.containsMouse) && !chipRoot.Drag.active ? 1.0 : 0.0
+
+                                        Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                                        Row {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Rectangle {
+                                                width: 22
+                                                height: 22
+                                                radius: 11
+                                                color: openBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_raised
+                                                border.width: 1
+                                                border.color: Theme.glass_border
+
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    icon: "open_in_new"
+                                                    font.pixelSize: 11
+                                                    color: Theme.on_surface
+                                                }
+
+                                                MouseArea {
+                                                    id: openBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: FileStash.openFile(chipRoot.path)
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                width: 22
+                                                height: 22
+                                                radius: 11
+                                                color: copyBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_raised
+                                                border.width: 1
+                                                border.color: Theme.glass_border
+
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    icon: "content_copy"
+                                                    font.pixelSize: 11
+                                                    color: Theme.on_surface
+                                                }
+
+                                                MouseArea {
+                                                    id: copyBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: FileStash.copyPath(chipRoot.path)
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                width: 22
+                                                height: 22
+                                                radius: 11
+                                                color: removeBtnMouse.containsMouse ? "#EF4444" : Theme.glass_raised
+                                                border.width: 1
+                                                border.color: Theme.glass_border
+
+                                                MaterialIcon {
+                                                    anchors.centerIn: parent
+                                                    icon: "close"
+                                                    font.pixelSize: 12
+                                                    color: removeBtnMouse.containsMouse ? "#FFFFFF" : Theme.on_surface
+                                                }
+
+                                                MouseArea {
+                                                    id: removeBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: FileStash.removePath(chipRoot.path)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: chipRoot.name
+                                    font.family: "Google Sans"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Medium
+                                    color: Theme.on_surface
+                                    elide: Text.ElideMiddle
+                                    horizontalAlignment: Text.AlignHCenter
+                                    maximumLineCount: 1
+                                }
                             }
                         }
                     }

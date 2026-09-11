@@ -103,7 +103,11 @@ pub enum DaemonRequest {
         request_id: String,
     },
     #[serde(rename = "keepass_search")]
-    KeepassSearch { query: String },
+    KeepassSearch {
+        query: String,
+        #[serde(default)]
+        client_title: Option<String>,
+    },
     #[serde(rename = "keepass_copy")]
     KeepassCopy {
         id: String,

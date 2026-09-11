@@ -5,11 +5,11 @@ import qs.services
 Column {
     id: root
 
-    property var launcherWindow
-    property var ctrl
+    property var launcher
+    property var backend
 
     height: root.visible ? implicitHeight : 0
-    visible: launcherWindow && (launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive || launcherWindow.pomModeActive || launcherWindow.cocModeActive)
+    visible: launcher ? (launcher.sliderModeActive || launcher.captureModeActive || launcher.dndModeActive || launcher.pomModeActive || launcher.cocModeActive) : false
     spacing: 8
     topPadding: 8
     bottomPadding: 4
@@ -17,16 +17,15 @@ Column {
     Behavior on height {
         NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
     }
-
     LauncherSliderWidget {
         id: volSliderWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.volSliderActive : false
+        active: launcher ? launcher.volSliderActive : false
         label: "Volume"
         accent: Theme.primary
-        value: Math.min(1, launcherWindow?.pipewireSink?.audio?.volume ?? 0)
+        value: Math.min(1, launcher?.pipewireSink?.audio?.volume ?? 0)
         icon: {
-            if (launcherWindow?.pipewireSink?.audio?.muted ?? true)
+            if (launcher?.pipewireSink?.audio?.muted ?? true)
                 return "volume_off";
             if (value >= 0.6)
                 return "volume_up";
@@ -35,9 +34,9 @@ Column {
             return "volume_mute";
         }
         onMoved: v => {
-            if (launcherWindow?.pipewireSink?.audio) {
-                launcherWindow.pipewireSink.audio.muted = false;
-                launcherWindow.pipewireSink.audio.volume = v;
+            if (launcher?.pipewireSink?.audio) {
+                launcher.pipewireSink.audio.muted = false;
+                launcher.pipewireSink.audio.volume = v;
             }
         }
     }
@@ -45,7 +44,7 @@ Column {
     LauncherSliderWidget {
         id: blSliderWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.blSliderActive : false
+        active: launcher ? launcher.blSliderActive : false
         label: "Brightness"
         accent: Theme.tertiary
         value: Brightness.value
@@ -60,17 +59,17 @@ Column {
     LauncherScreenshotWidget {
         id: ssWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.ssModeActive : false
+        active: launcher ? launcher.ssModeActive : false
         onAction: id => {
-            if (ctrl) {
+            if (backend) {
                 if (id === "fullscreen")
-                    ctrl.executeSystemCommand("ss_fullscreen");
+                    backend.executeSystemCommand("ss_fullscreen");
                 else if (id === "area")
-                    ctrl.executeSystemCommand("ss_area");
+                    backend.executeSystemCommand("ss_area");
                 else if (id === "window")
-                    ctrl.executeSystemCommand("ss_window");
+                    backend.executeSystemCommand("ss_window");
                 else if (id === "menu")
-                    ctrl.executeSystemCommand("ss_menu");
+                    backend.executeSystemCommand("ss_menu");
             }
         }
     }
@@ -78,15 +77,15 @@ Column {
     LauncherRecordWidget {
         id: recWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.recModeActive : false
+        active: launcher ? launcher.recModeActive : false
         onAction: id => {
-            if (ctrl) {
+            if (backend) {
                 if (id === "fullscreen")
-                    ctrl.executeSystemCommand("rec_fullscreen");
+                    backend.executeSystemCommand("rec_fullscreen");
                 else if (id === "area")
-                    ctrl.executeSystemCommand("rec_area");
+                    backend.executeSystemCommand("rec_area");
                 else if (id === "stop")
-                    ctrl.executeSystemCommand("rec_stop");
+                    backend.executeSystemCommand("rec_stop");
             }
         }
     }
@@ -94,17 +93,17 @@ Column {
     LauncherDndWidget {
         id: dndWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.dndModeActive : false
+        active: launcher ? launcher.dndModeActive : false
     }
 
     LauncherCocaineWidget {
         id: cocWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.cocModeActive : false
-        caffeineEnabled: ctrl ? ctrl.cocaineEnabled : false
+        active: launcher ? launcher.cocModeActive : false
+        caffeineEnabled: backend ? backend.cocaineEnabled : false
         onToggled: enabled => {
-            if (ctrl) {
-                ctrl.cocaineEnabled = enabled;
+            if (backend) {
+                backend.cocaineEnabled = enabled;
                 BackendDaemon.send({ action: enabled ? "cocaine_enable" : "cocaine_disable" });
             }
         }
@@ -113,6 +112,6 @@ Column {
     LauncherPomodoroWidget {
         id: pomWidget
         width: parent.width
-        active: launcherWindow ? launcherWindow.pomModeActive : false
+        active: launcher ? launcher.pomModeActive : false
     }
 }

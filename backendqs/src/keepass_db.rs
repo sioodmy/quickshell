@@ -189,8 +189,8 @@ pub fn generation() -> u64 {
 pub fn handle_request(request: crate::api::DaemonRequest, generation: u64) {
     use crate::api::{DaemonEvent, DaemonRequest};
     let event = match request {
-        DaemonRequest::KeepassSearch { query } => DaemonEvent::KeepassSearchResult {
-            results: search(&query, generation),
+        DaemonRequest::KeepassSearch { query, client_title } => DaemonEvent::KeepassSearchResult {
+            results: search(&query, client_title.as_deref(), generation),
         },
         DaemonRequest::KeepassCopy {
             id,
@@ -239,19 +239,32 @@ fn search_group(
     group: GroupRef<'_>,
     out: &mut Vec<(f64, crate::api::KeepassEntryDto)>,
     query: &str,
+    client_title: Option<&str>,
 ) {
     for entry in group.entries() {
         let title = entry.get_title().unwrap_or("");
         let lower = title.to_lowercase();
-        let score = if query.is_empty() {
-            0.0
+        
+        let mut is_smart = false;
+        let mut score = 0.0;
+        
+        if let Some(ct) = client_title {
+            if !lower.is_empty() && ct.to_lowercase().contains(&lower) {
+                is_smart = true;
+                score += 100.0 + lower.len() as f64;
+            }
+        }
+
+        if query.is_empty() {
+            // score += 0.0;
         } else if lower.contains(query) {
-            10.0 + query.len() as f64 / lower.len() as f64
+            score += 10.0 + query.len() as f64 / lower.len() as f64;
         } else if !lower.is_empty() && query.contains(&lower) {
-            5.0
-        } else {
+            score += 5.0;
+        } else if !is_smart {
             continue;
-        };
+        }
+        
         out.push((
             score,
             crate::api::KeepassEntryDto {
@@ -259,16 +272,16 @@ fn search_group(
                 title: title.to_string(),
                 username: entry.get_username().unwrap_or("").to_string(),
                 has_otp: get_totp_raw(&entry).is_some_and(|raw| !raw.is_empty()),
-                is_smart: false,
+                is_smart,
             },
         ));
     }
     for child in group.groups() {
-        search_group(child, out, query);
+        search_group(child, out, query, client_title);
     }
 }
 
-fn search(query: &str, generation: u64) -> Vec<crate::api::KeepassEntryDto> {
+fn search(query: &str, client_title: Option<&str>, generation: u64) -> Vec<crate::api::KeepassEntryDto> {
     let mut state = state();
     if state.generation != generation {
         return Vec::new();
@@ -277,7 +290,7 @@ fn search(query: &str, generation: u64) -> Vec<crate::api::KeepassEntryDto> {
         return Vec::new();
     };
     let mut results = Vec::new();
-    search_group(db.root(), &mut results, &query.to_lowercase());
+    search_group(db.root(), &mut results, &query.to_lowercase(), client_title);
     results.sort_by(|a, b| b.0.total_cmp(&a.0));
     state.expire(Instant::now());
     if state.db.is_none() {
@@ -925,7 +938,7 @@ mod tests {
             entry.id().to_string()
         };
         let mut results = Vec::new();
-        search_group(db.root(), &mut results, "");
+        search_group(db.root(), &mut results, "", None);
         assert_eq!(results.len(), 1);
         assert!(!results[0].1.is_smart);
         assert!(results[0].1.has_otp);

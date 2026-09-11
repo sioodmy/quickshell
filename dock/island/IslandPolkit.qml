@@ -56,10 +56,10 @@ Row {
         height: 32
         anchors.verticalCenter: parent.verticalCenter
         radius: 16
-        color: Theme.surface_container_highest
+        color: Qt.rgba(1, 1, 1, 0.1)
         visible: !root.isYubikey
         border.width: 1
-        border.color: polkitInput.activeFocus ? Theme.primary : "transparent"
+        border.color: polkitInput.activeFocus ? Theme.primary : Qt.rgba(1, 1, 1, 0.1)
         clip: true
 
         TextInput {
@@ -171,7 +171,7 @@ Row {
             width: 32
             height: 32
             radius: 16
-            color: cancelMouse.containsMouse ? Theme.surface_variant : "transparent"
+            color: cancelMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
             
             MaterialIcon {
                 anchors.centerIn: parent

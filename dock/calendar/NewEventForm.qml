@@ -49,7 +49,7 @@ Item {
     Rectangle {
         id: bgRect
         anchors.fill: parent
-        color: Theme.surface_container_highest
+        color: Qt.rgba(1, 1, 1, 0.05)
         radius: 20
         clip: true
         
@@ -118,7 +118,7 @@ Item {
 
                 Rectangle {
                     width: 28; height: 28; radius: 14
-                    color: backMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                    color: backMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     MaterialIcon {
@@ -163,8 +163,8 @@ Item {
                 width: parent.width
                 height: 36
                 radius: 10
-                color: Theme.surface_container
-                border.color: titleField.activeFocus ? Theme.primary : "transparent"
+                color: Qt.rgba(1, 1, 1, 0.1)
+                border.color: titleField.activeFocus ? Theme.primary : Qt.rgba(1, 1, 1, 0.1)
                 border.width: 1
                 
                 TextField {
@@ -225,8 +225,8 @@ Item {
                     width: 96
                     height: 34
                     radius: 17
-                    color: Theme.surface_container
-                    border.color: Theme.outline_variant
+                    color: Qt.rgba(1, 1, 1, 0.1)
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
                     border.width: 1
                     
                     Row {
@@ -235,7 +235,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: hrMinus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            color: hrMinus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                             Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: hrMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -253,7 +253,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: hrPlus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            color: hrPlus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                             Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: hrPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -287,8 +287,8 @@ Item {
                     width: 96
                     height: 34
                     radius: 17
-                    color: Theme.surface_container
-                    border.color: Theme.outline_variant
+                    color: Qt.rgba(1, 1, 1, 0.1)
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
                     border.width: 1
                     
                     Row {
@@ -297,7 +297,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: minMinus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            color: minMinus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                             Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: minMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -315,7 +315,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: minPlus.containsMouse ? Theme.surface_container_highest : "transparent"
+                            color: minPlus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                             Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: minPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -341,8 +341,8 @@ Item {
                 width: parent.width
                 height: 52
                 radius: 10
-                color: Theme.surface_container
-                border.color: descField.activeFocus ? Theme.primary : "transparent"
+                color: Qt.rgba(1, 1, 1, 0.1)
+                border.color: descField.activeFocus ? Theme.primary : Qt.rgba(1, 1, 1, 0.1)
                 border.width: 1
                 
                 ScrollView {
@@ -373,7 +373,7 @@ Item {
                     height: 30
                     radius: 15
                     color: "transparent"
-                    border.color: Theme.outline
+                    border.color: Qt.rgba(1, 1, 1, 0.15)
                     border.width: 1
                     
                     Text {
@@ -398,7 +398,7 @@ Item {
                     width: 68
                     height: 30
                     radius: 15
-                    color: titleField.text.trim() === "" ? Theme.surface_container_high : Theme.primary
+                    color: titleField.text.trim() === "" ? Qt.rgba(1, 1, 1, 0.1) : Theme.primary
                     opacity: titleField.text.trim() === "" ? 0.5 : 1.0
                     
                     Text {

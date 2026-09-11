@@ -78,9 +78,9 @@ Item {
             x: activeTargetX
             y: root.trackInset
             radius: height / 2
-            color: "#2a2a2a"
+            color: Qt.rgba(1, 1, 1, 0.15)
             border.width: 1
-            border.color: "#3a3a3a"
+            border.color: Qt.rgba(1, 1, 1, 0.1)
             opacity: root.activeWsItem ? 1 : 0
 
             property real animWidth: activeTargetWidth

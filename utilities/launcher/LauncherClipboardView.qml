@@ -189,7 +189,7 @@ Item {
             radius: 12
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
+            color: Qt.alpha(Theme.primary, 0.16)
 
             MaterialIcon {
                 anchors.centerIn: parent
@@ -233,8 +233,10 @@ Item {
             height: 34
             radius: 17
             color: clearMouse.containsMouse
-                ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.14)
-                : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.05)
+                ? Qt.alpha(Theme.critical, 0.8)
+                : Qt.alpha(Theme.critical, 0.18)
+            border.width: 1
+            border.color: Theme.glass_border
 
             Behavior on color { ColorAnimation { duration: 120 } }
             scale: clearMouse.pressed ? 0.94 : 1.0
@@ -249,12 +251,12 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     icon: "delete_sweep"
                     font.pixelSize: 14
-                    color: clearMouse.containsMouse ? Theme.critical : Theme.on_surface_variant
+                    color: clearMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Clear all"
-                    color: clearMouse.containsMouse ? Theme.critical : Theme.on_surface_variant
+                    color: clearMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
                     font { family: "Google Sans Medium"; pixelSize: 13 }
                 }
             }
@@ -300,10 +302,12 @@ Item {
             height: isImage ? 232 : 60
             radius: 18
             color: isSelected
-                ? Theme.secondary_container
+                ? Theme.glass_selected
                 : (rowMouse.containsMouse
-                    ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.05)
+                    ? Theme.glass_hover
                     : "transparent")
+            border.width: isSelected ? 1 : 0
+            border.color: Theme.glass_border
 
             Behavior on color { ColorAnimation { duration: 120 } }
             Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
@@ -332,7 +336,7 @@ Item {
                     height: parent.height - imageFooter.height - 8
                     radius: 12
                     clip: true
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
 
                     Image {
                         id: previewImage
@@ -395,7 +399,7 @@ Item {
                         Rectangle {
                             width: 30; height: 30; radius: 15
                             color: imgDeleteMouse.containsMouse
-                                ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18)
+                                ? Qt.alpha(Theme.critical, 0.18)
                                 : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
                             MaterialIcon {
@@ -415,7 +419,9 @@ Item {
 
                         Rectangle {
                             width: imgCopyRow.implicitWidth + 20; height: 30; radius: 15
-                            color: imgCopyMouse.containsMouse ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.20)
+                            color: imgCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            border.width: 1
+                            border.color: Theme.glass_border
                             Behavior on color { ColorAnimation { duration: 100 } }
                             Row {
                                 id: imgCopyRow
@@ -425,12 +431,12 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "content_copy"
                                     font.pixelSize: 13
-                                    color: imgCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
+                                    color: Theme.primary
                                 }
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: "Copy"
-                                    color: imgCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
+                                    color: Theme.primary
                                     font { family: "Google Sans Medium"; pixelSize: 12 }
                                 }
                             }
@@ -471,7 +477,7 @@ Item {
                     anchors.left: parent.left
                     anchors.leftMargin: 14
                     anchors.verticalCenter: parent.verticalCenter
-                    color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+                    color: Qt.alpha(Theme.primary, 0.12)
 
                     MaterialIcon {
                         anchors.centerIn: parent
@@ -507,7 +513,7 @@ Item {
                     Rectangle {
                         width: 30; height: 30; radius: 15
                         color: txtDeleteMouse.containsMouse
-                            ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18)
+                            ? Qt.alpha(Theme.critical, 0.18)
                             : "transparent"
                         Behavior on color { ColorAnimation { duration: 100 } }
                         MaterialIcon {
@@ -527,7 +533,9 @@ Item {
 
                     Rectangle {
                         width: txtCopyRow.implicitWidth + 20; height: 30; radius: 15
-                        color: txtCopyMouse.containsMouse ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.20)
+                        color: txtCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                        border.width: 1
+                        border.color: Theme.glass_border
                         Behavior on color { ColorAnimation { duration: 100 } }
                         Row {
                             id: txtCopyRow
@@ -537,12 +545,12 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 icon: "content_copy"
                                 font.pixelSize: 13
-                                color: txtCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "Copy"
-                                color: txtCopyMouse.containsMouse ? Theme.on_primary : Theme.primary
+                                color: Theme.primary
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Copy"
+                                    color: Theme.primary
                                 font { family: "Google Sans Medium"; pixelSize: 12 }
                             }
                         }
@@ -555,16 +563,6 @@ Item {
                         }
                     }
                 }
-            }
-        }
-
-        // Bottom fade
-        Rectangle {
-            anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-            height: 40
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 1.0; color: Theme.surface }
             }
         }
     }

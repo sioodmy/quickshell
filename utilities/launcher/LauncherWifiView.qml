@@ -160,7 +160,9 @@ Item {
         width: parent.width
         height: 72
         radius: 16
-        color: statusMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
+        color: statusMouse.containsMouse ? Theme.glass_raised : Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
 
         Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -181,8 +183,8 @@ Item {
                 radius: 24
                 anchors.verticalCenter: parent.verticalCenter
                 color: Networking.wifiEnabled
-                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
-                    : Theme.surface_variant
+                    ? Qt.alpha(Theme.primary, 0.2)
+                    : Theme.glass_raised
 
                 Behavior on color { ColorAnimation { duration: 200 } }
 
@@ -220,7 +222,7 @@ Item {
                 width: 48
                 height: 28
                 radius: 14
-                color: Networking.wifiEnabled ? Theme.primary : Theme.surface_container_highest
+                color: Networking.wifiEnabled ? Theme.glass_accent : Theme.glass_raised
                 border.color: Networking.wifiEnabled ? Theme.primary : Theme.outline
                 border.width: 2
 
@@ -286,14 +288,16 @@ Item {
             height: netCol.height
             radius: 14
             color: isConnecting
-                ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
+                ? Qt.alpha(Theme.primary, 0.16)
                 : (isSelected
-                    ? Theme.secondary_container
+                    ? Theme.glass_selected
                     : (modelData.connected
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+                        ? Qt.alpha(Theme.primary, 0.12)
                         : (netMouse.containsMouse
-                            ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                            ? Theme.glass_hover
                             : "transparent")))
+            border.width: isSelected ? 1 : 0
+            border.color: Theme.glass_border
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -436,14 +440,16 @@ Item {
                             width: connectLabel.implicitWidth + 20
                             height: 28
                             radius: 14
-                            color: connectBtnMouse.containsMouse ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18)
+                            color: connectBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            border.width: 1
+                            border.color: Theme.glass_border
                             Behavior on color { ColorAnimation { duration: 100 } }
 
                             Text {
                                 id: connectLabel
                                 anchors.centerIn: parent
                                 text: "Connect"
-                                color: connectBtnMouse.containsMouse ? Theme.on_primary : Theme.primary
+                                color: Theme.primary
                                 font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                             }
 
@@ -468,9 +474,9 @@ Item {
                             width: disconnectLabel.implicitWidth + 20
                             height: 28
                             radius: 14
-                            color: disconnectMouse.containsMouse
-                                ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.2)
-                                : Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.1)
+                            color: disconnectMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            border.width: 1
+                            border.color: Theme.glass_border
 
                             Text {
                                 id: disconnectLabel
@@ -495,14 +501,16 @@ Item {
                             height: 28
                             radius: 14
                             color: forgetMouse.containsMouse
-                                ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.2)
-                                : Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.1)
+                                ? Qt.alpha(Theme.critical, 0.8)
+                                : Qt.alpha(Theme.critical, 0.18)
+                            border.width: 1
+                            border.color: Theme.glass_border
 
                             Text {
                                 id: forgetLabel
                                 anchors.centerIn: parent
                                 text: "Forget"
-                                color: Theme.critical
+                                color: forgetMouse.containsMouse ? Theme.on_critical : Theme.critical
                                 font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                             }
 
@@ -545,8 +553,8 @@ Item {
                             width: parent.width
                             height: 38
                             radius: 12
-                            color: Theme.surface_container_highest
-                            border.color: pskField.activeFocus ? Theme.primary : Theme.outline_variant
+                            color: Theme.glass_raised
+                            border.color: pskField.activeFocus ? Theme.primary : Theme.glass_border
                             border.width: 1
 
                             Behavior on border.color { ColorAnimation { duration: 150 } }

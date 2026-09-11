@@ -25,8 +25,8 @@ Row {
         width: 80
         height: 32
         radius: 16
-        color: m.containsMouse ? Theme.primary_container : "transparent"
-        border.color: Theme.surface_variant
+        color: m.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+        border.color: Qt.rgba(1, 1, 1, 0.1)
         border.width: 1
         Row {
             anchors.centerIn: parent

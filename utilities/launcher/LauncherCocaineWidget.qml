@@ -27,10 +27,10 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
         border.color: caffeineEnabled
             ? Qt.rgba(1, 0, 1, 0.5) // Flashy neon pink edge
-            : Theme.outline_variant
+            : Theme.glass_border
         border.width: caffeineEnabled ? 2 : 1
         clip: true
 
@@ -99,7 +99,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 color: caffeineEnabled
                     ? Qt.rgba(1, 1, 1, 0.2)
-                    : Theme.surface_variant
+                    : Theme.glass_raised
 
                 Behavior on color { ColorAnimation { duration: 220 } }
 
@@ -171,7 +171,7 @@ Item {
                 width: 52
                 height: 32
                 radius: 16
-                color: caffeineEnabled ? "#ff0055" : Theme.surface_container_highest
+                color: caffeineEnabled ? Qt.alpha("#ff0055", 0.7) : Theme.glass_raised
                 border.color: caffeineEnabled ? "#ff0055" : Theme.outline
                 border.width: 2
 

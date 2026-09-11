@@ -19,11 +19,18 @@ Singleton {
     property bool overlayActive: false
     property string overlayMode: "menu"
     property bool editorActive: false
+    // True after the menu closes and before grim/IPC marks the shot ready.
+    // Keeps the island from flashing back to dock chrome mid-capture.
+    property bool awaitingCapture: false
 
     IpcHandler {
         target: "screenshot"
         function done(): void {
             readResult.running = true;
+        }
+        function cancel(): void {
+            root.awaitingCapture = false;
+            root.active = false;
         }
         function menu(): void {
             take_menu();
@@ -46,6 +53,7 @@ Singleton {
                 let path = data.trim();
                 if (path.length > 0 && path.startsWith("/")) {
                     root.imagePath = path;
+                    root.awaitingCapture = false;
                     root.active = true;
                 }
             }
@@ -55,6 +63,7 @@ Singleton {
     function take_menu() {
         imagePath = "";
         active = false;
+        awaitingCapture = false;
         ocring = false;
         wasSaved = false;
         wasCopied = false;
@@ -69,6 +78,7 @@ Singleton {
     }
 
     function finishFullscreen() {
+        awaitingCapture = true;
         overlayActive = false;
         Quickshell.execDetached({ command: ["bash", "-c",
             "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; grim \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
@@ -76,14 +86,16 @@ Singleton {
     }
 
     function finishArea() {
+        awaitingCapture = true;
         overlayActive = false;
         Quickshell.execDetached({ command: ["bash", "-c",
-            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
+            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done || quickshell ipc call screenshot cancel"
         ] });
     }
 
 
     function finishWindow() {
+        awaitingCapture = false;
         overlayActive = false;
         Quickshell.execDetached({ command: ["niri", "msg", "action", "screenshot-window"] });
     }
@@ -133,5 +145,6 @@ Singleton {
 
     function dismiss() {
         active = false;
+        awaitingCapture = false;
     }
 }

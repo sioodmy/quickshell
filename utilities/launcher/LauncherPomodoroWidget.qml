@@ -123,7 +123,7 @@ Item {
 
             Rectangle {
                 anchors.fill: parent
-                color: Theme.surface_container_high
+                color: Theme.glass_panel
             }
 
             // Soft forest wash — gradients only
@@ -459,13 +459,17 @@ Item {
                             height: 44
                             radius: 22
                             anchors.verticalCenter: parent.verticalCenter
-                            color: Pomodoro.isRunning ? root.accentContainer : root.accent
+                            color: Pomodoro.isRunning
+                                ? Qt.alpha(root.accentContainer, 0.38)
+                                : Qt.alpha(root.accent, 0.38)
+                            border.width: 1
+                            border.color: Theme.glass_border
 
                             Text {
                                 anchors.centerIn: parent
                                 text: Pomodoro.isRunning ? "󰏤  Pause" : "󰐊  Start"
                                 font { family: "Google Sans Medium"; pixelSize: 14 }
-                                color: Pomodoro.isRunning ? root.onAccentContainer : root.accentOn
+                                color: root.accent
                             }
 
                             MouseArea {

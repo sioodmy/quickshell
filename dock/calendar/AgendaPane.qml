@@ -53,7 +53,9 @@ Item {
         id: bgRect
         anchors.fill: parent
         radius: 20
-        color: "#000000"
+        color: Qt.rgba(1, 1, 1, 0.05)
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.1)
         clip: true
 
         Item {
@@ -115,7 +117,7 @@ Item {
                     width: 28
                     height: 28
                     radius: 14
-                    color: addMouse.containsMouse ? Theme.surface_container_high : "transparent"
+                    color: addMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -142,7 +144,7 @@ Item {
                     width: 28
                     height: 28
                     radius: 14
-                    color: closeMouse.containsMouse ? Theme.surface_variant : "transparent"
+                    color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
                     
                     Behavior on color { ColorAnimation { duration: 150 } }
                     

@@ -20,37 +20,37 @@ Item {
         id: card
         anchors.fill: parent
         radius: 20
-        color: Theme.surface_container_high
-        border.color: Theme.outline_variant
+        color: Theme.glass_panel
+        border.color: Theme.glass_border
         border.width: 1
         clip: true
 
         Column {
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 16
+            anchors.margins: 14
+            spacing: 12
 
             // ─── Header ───
             Row {
                 width: parent.width
-                height: 72
-                spacing: 14
+                height: 56
+                spacing: 12
 
                 Rectangle {
-                    width: 56
-                    height: 56
-                    radius: 28
+                    width: 44
+                    height: 44
+                    radius: 22
                     anchors.verticalCenter: parent.verticalCenter
                     color: NightLight.enabled
                         ? Qt.rgba(1, 0.65, 0.2, 0.22)
-                        : Theme.surface_variant
+                        : Theme.glass_raised
 
                     Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         icon: NightLight.enabled ? "bedtime" : "light_mode"
-                        font.pixelSize: 24
+                        font.pixelSize: 20
                         color: NightLight.enabled ? "#ffb74d" : Theme.on_surface_variant
 
                         scale: 1.0
@@ -67,20 +67,20 @@ Item {
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 56 - 14 - nightToggle.width - 14
+                    width: parent.width - 44 - 12 - nightToggle.width - 12
                     spacing: 2
 
                     Text {
                         text: "Night Light"
-                        font { family: "Google Sans Medium"; pixelSize: 16 }
+                        font { family: "Google Sans Medium"; pixelSize: 15 }
                         color: Theme.on_surface
                     }
                     Text {
                         width: parent.width
                         text: NightLight.enabled
-                            ? (NightLight.temperature + "K · " + NightLight.intensity + "% intensity")
+                            ? (NightLight.temperature + "K · " + NightLight.intensity + "%")
                             : "Blue light filter is off"
-                        font { family: "Google Sans"; pixelSize: 12 }
+                        font { family: "Google Sans"; pixelSize: 11 }
                         color: Theme.on_surface_variant
                         elide: Text.ElideRight
                     }
@@ -92,7 +92,7 @@ Item {
                     width: 48
                     height: 28
                     radius: 14
-                    color: NightLight.enabled ? "#ffb74d" : Theme.surface_container_highest
+                    color: NightLight.enabled ? Qt.alpha("#ffb74d", 0.7) : Theme.glass_raised
                     border.color: NightLight.enabled ? "#ffb74d" : Theme.outline
                     border.width: 2
 
@@ -122,8 +122,8 @@ Item {
             // ─── Warmth Gradient Preview ───
             Rectangle {
                 width: parent.width
-                height: 64
-                radius: 16
+                height: 48
+                radius: 12
                 clip: true
 
                 gradient: Gradient {
@@ -153,14 +153,16 @@ Item {
                         width: tempBadgeText.width + 16
                         height: 22
                         radius: 11
-                        color: Theme.inverse_surface
+                        color: Theme.glass_raised
+                        border.width: 1
+                        border.color: Theme.glass_border
                         visible: NightLight.enabled
 
                         Text {
                             id: tempBadgeText
                             anchors.centerIn: parent
                             text: NightLight.temperature + "K"
-                            color: Theme.inverse_on_surface
+                            color: Theme.on_surface
                             font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold }
                         }
                     }
@@ -226,10 +228,10 @@ Item {
                         color: isActive
                             ? Qt.rgba(1, 0.72, 0.3, 0.22)
                             : (presetMouse.containsMouse
-                                ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08)
-                                : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.04))
-                        border.color: isActive ? "#ffb74d" : "transparent"
-                        border.width: isActive ? 1.5 : 0
+                                ? Theme.glass_hover
+                                : Theme.glass_raised)
+                        border.color: isActive ? "#ffb74d" : Theme.glass_border
+                        border.width: isActive ? 1.5 : 1
 
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -279,7 +281,9 @@ Item {
                     width: (parent.width - 8) / 2
                     height: 44
                     radius: 14
-                    color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.04)
+                    color: Theme.glass_raised
+                    border.width: 1
+                    border.color: Theme.glass_border
 
                     Row {
                         anchors.fill: parent
@@ -315,7 +319,9 @@ Item {
                     width: (parent.width - 8) / 2
                     height: 44
                     radius: 14
-                    color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.04)
+                    color: Theme.glass_raised
+                    border.width: 1
+                    border.color: Theme.glass_border
 
                     Row {
                         anchors.fill: parent

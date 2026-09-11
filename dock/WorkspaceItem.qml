@@ -217,7 +217,7 @@ Item {
             if (root.isDropHovered)
                 return Qt.alpha(Theme.primary, 0.35)
             if (wsHover.hovered)
-                return Qt.alpha(Theme.on_surface, 0.08)
+                return Qt.rgba(1, 1, 1, 0.15)
             return "transparent"
         }
         Behavior on color { ColorAnimation { duration: 100 } }

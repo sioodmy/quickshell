@@ -46,6 +46,29 @@ FileView {
     property alias critical: colors.critical
     property alias on_critical: colors.on_critical
 
+    // --- LIQUID GLASS SURFACES ---
+    // Translucent fills for UI drawn over a compositor-blurred backdrop.
+    // Note: the tokens above are strings, so `Theme.x.r` is undefined and
+    // `Qt.rgba(Theme.x.r, ...)` silently yields black. Use Qt.alpha instead.
+    readonly property color glass_card: Qt.alpha(colors.surface_container, 0.58)
+    readonly property color glass_panel: Qt.alpha(colors.surface_container_high, 0.42)
+    readonly property color glass_raised: Qt.alpha(colors.surface_container_highest, 0.5)
+    readonly property color glass_fade: Qt.alpha(colors.surface, 0.6)
+
+    readonly property color glass_hover: Qt.rgba(1, 1, 1, 0.07)
+    readonly property color glass_selected: Qt.alpha(colors.primary, 0.2)
+    // Buttons sit ON the glass card — keep them translucent enough that the
+    // blurred backdrop still reads through, with a hairline for definition.
+    readonly property color glass_accent: Qt.alpha(colors.primary, 0.38)
+    readonly property color glass_accent_soft: Qt.alpha(colors.primary_container, 0.32)
+    readonly property color glass_secondary: Qt.alpha(colors.secondary, 0.38)
+    readonly property color glass_secondary_soft: Qt.alpha(colors.secondary_container, 0.32)
+    readonly property color glass_tertiary: Qt.alpha(colors.tertiary, 0.38)
+    readonly property color glass_tertiary_soft: Qt.alpha(colors.tertiary_container, 0.32)
+
+    readonly property color glass_border: Qt.rgba(1, 1, 1, 0.14)
+    readonly property color glass_border_strong: Qt.rgba(1, 1, 1, 0.22)
+
     // --- DATA MAPPER ---
     JsonAdapter {
         id: colors

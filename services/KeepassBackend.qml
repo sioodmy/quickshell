@@ -33,9 +33,9 @@ Item {
         BackendDaemon.send({ action: "keepass_unlock", request_id: pendingUnlockRequest, password: password });
     }
     
-    function search(query) {
+    function search(query, clientTitle) {
         if (!BackendDaemon.available || !isUnlocked || SessionState.locked) return;
-        BackendDaemon.send({ action: "keepass_search", query: query });
+        BackendDaemon.send({ action: "keepass_search", query: query, client_title: clientTitle || null });
     }
     
     function copyField(id, field) {

@@ -15,6 +15,7 @@ Item {
         target: KeepassBackend
         function onEntrySelected(entry) {
             if (!KeepassBackend.isUnlocked || SessionState.locked) return;
+            keepassEntryRelease.stop();
             root.keepassEntry = entry;
             root.activeMode = "keepass";
         }
@@ -27,8 +28,8 @@ Item {
     id: root
     
     // Explicit sizing for Dock.qml to animate notchBg
-    implicitWidth: layout.implicitWidth
-    implicitHeight: layout.implicitHeight
+    implicitWidth: morph.implicitWidth
+    implicitHeight: morph.implicitHeight
 
     // State
     property string activeMode: "dock" // "dock", "notification", "screenshot", "battery", "polkit"
@@ -46,15 +47,15 @@ Item {
     property bool polkitYubikey: false
     property var keepassEntry: null
 
-    // OSD state
+    // OSD state — inlined into the dock (progress fill + icon pop).
+    // Never takes over activeMode so dock widgets stay visible.
+    property bool osdVisible: false
     property real osdDockWidth: 300
     property real osdDockHeight: 42
     property string osdType: "volume" // "volume" or "brightness"
     property real osdProgress: 0.0
     property string osdIcon: "volume_up"
-    property string osdTitle: "Volume"
-    property string osdText: "100%"
-    property color osdColor: "#ffffff"
+    property int osdSeq: 0
     property bool audioInitialized: false
     property bool brightnessInitialized: false
 
@@ -99,12 +100,39 @@ Item {
 
     Timer {
         id: osdTimer
-        interval: 2000
-        onTriggered: {
-            if (root.activeMode === "osd") {
-                root.activeMode = "dock";
-            }
+        interval: 1500
+        onTriggered: root.osdVisible = false
+    }
+
+    onActiveModeChanged: {
+        if (root.activeMode !== "dock")
+            root.osdVisible = false;
+    }
+
+    Connections {
+        target: LauncherState
+        function onOpenChanged() {
+            if (LauncherState.open)
+                root.osdVisible = false;
         }
+    }
+
+    Connections {
+        target: KeepassState
+        function onOpenChanged() {
+            if (KeepassState.open)
+                root.osdVisible = false;
+        }
+    }
+
+    function osdAllowed() {
+        if (root.activeMode !== "dock")
+            return false;
+        if (LauncherState.open)
+            return false;
+        if (KeepassState.open)
+            return false;
+        return true;
     }
 
     function triggerVolumeOsd() {
@@ -112,13 +140,13 @@ Item {
             audioInitialized = true;
             return;
         }
+        if (!osdAllowed())
+            return;
         root.osdType = "volume";
         root.osdProgress = isMuted ? 0 : Math.min(1.0, Math.max(0.0, volumeLevel));
         root.osdIcon = isMuted ? "volume_off" : (volumeLevel > 0.5 ? "volume_up" : (volumeLevel > 0 ? "volume_down" : "volume_mute"));
-        root.osdTitle = "Volume";
-        root.osdText = isMuted ? "Muted" : Math.round(volumeLevel * 100) + "%";
-        root.osdColor = "#ffffff";
-        root.activeMode = "osd";
+        root.osdVisible = true;
+        root.osdSeq++;
         osdTimer.restart();
     }
 
@@ -127,14 +155,14 @@ Item {
             brightnessInitialized = true;
             return;
         }
+        if (!osdAllowed())
+            return;
         var val = Brightness.value;
         root.osdType = "brightness";
         root.osdProgress = Math.min(1.0, Math.max(0.0, val));
         root.osdIcon = val >= 0.7 ? "brightness_7" : (val >= 0.3 ? "brightness_5" : "brightness_6");
-        root.osdTitle = "Brightness";
-        root.osdText = Math.round(val * 100) + "%";
-        root.osdColor = "#ffffff";
-        root.activeMode = "osd";
+        root.osdVisible = true;
+        root.osdSeq++;
         osdTimer.restart();
     }
 
@@ -148,9 +176,16 @@ Item {
         }
     }
     
+    // Mode whose content is actually built and on screen. `activeMode` is the
+    // request; this lags it while a heavy island incubates. Dock geometry keys
+    // off this so the notch never expands around content that isn't there yet.
+    readonly property string displayMode: morph.displayedKey
+
     // API for Dock.qml to check if it should hide normal content
-    readonly property bool isDockHidden: activeMode !== "dock"
-    readonly property bool requiresKeyboard: activeMode === "polkit" && !polkitYubikey
+    readonly property bool isDockHidden: displayMode !== "dock"
+    // Claim the keyboard on request and hold it through the closing fade, so
+    // focus is never dropped while the prompt is still visible.
+    readonly property bool requiresKeyboard: (activeMode === "polkit" || displayMode === "polkit") && !polkitYubikey
     
     // --- Connections ---
     
@@ -169,10 +204,13 @@ Item {
         function onOverlayActiveChanged() {
             if (Screenshot.overlayActive) {
                 root.activeMode = "screenshot";
-            } else {
-                if (root.activeMode === "screenshot") {
+            } else if (root.activeMode === "screenshot") {
+                // Capture is in flight (or already ready) — morph straight into
+                // the result island instead of flashing dock chrome.
+                if (Screenshot.awaitingCapture || Screenshot.active)
+                    root.activeMode = "screenshot_result";
+                else
                     root.activeMode = "dock";
-                }
             }
         }
         
@@ -180,9 +218,14 @@ Item {
             if (Screenshot.active) {
                 root.activeMode = "screenshot_result";
                 notificationTimer.restart();
-            } else if (root.activeMode === "screenshot_result") {
+            } else if (root.activeMode === "screenshot_result" && !Screenshot.awaitingCapture) {
                 root.activeMode = "dock";
             }
+        }
+
+        function onAwaitingCaptureChanged() {
+            if (!Screenshot.awaitingCapture && !Screenshot.active && root.activeMode === "screenshot_result")
+                root.activeMode = "dock";
         }
     }
     
@@ -300,41 +343,48 @@ Item {
     }
 
     // Layout
-    Item {
-        id: layout
+    IslandMorph {
+        id: morph
         anchors.centerIn: parent
-        implicitWidth: Math.max(0, loader.implicitWidth)
-        implicitHeight: Math.max(0, loader.implicitHeight)
-        
-        Loader {
-            id: loader
-            anchors.centerIn: parent
-            sourceComponent: {
-                if (root.activeMode === "notification") return notifComp;
-                if (root.activeMode === "screenshot") return screenshotComp;
-                if (root.activeMode === "battery") return batteryComp;
-                if (root.activeMode === "screenshot_result") return screenshotResultComp;
-                if (root.activeMode === "recording") return recordingComp;
-                if (root.activeMode === "polkit") return polkitComp;
-                if (root.activeMode === "keepass") return keepassComp;
-                if (root.activeMode === "speaker_warning") return speakerWarningComp;
-                if (root.activeMode === "calendar") return calendarComp;
-                if (root.activeMode === "osd") return osdComp;
-                if (root.activeMode === "charging") return chargingComp;
-                if (root.activeMode === "drag_queen") return dragQueenComp;
-                return emptyComp;
-            }
+        requestedKey: root.activeMode
+        resolve: root.componentForMode
+    }
+
+    // Returning null for "dock" lets the morph collapse without incubating an
+    // empty placeholder tree.
+    function componentForMode(mode) {
+        switch (mode) {
+        case "notification": return notifComp;
+        case "screenshot": return screenshotComp;
+        case "battery": return batteryComp;
+        case "screenshot_result": return screenshotResultComp;
+        case "recording": return recordingComp;
+        case "polkit": return polkitComp;
+        case "keepass": return keepassComp;
+        case "speaker_warning": return speakerWarningComp;
+        case "calendar": return calendarComp;
+        case "charging": return chargingComp;
+        case "drag_queen": return dragQueenComp;
+        default: return null;
         }
     }
 
     // --- Components ---
+    // The entry outlives the mode change: clearing it on the spot would blank
+    // the island while it is still fading out. Lock clears immediately.
+    Timer {
+        id: keepassEntryRelease
+        interval: 260
+        onTriggered: if (root.activeMode !== "keepass") root.keepassEntry = null
+    }
+
     Component {
         id: keepassComp
         IslandKeepass {
             entry: root.keepassEntry
             onCloseRequested: {
                 root.activeMode = "dock";
-                root.keepassEntry = null;
+                keepassEntryRelease.restart();
             }
         }
     }
@@ -345,19 +395,6 @@ Item {
         IslandCharging {
             osdDockWidth: root.osdDockWidth
             osdDockHeight: root.osdDockHeight
-        }
-    }
-
-    Component {
-        id: osdComp
-        IslandOsd {
-            osdDockWidth: root.osdDockWidth
-            osdDockHeight: root.osdDockHeight
-            osdProgress: root.osdProgress
-            osdIcon: root.osdIcon
-            osdTitle: root.osdTitle
-            osdText: root.osdText
-            osdColor: root.osdColor
         }
     }
 
@@ -394,14 +431,6 @@ Item {
             onSubmitRequested: function(password) {
                 BackendDaemon.polkitSubmit(root.polkitCookie, password);
             }
-        }
-    }
-
-    Component {
-        id: emptyComp
-        Item {
-            implicitWidth: 0
-            implicitHeight: 0
         }
     }
 
@@ -470,7 +499,11 @@ Item {
     Component {
         id: dragQueenComp
         IslandDragQueen {
-            dragHover: root._dragQueenDragHover
+            dockDragHover: root._dragQueenDragHover
+            onLocalDragHoverChanged: {
+                if (localDragHover)
+                    root._dragQueenDragHover = true;
+            }
             onRequestClose: {
                 if (root.activeMode === "drag_queen") root.activeMode = "dock";
             }

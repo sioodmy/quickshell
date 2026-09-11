@@ -97,9 +97,14 @@ impl FileShareHandle {
             .to_string();
 
         {
-            let shares = self.shares.read().await;
+            let shares = self.shares.write().await;
             if shares.len() >= MAX_SHARES {
-                return Err(anyhow!("too many active shares (max {MAX_SHARES})"));
+                // Single-file mode: replace whatever is already being shared.
+                for (_, entry) in shares.iter_mut() {
+                    entry.cancelled.store(true, Ordering::Relaxed);
+                    entry.status = ShareStatus::Cancelled;
+                }
+                shares.clear();
             }
         }
 

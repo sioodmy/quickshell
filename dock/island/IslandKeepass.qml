@@ -119,25 +119,24 @@ Row {
         }
     }
 
-    // Small delay so user sees the final checkmark before it closes
     Timer {
         id: autoCloseDelay
         interval: 600
         onTriggered: root.closeRequested()
     }
 
-    // Safety timeout
     Timer {
         running: true
         interval: 60000
         onTriggered: root.closeRequested()
     }
 
-    // Icon
     Rectangle {
         width: 32; height: 32; radius: 16
         anchors.verticalCenter: parent.verticalCenter
-        color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.22)
+        color: Theme.glass_accent
+        border.width: 1
+        border.color: Theme.glass_border
 
         MaterialIcon {
             anchors.centerIn: parent
@@ -147,7 +146,6 @@ Row {
         }
     }
 
-    // Title
     Column {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
@@ -174,21 +172,20 @@ Row {
         }
     }
 
-    Item { width: 4; height: 1 } // Spacer
+    Item { width: 4; height: 1 }
 
-    // Action buttons
     Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
 
-        // Username
         Rectangle {
             visible: root.entry && root.entry.username !== ""
             width: userRow.implicitWidth + 16
             height: 28; radius: 14
-            color: root.copiedUser ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15) : (userBtnMouse.containsMouse ? Theme.surface_variant : Theme.surface_container_highest)
-            border.width: root.copiedUser ? 1 : 0
-            border.color: Theme.primary
+            color: root.copiedUser ? Theme.glass_accent_soft
+                : (userBtnMouse.containsMouse ? Theme.glass_hover : Theme.glass_raised)
+            border.width: 1
+            border.color: root.copiedUser ? Theme.primary : Theme.glass_border
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -223,14 +220,14 @@ Row {
             }
         }
 
-        // Password
         Rectangle {
             width: passRow.implicitWidth + 16
             height: 28; radius: 14
-            color: root.copiedPass ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.15) : Theme.primary
-            border.width: root.copiedPass ? 1 : 0
-            border.color: Theme.primary
-            opacity: passBtnMouse.containsMouse ? 0.85 : 1.0
+            color: root.copiedPass ? Theme.glass_accent_soft : Theme.glass_accent
+            border.width: 1
+            border.color: root.copiedPass ? Theme.primary : Theme.glass_border
+
+            Behavior on color { ColorAnimation { duration: 120 } }
 
             Row {
                 id: passRow
@@ -239,7 +236,7 @@ Row {
                 MaterialIcon {
                     icon: root.copiedPass ? "check" : "key"
                     font.pixelSize: 13
-                    color: root.copiedPass ? Theme.primary : Theme.on_primary
+                    color: Theme.primary
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -248,7 +245,7 @@ Row {
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
-                    color: root.copiedPass ? Theme.primary : Theme.on_primary
+                    color: Theme.primary
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -263,26 +260,26 @@ Row {
             }
         }
 
-        // OTP
         Rectangle {
             visible: root.entry && root.entry.has_otp
             width: otpRow.implicitWidth + 24
             height: 28; radius: 14
-            color: root.copiedOtp ? Qt.rgba(Theme.tertiary.r, Theme.tertiary.g, Theme.tertiary.b, 0.15) : Theme.tertiary
-            border.width: root.copiedOtp ? 1 : 0
-            border.color: Theme.tertiary
-            opacity: otpBtnMouse.containsMouse ? 0.85 : 1.0
+            color: root.copiedOtp ? Theme.glass_tertiary_soft : Theme.glass_tertiary
+            border.width: 1
+            border.color: root.copiedOtp ? Theme.tertiary : Theme.glass_border
+
+            Behavior on color { ColorAnimation { duration: 120 } }
 
             Row {
                 id: otpRow
                 anchors.centerIn: parent
                 spacing: 6
-                
+
                 Item {
                     width: 14; height: 14
                     anchors.verticalCenter: parent.verticalCenter
                     visible: !root.copiedOtp && root.currentOtp !== ""
-                    
+
                     Canvas {
                         anchors.fill: parent
                         property real progress: root.otpRemaining / 30.0
@@ -293,18 +290,18 @@ Row {
                             var cx = width / 2;
                             var cy = height / 2;
                             var r = width / 2 - 1.5;
-                            
+
                             ctx.beginPath();
                             ctx.arc(cx, cy, r, 0, 2 * Math.PI);
                             ctx.lineWidth = 1.5;
-                            ctx.strokeStyle = Qt.rgba(Theme.on_tertiary.r, Theme.on_tertiary.g, Theme.on_tertiary.b, 0.3);
+                            ctx.strokeStyle = Qt.alpha(Theme.tertiary, 0.3);
                             ctx.stroke();
-                            
+
                             if (progress > 0) {
                                 ctx.beginPath();
-                                ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + (2 * Math.PI * progress));
+                                ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * progress));
                                 ctx.lineWidth = 1.5;
-                                ctx.strokeStyle = Theme.on_tertiary;
+                                ctx.strokeStyle = Theme.tertiary;
                                 ctx.stroke();
                             }
                         }
@@ -314,18 +311,18 @@ Row {
                 MaterialIcon {
                     icon: root.copiedOtp ? "check" : "pin"
                     font.pixelSize: 13
-                    color: root.copiedOtp ? Theme.tertiary : Theme.on_tertiary
+                    color: Theme.tertiary
                     anchors.verticalCenter: parent.verticalCenter
                     visible: root.copiedOtp || root.currentOtp === ""
                 }
-                
+
                 Text {
                     text: root.pendingCopyField === "otp" ? "Copying..." : root.failedCopyField === "otp" ? "Copy failed" : root.copiedOtp ? "Copied" : (root.currentOtp ? root.currentOtp.substring(0, 3) + " " + root.currentOtp.substring(3) : "OTP")
                     textFormat: Text.PlainText
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
-                    color: root.copiedOtp ? Theme.tertiary : Theme.on_tertiary
+                    color: Theme.tertiary
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -341,13 +338,14 @@ Row {
         }
     }
 
-    Item { width: 4; height: 1 } // Spacer
+    Item { width: 4; height: 1 }
 
-    // Close
     Rectangle {
         width: 32; height: 32; radius: 16
         anchors.verticalCenter: parent.verticalCenter
-        color: closeBtnMouse.containsMouse ? Theme.surface_variant : "transparent"
+        color: closeBtnMouse.containsMouse ? Theme.glass_hover : "transparent"
+        border.width: closeBtnMouse.containsMouse ? 1 : 0
+        border.color: Theme.glass_border
 
         MaterialIcon {
             anchors.centerIn: parent

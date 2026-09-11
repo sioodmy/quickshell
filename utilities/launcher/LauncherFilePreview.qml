@@ -12,7 +12,7 @@ Item {
 
                         Rectangle {
                             anchors.fill: parent
-                            color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.03)
+                            color: Qt.alpha(Theme.on_surface, 0.03)
                         }
 
                     // ── WiFi share QR view (replaces preview when active) ──
@@ -30,8 +30,8 @@ Item {
 
                         transform: [
                             Scale {
-                                origin.x: parent.width / 2
-                                origin.y: parent.height / 2
+                                origin.x: shareView.width / 2
+                                origin.y: shareView.height / 2
                                 xScale: 0.94 + 0.06 * (launcherWindow ? launcherWindow.shareViewBlend : 0)
                                 yScale: 0.94 + 0.06 * (launcherWindow ? launcherWindow.shareViewBlend : 0)
                                 Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
@@ -56,7 +56,9 @@ Item {
                                     width: 34
                                     height: 34
                                     radius: 17
-                                    color: shareBackMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container
+                                    color: shareBackMouse.containsMouse ? Theme.glass_raised : Theme.glass_panel
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -108,13 +110,38 @@ Item {
                                     anchors.centerIn: parent
                                     width: shareView.qrSize
                                     height: shareView.qrSize
-                                    source: launcherWindow.shareData && launcherWindow.shareData.qr_svg
-                                        ? "data:image/svg+xml;utf8," + encodeURIComponent(launcherWindow.shareData.qr_svg)
-                                        : ""
+                                    source: {
+                                        if (!launcherWindow || !launcherWindow.shareData || !launcherWindow.shareData.qr_svg)
+                                            return "";
+                                        return "data:image/svg+xml;utf8," + encodeURIComponent(launcherWindow.shareData.qr_svg);
+                                    }
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
-                                    asynchronous: true
+                                    asynchronous: false
+                                    cache: false
                                     sourceSize: Qt.size(256, 256)
+                                }
+
+                                // Loading / error placeholder while the backend prepares the QR
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    visible: !qrImage.source || qrImage.status !== Image.Ready
+
+                                    MaterialIcon {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        icon: BackendDaemon.fileShareError !== "" ? "error" : "hourglass_empty"
+                                        font.pixelSize: 28
+                                        color: BackendDaemon.fileShareError !== "" ? "#B3261E" : "#5C5C5C"
+                                    }
+                                    Text {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: BackendDaemon.fileShareError !== ""
+                                            ? "Share failed"
+                                            : "Generating QR…"
+                                        color: "#5C5C5C"
+                                        font { family: "Google Sans"; pixelSize: 11 }
+                                    }
                                 }
                             }
 
@@ -133,7 +160,9 @@ Item {
                                 width: parent.width
                                 height: 40
                                 radius: 16
-                                color: copyLinkMouse.containsMouse ? Theme.primary : Theme.primary_container
+                                color: copyLinkMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                                border.width: 1
+                                border.color: Theme.glass_border
 
                                 Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -144,12 +173,12 @@ Item {
                                     MaterialIcon {
                                         icon: "link"
                                         font.pixelSize: 14
-                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                                        color: Theme.primary
                                     }
                                     Text {
                                         text: "Copy link"
                                         font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                                        color: Theme.primary
                                     }
                                 }
 
@@ -229,7 +258,7 @@ Item {
                             Rectangle {
                                 anchors.fill: parent
                                 color: "transparent"
-                                border.color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                                border.color: Qt.alpha(Theme.on_surface, 0.06)
                                 border.width: 1
                                 radius: 12
                                 visible: imagePreview.status === Image.Ready
@@ -275,7 +304,7 @@ Item {
                             height: 40
                             gradient: Gradient {
                                 GradientStop { position: 0.0; color: "transparent" }
-                                GradientStop { position: 1.0; color: Theme.surface }
+                                GradientStop { position: 1.0; color: Theme.glass_fade }
                             }
                         }
 
@@ -381,13 +410,15 @@ Item {
                                         height: 24
                                         width: formatChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.primary_container
+                                        color: Theme.glass_accent_soft
+                                        border.width: 1
+                                        border.color: Theme.glass_border
 
                                         Text {
                                             id: formatChipText
                                             anchors.centerIn: parent
                                             text: (archivePreview.listing && archivePreview.listing.format) || ""
-                                            color: Theme.on_primary_container
+                                            color: Theme.primary
                                             font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                         }
                                     }
@@ -397,7 +428,9 @@ Item {
                                         height: 24
                                         width: filesChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.secondary_container
+                                        color: Theme.glass_secondary_soft
+                                        border.width: 1
+                                        border.color: Theme.glass_border
 
                                         Text {
                                             id: filesChipText
@@ -410,7 +443,7 @@ Item {
                                                     t += " · " + L.dir_count + (L.dir_count === 1 ? " folder" : " folders");
                                                 return t;
                                             }
-                                            color: Theme.on_secondary_container
+                                            color: Theme.secondary
                                             font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                         }
                                     }
@@ -420,7 +453,9 @@ Item {
                                         height: 24
                                         width: sizeChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.surface_container_highest
+                                        color: Theme.glass_raised
+                                        border.width: 1
+                                        border.color: Theme.glass_border
 
                                         Text {
                                             id: sizeChipText
@@ -440,13 +475,15 @@ Item {
                                         height: 24
                                         width: truncChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.tertiary_container
+                                        color: Theme.glass_tertiary_soft
+                                        border.width: 1
+                                        border.color: Theme.glass_border
 
                                         Text {
                                             id: truncChipText
                                             anchors.centerIn: parent
                                             text: "truncated"
-                                            color: Theme.on_tertiary_container
+                                            color: Theme.tertiary
                                             font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                         }
                                     }
@@ -486,7 +523,7 @@ Item {
                                 height: 36
                                 gradient: Gradient {
                                     GradientStop { position: 0.0; color: "transparent" }
-                                    GradientStop { position: 1.0; color: Theme.surface }
+                                    GradientStop { position: 1.0; color: Theme.glass_fade }
                                 }
                             }
                         }
@@ -555,17 +592,11 @@ Item {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         height: metaColumn.implicitHeight + 32
-                        color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.04)
-                        radius: 28
-
-                        // Only round bottom corners
-                        Rectangle {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: 28
-                            color: parent.color
-                        }
+                        color: Qt.alpha(Theme.on_surface, 0.04)
+                        // Per-corner radii instead of an overlaid square-off
+                        // rectangle, which would double the translucent wash.
+                        bottomLeftRadius: 28
+                        bottomRightRadius: 28
 
                         Column {
                             id: metaColumn
@@ -617,35 +648,25 @@ Item {
 
                             Item { width: 1; height: 6 }
 
-                            // Action buttons row
+                            // Action buttons row — icon-only so share stays visible
                             Row {
                                 spacing: 8
 
                                 Rectangle {
-                                    width: copyFileRow.width + 20
+                                    width: 32
                                     height: 32
                                     radius: 16
-                                    color: copyFileMouse.containsMouse ? Theme.primary : Theme.primary_container
+                                    color: copyFileMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                                    Row {
-                                        id: copyFileRow
+                                    MaterialIcon {
                                         anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "content_copy"
-                                            font.pixelSize: 14
-                                            color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "Copy"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                        }
+                                        icon: "content_copy"
+                                        font.pixelSize: 16
+                                        color: Theme.primary
                                     }
 
                                     MouseArea {
@@ -661,30 +682,20 @@ Item {
                                 }
 
                                 Rectangle {
-                                    width: copyPathRow.width + 20
+                                    width: 32
                                     height: 32
                                     radius: 16
-                                    color: copyPathMouse.containsMouse ? Theme.secondary : Theme.secondary_container
+                                    color: copyPathMouse.containsMouse ? Theme.glass_secondary : Theme.glass_secondary_soft
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
-                                    Row {
-                                        id: copyPathRow
+                                    MaterialIcon {
                                         anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "content_copy"
-                                            font.pixelSize: 14
-                                            color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "Path"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
-                                        }
+                                        icon: "link"
+                                        font.pixelSize: 16
+                                        color: Theme.secondary
                                     }
 
                                     MouseArea {
@@ -705,7 +716,6 @@ Item {
                                     readonly property bool alreadyStashed: FileStash.count >= 0
                                         && !!(launcherWindow && launcherWindow.selectedFileData)
                                         && FileStash.indexOfPath((launcherWindow && launcherWindow.selectedFileData).path) !== -1
-                                    // Soft M3-weight pride tones
                                     readonly property color prideRed: "#E57373"
                                     readonly property color prideOrange: "#FFB74D"
                                     readonly property color prideYellow: "#FFF176"
@@ -713,19 +723,19 @@ Item {
                                     readonly property color prideBlue: "#64B5F6"
                                     readonly property color prideViolet: "#BA68C8"
 
-                                    width: stashFileRow.width + 20
+                                    width: 32
                                     height: 32
                                     radius: 16
-                                    color: Theme.surface_container_high
+                                    color: Theme.glass_panel
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
-                                    // Soft pride wash — denser on hover / when already queued
-                                    // Same radius as parent so corners stay round (clip ignores radius)
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: parent.radius
                                         opacity: stashFileMouse.containsMouse
-                                            ? 0.42
-                                            : (stashFileBtn.alreadyStashed ? 0.28 : 0.18)
+                                            ? 0.28
+                                            : (stashFileBtn.alreadyStashed ? 0.18 : 0.10)
                                         Behavior on opacity { NumberAnimation { duration: 100 } }
                                         gradient: Gradient {
                                             orientation: Gradient.Horizontal
@@ -738,23 +748,11 @@ Item {
                                         }
                                     }
 
-                                    Row {
-                                        id: stashFileRow
+                                    MaterialIcon {
                                         anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "draft"
-                                            font.pixelSize: 14
-                                            color: Theme.on_surface
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: stashFileBtn.alreadyStashed ? "Dragged" : "Drag Queen"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: Theme.on_surface
-                                        }
+                                        icon: stashFileBtn.alreadyStashed ? "check" : "move_to_inbox"
+                                        font.pixelSize: 16
+                                        color: Theme.on_surface
                                     }
 
                                     MouseArea {
@@ -780,15 +778,17 @@ Item {
                                     width: 32
                                     height: 32
                                     radius: 16
-                                    color: shareFileMouse.containsMouse ? Theme.tertiary : Theme.tertiary_container
+                                    color: shareFileMouse.containsMouse ? Theme.glass_tertiary : Theme.glass_tertiary_soft
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
                                     Behavior on color { ColorAnimation { duration: 100 } }
 
                                     MaterialIcon {
                                         anchors.centerIn: parent
-                                        icon: "share"
+                                        icon: "qr_code"
                                         font.pixelSize: 16
-                                        color: shareFileMouse.containsMouse ? Theme.on_tertiary : Theme.on_tertiary_container
+                                        color: Theme.tertiary
                                     }
 
                                     MouseArea {
@@ -799,8 +799,6 @@ Item {
                                         onClicked: {
                                             if (!(launcherWindow && launcherWindow.selectedFileData))
                                                 return;
-                                            // Optimistic UI: show the QR/share panel immediately
-                                            // so the button never feels dead.
                                             BackendDaemon.fileShareError = "";
                                             launcherWindow.shareModeActive = true;
                                             launcherWindow.shareData = null;
@@ -810,11 +808,9 @@ Item {
                                 }
                             }
 
-                            // If the backend rejects the share request, the QR button
-                            // would otherwise look "dead" (no animation/no view).
                             Text {
                                 width: parent.width
-                                visible: BackendDaemon.fileShareError !== "" && (!launcherWindow || !launcherWindow.shareModeActive)
+                                visible: BackendDaemon.fileShareError !== ""
                                 text: BackendDaemon.fileShareError
                                 color: Theme.critical
                                 elide: Text.ElideRight

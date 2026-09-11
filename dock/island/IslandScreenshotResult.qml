@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.theme
 import qs.services
 import qs.components
@@ -36,15 +35,18 @@ Row {
             asynchronous: true
             cache: false
             sourceSize.width: 400
-            layer.enabled: Screenshot.imagePath !== ""
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: previewMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
-            }
+            visible: status === Image.Ready
         }
-        Rectangle { id: previewMask; anchors.fill: parent; radius: 12; visible: false; layer.enabled: previewImg.layer.enabled }
+
+        // Placeholder while grim is still writing / image is loading.
+        Text {
+            anchors.centerIn: parent
+            visible: previewImg.status !== Image.Ready
+            text: Screenshot.awaitingCapture ? "…" : "No preview"
+            color: Theme.on_surface_variant
+            font.family: "Google Sans"
+            font.pixelSize: 12
+        }
     }
 
     Grid {
@@ -64,9 +66,9 @@ Row {
             height: 36
             radius: 18
             color: {
-                if (done) return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18);
-                if (pillMouse.containsMouse) return Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.14);
-                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
+                if (done) return Qt.alpha(Theme.primary, 0.18);
+                if (pillMouse.containsMouse) return Qt.alpha(Theme.primary, 0.14);
+                return Qt.alpha(Theme.on_surface, 0.08);
             }
             Behavior on color { ColorAnimation { duration: 150 } }
             scale: pillMouse.pressed ? 0.94 : 1.0

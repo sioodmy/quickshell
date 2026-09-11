@@ -23,7 +23,9 @@ Item {
         width: parent.width
         height: 72
         radius: 20
-        color: Theme.primary_container
+        color: Theme.glass_accent_soft
+        border.width: 1
+        border.color: Theme.glass_border
 
         Row {
             anchors.fill: parent
@@ -75,7 +77,9 @@ Item {
                 width: 70
                 height: 32
                 radius: 16
-                color: calcCopyMouse.containsMouse ? Theme.primary : Qt.tint(Theme.primary_container, Qt.rgba(Theme.on_primary_container.r, Theme.on_primary_container.g, Theme.on_primary_container.b, 0.12))
+                color: calcCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                border.width: 1
+                border.color: Theme.glass_border
 
                 Behavior on color {
                     ColorAnimation { duration: 100 }
@@ -88,7 +92,7 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "Copy"
-                        color: calcCopyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                        color: Theme.primary
                         font {
                             family: "Google Sans"
                             pixelSize: 12
@@ -99,7 +103,7 @@ Item {
                     MaterialIcon {
                         anchors.verticalCenter: parent.verticalCenter
                         icon: "content_copy"
-                        color: calcCopyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
+                        color: Theme.primary
                         font.pixelSize: 14
                     }
                 }

@@ -3,9 +3,8 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.Shapes
-import "../../theme"
+import qs.theme
 import qs.services
 import qs.components
 
@@ -21,9 +20,9 @@ PanelWindow {
     color: "transparent"
     visible: menuOpen || openAnim.running || closeAnim.running
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.namespace: "keepass_overlay"
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-    exclusiveZone: -1
+    WlrLayershell.namespace: "quickshell-keepass"
+    WlrLayershell.keyboardFocus: menuOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
     readonly property bool isUnlocked: KeepassBackend.isUnlocked
     property var searchResults: []
@@ -31,8 +30,24 @@ PanelWindow {
     readonly property bool authenticating: KeepassBackend.unlockPending
     property string authError: ""
     property bool menuOpen: false
+    property bool panelExpanded: false
     property real openProgress: 0.0
     property int selectedIndex: 0
+    property string activeWindowTitle: ""
+
+    readonly property real panelTargetHeight: isUnlocked
+        ? KeepassState.targetHeightUnlocked
+        : KeepassState.targetHeightLocked
+
+    Instantiator {
+        model: NiriService.windows
+        delegate: QtObject {
+            property bool winIsFocused: model.isFocused !== undefined ? model.isFocused : false
+            property string winTitle: model.title || ""
+            onWinIsFocusedChanged: if (winIsFocused && winTitle !== "") keepassWindow.activeWindowTitle = winTitle;
+            Component.onCompleted: if (winIsFocused && winTitle !== "") keepassWindow.activeWindowTitle = winTitle;
+        }
+    }
 
     onMenuOpenChanged: {
         if (!menuOpen) {
@@ -41,39 +56,134 @@ PanelWindow {
         }
     }
 
+    // Fullscreen surface for click-away; only this region is blurred.
+    BackgroundEffect.blurRegion: Region {
+        readonly property real panelWidth: Math.max(1, panelShell.width)
+        readonly property real panelHeight: Math.max(1, panelShell.height)
+
+        x: Math.round((keepassWindow.width - panelWidth) / 2)
+        y: 0
+        width: panelWidth
+        height: panelHeight
+        radius: 0
+    }
+
+    // Set once this surface has presented a frame since being mapped.
+    property bool _framePresented: false
+
+    // The reveal has to start on the frame this surface first reaches the
+    // screen. Starting it from openMenu() lets these wall-clock animations run
+    // down while the surface is still being mapped, so under load the first
+    // visible frame lands mid-animation and the panel pops into view.
+    // grabToImage's callback runs after this window has rendered, which is the
+    // only signal available for that: PanelWindow does not expose the backing
+    // QQuickWindow, and backingWindowVisible flips synchronously on map,
+    // several frames too early to be useful.
+
+    // Draws nothing. It exists only to give grabToImage something to grab.
+    Item {
+        id: frameProbe
+        width: 1
+        height: 1
+    }
+
+    function _armRevealProbe() {
+        var started = frameProbe.grabToImage(function () {
+            keepassWindow._onFramePresented();
+        }, Qt.size(1, 1));
+        if (!started) {
+            // No frame signal to wait for; reveal as the old code did.
+            _framePresented = true;
+            _beginReveal();
+            return;
+        }
+        revealFallback.restart();
+    }
+
+    // Insurance: never leave the overlay stuck invisible if no frame arrives.
+    Timer {
+        id: revealFallback
+        interval: 400
+        onTriggered: {
+            keepassWindow._framePresented = true;
+            keepassWindow._beginReveal();
+        }
+    }
+
+    function _onFramePresented() {
+        if (_framePresented || !menuOpen)
+            return;
+        _framePresented = true;
+        _beginReveal();
+    }
+
+    function _beginReveal() {
+        if (!menuOpen || openAnim.running || openProgress > 0)
+            return;
+        revealFallback.stop();
+        panelExpanded = true;
+        if (isUnlocked)
+            searchInput.forceActiveFocus();
+        else
+            passwordInput.forceActiveFocus();
+        openAnim.start();
+    }
+
     NumberAnimation {
         id: openAnim
         target: keepassWindow
         property: "openProgress"
         from: 0; to: 1
-        duration: 200
+        duration: 280
         easing.type: Easing.OutCubic
+        onFinished: KeepassState.openProgress = 1.0
     }
 
     NumberAnimation {
         id: closeAnim
         target: keepassWindow
         property: "openProgress"
-        from: 1; to: 0
-        duration: 150
+        // No `from`: closing before the reveal has started must not snap the
+        // panel to full size just to animate it back down.
+        to: 0
+        duration: 200
         easing.type: Easing.InCubic
-        onFinished: keepassWindow.menuOpen = false
+        onFinished: {
+            keepassWindow.menuOpen = false;
+            keepassWindow._framePresented = false;
+            KeepassState.open = false;
+            KeepassState.openProgress = 0.0;
+            KeepassState.screen = null;
+        }
     }
+
+    onOpenProgressChanged: KeepassState.openProgress = openProgress
 
     function openMenu() {
         if (SessionState.locked || menuOpen) return;
+        // One expanded notch at a time.
+        if (LauncherState.open || LauncherState.openProgress > 0.001)
+            LauncherState.requestClose();
+
         closeAnim.stop();
+        openProgress = 0;
+        panelExpanded = false;
+        _framePresented = false;
         menuOpen = true;
         authError = "";
+        // Claim the dock notch now. The dock holds its own chrome until this
+        // surface reports progress, so the handoff has no uncovered frame.
+        KeepassState.open = true;
+        KeepassState.screen = keepassWindow.screen;
+
+        // Populate before the reveal, never during it.
         if (isUnlocked) {
             searchInput.text = "";
-            KeepassBackend.search("");
-            searchInput.forceActiveFocus();
+            KeepassBackend.search("", keepassWindow.activeWindowTitle);
         } else {
             passwordInput.text = "";
-            passwordInput.forceActiveFocus();
         }
-        openAnim.start();
+        _armRevealProbe();
     }
 
     function closeMenu() {
@@ -81,8 +191,11 @@ PanelWindow {
         authError = "";
         if (authenticating) KeepassBackend.lock();
         if (!menuOpen) return;
-        menuOpen = false;
+        revealFallback.stop();
         openAnim.stop();
+        panelExpanded = false;
+        // Keep KeepassState.open true until closeAnim finishes so the dock
+        // notch stays expanded while content fades out.
         closeAnim.start();
     }
 
@@ -93,11 +206,8 @@ PanelWindow {
 
     onVisibleChanged: {
         if (visible && menuOpen) {
-            if (isUnlocked) {
-                searchInput.forceActiveFocus();
-            } else {
-                passwordInput.forceActiveFocus();
-            }
+            if (isUnlocked) searchInput.forceActiveFocus();
+            else passwordInput.forceActiveFocus();
         }
     }
 
@@ -108,7 +218,7 @@ PanelWindow {
             if (!menuOpen) return;
             if (success) {
                 authError = "";
-                KeepassBackend.search("");
+                KeepassBackend.search("", keepassWindow.activeWindowTitle);
                 searchInput.forceActiveFocus();
             } else {
                 authError = error || "Unable to unlock database";
@@ -137,87 +247,65 @@ PanelWindow {
         }
     }
 
-    // Scrim
-    Rectangle {
-        anchors.fill: parent
-        color: "#000000"
-        opacity: keepassWindow.openProgress * 0.3
+    Connections {
+        target: KeepassState
+        function onCloseRequested() {
+            if (keepassWindow.menuOpen || keepassWindow.openProgress > 0)
+                keepassWindow.closeMenu();
+        }
     }
 
-    // Click-away to dismiss
+    // Click-away to dismiss (no opaque scrim — glass island only)
     MouseArea {
         anchors.fill: parent
         onClicked: keepassWindow.closeMenu()
     }
 
+    // Clip shell springs from dock footprint → island size.
     Item {
-        id: mainUi
-        enabled: keepassWindow.menuOpen && !SessionState.locked
-        width: 600
-        height: isUnlocked ? Math.min(520, 88 + Math.max((entriesList.contentHeight || 0) + 32, 120)) : 160
+        id: panelShell
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top
-        anchors.topMargin: parent.height * 0.18
+        y: 0
+        clip: true
+        enabled: keepassWindow.menuOpen && !SessionState.locked
 
-        visible: keepassWindow.openProgress > 0
-        opacity: keepassWindow.openProgress
-        scale: 0.95 + (0.05 * keepassWindow.openProgress)
-        Behavior on height { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        width: keepassWindow.panelExpanded
+            ? KeepassState.targetWidth : Math.max(1, LauncherState.dockWidth)
+        height: keepassWindow.panelExpanded
+            ? keepassWindow.panelTargetHeight : Math.max(1, LauncherState.dockHeight)
 
-        // Shadow
-        Rectangle {
-            id: shadowCaster
-            anchors.fill: parent
-            anchors.margins: 4
-            radius: bg.radius
-            color: Theme.surface
-            visible: false
+        Behavior on width {
+            SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+        }
+        Behavior on height {
+            SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
         }
 
-        MultiEffect {
-            anchors.fill: shadowCaster
-            source: shadowCaster
-            shadowEnabled: true
-            shadowBlur: 1.0
-            shadowColor: "#40000000"
-            shadowVerticalOffset: 8
-            shadowHorizontalOffset: 4
-            opacity: keepassWindow.openProgress
-            visible: keepassWindow.openProgress > 0
-        }
+        ClippingRectangle {
+            id: mainUi
+            width: KeepassState.targetWidth
+            height: keepassWindow.panelTargetHeight
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
 
-        // Rounded mask
-        Item {
-            id: mainUiMask
-            anchors.fill: parent
-            visible: false
-            layer.enabled: keepassWindow.openProgress > 0
-            layer.smooth: true
-            Rectangle {
-                anchors.fill: parent
-                radius: 28
-                color: "black"
-            }
-        }
-
-        Rectangle {
-            id: bg
-            anchors.fill: parent
-            radius: 28
-            color: Theme.surface
+            // Same language as the dock / launcher island.
+            color: Qt.rgba(0, 0, 0, 0.4)
+            topLeftRadius: 0
+            topRightRadius: 0
+            bottomLeftRadius: KeepassState.targetRadius
+            bottomRightRadius: KeepassState.targetRadius
             border.width: 1
-            border.color: Theme.surface_container_high
+            border.color: Qt.rgba(1, 1, 1, 0.1)
+            contentUnderBorder: true
+            // Hidden by opacity alone. Gating `visible` on openProgress pushed
+            // the entry list's first polish into the reveal animation.
+            opacity: keepassWindow.openProgress
+            focus: true
 
-            layer.enabled: keepassWindow.openProgress > 0
-            layer.smooth: true
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: mainUiMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
+            Behavior on height {
+                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
             }
 
-            // Swallow clicks on the card so it doesn't dismiss
             MouseArea { anchors.fill: parent }
 
             Keys.onPressed: event => {
@@ -250,18 +338,26 @@ PanelWindow {
 
                 Column {
                     anchors.centerIn: parent
-                    spacing: 20
-                    width: parent.width - 64
+                    spacing: 16
+                    width: parent.width - 48
 
                     Row {
                         spacing: 12
                         anchors.horizontalCenter: parent.horizontalCenter
 
-                        MaterialIcon {
-                            icon: "lock"
-                            font.pixelSize: 28
-                            color: Theme.primary
+                        Rectangle {
+                            width: 36; height: 36; radius: 18
                             anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.glass_accent
+                            border.width: 1
+                            border.color: Theme.glass_border
+
+                            MaterialIcon {
+                                anchors.centerIn: parent
+                                icon: "lock"
+                                font.pixelSize: 18
+                                color: Theme.primary
+                            }
                         }
 
                         Column {
@@ -269,38 +365,38 @@ PanelWindow {
                             Text {
                                 text: "Unlock KeePass"
                                 font.family: "Google Sans"
-                                font.pixelSize: 20
-                                font.weight: Font.Bold
+                                font.pixelSize: 16
+                                font.weight: Font.DemiBold
                                 color: Theme.on_surface
                             }
                             Text {
                                 text: keepassWindow.authError !== "" ? keepassWindow.authError : "Enter master password"
                                 textFormat: Text.PlainText
                                 font.family: "Google Sans"
-                                font.pixelSize: 13
-                                color: keepassWindow.authError !== "" ? Theme.error : Theme.on_surface_variant
+                                font.pixelSize: 12
+                                color: keepassWindow.authError !== "" ? Theme.critical : Theme.on_surface_variant
                             }
                         }
                     }
 
                     Rectangle {
                         width: parent.width
-                        height: 48
+                        height: 40
                         radius: height / 2
-                        color: Theme.surface_container_highest
+                        color: Theme.glass_raised
                         border.width: 1
-                        border.color: passwordInput.activeFocus ? Theme.primary : "transparent"
+                        border.color: passwordInput.activeFocus ? Theme.primary : Theme.glass_border
 
                         Behavior on border.color { ColorAnimation { duration: 150 } }
 
                         TextInput {
                             id: passwordInput
                             anchors.fill: parent
-                            anchors.leftMargin: 20
-                            anchors.rightMargin: 20
+                            anchors.leftMargin: 18
+                            anchors.rightMargin: 18
                             verticalAlignment: TextInput.AlignVCenter
                             font.family: "Google Sans"
-                            font.pixelSize: 20
+                            font.pixelSize: 18
                             color: "transparent"
                             selectionColor: Theme.primary
                             selectedTextColor: "transparent"
@@ -320,10 +416,9 @@ PanelWindow {
                             }
                         }
 
-                        // Shape glyphs overlay
                         Row {
                             anchors.left: parent.left
-                            anchors.leftMargin: 20
+                            anchors.leftMargin: 18
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 7
 
@@ -366,13 +461,11 @@ PanelWindow {
                                 }
                             }
 
-                            // Caret
                             Rectangle {
-                                width: 2; height: 16; radius: 1
+                                width: 2; height: 14; radius: 1
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: Theme.primary
                                 visible: passwordInput.activeFocus && !keepassWindow.authenticating
-                                opacity: 1
                                 SequentialAnimation on opacity {
                                     running: passwordInput.activeFocus && !keepassWindow.authenticating
                                     loops: Animation.Infinite
@@ -383,13 +476,11 @@ PanelWindow {
                                 }
                             }
 
-                            // Loading spinner
                             Shape {
                                 width: 14; height: 14
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: keepassWindow.authenticating
-                                layer.enabled: keepassWindow.authenticating
-                                layer.samples: 4
+                                preferredRendererType: Shape.CurveRenderer
                                 ShapePath {
                                     strokeWidth: 2
                                     strokeColor: Theme.primary
@@ -421,32 +512,27 @@ PanelWindow {
                 opacity: isUnlocked ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                // Search bar
                 Rectangle {
                     id: searchBar
                     z: 3
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.margins: 16
-                    height: 56
+                    anchors.margins: 14
+                    height: 44
                     radius: height / 2
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
+                    border.width: 1
+                    border.color: searchInput.activeFocus ? Theme.primary : Theme.glass_border
 
-                    layer.enabled: keepassWindow.openProgress > 0
-                    layer.effect: MultiEffect {
-                        shadowEnabled: true
-                        shadowBlur: 0.6
-                        shadowColor: "#20000000"
-                        shadowVerticalOffset: 3
-                    }
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
 
                     MaterialIcon {
                         anchors.left: parent.left
-                        anchors.leftMargin: 18
+                        anchors.leftMargin: 14
                         anchors.verticalCenter: parent.verticalCenter
                         icon: "search"
-                        font.pixelSize: 24
+                        font.pixelSize: 20
                         color: searchInput.activeFocus ? Theme.primary : Theme.on_surface_variant
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
@@ -455,11 +541,11 @@ PanelWindow {
                         id: searchInput
                         anchors.left: parent.left
                         anchors.right: lockBtn.left
-                        anchors.leftMargin: 52
+                        anchors.leftMargin: 44
                         anchors.rightMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
                         font.family: "Google Sans"
-                        font.pixelSize: 18
+                        font.pixelSize: 15
                         font.weight: Font.Medium
                         color: Theme.on_surface
                         selectionColor: Theme.primary_container
@@ -481,23 +567,24 @@ PanelWindow {
                         onTextChanged: {
                             keepassWindow.searchText = text;
                             keepassWindow.selectedIndex = 0;
-                            KeepassBackend.search(text);
+                            KeepassBackend.search(text, keepassWindow.activeWindowTitle);
                         }
                     }
 
-                    // Lock button inside search bar
                     Rectangle {
                         id: lockBtn
                         anchors.right: parent.right
-                        anchors.rightMargin: 8
+                        anchors.rightMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 36; height: 36; radius: 18
-                        color: lockMouse.containsMouse ? Theme.surface_variant : "transparent"
+                        width: 32; height: 32; radius: 16
+                        color: lockMouse.containsMouse ? Theme.glass_hover : "transparent"
+                        border.width: lockMouse.containsMouse ? 1 : 0
+                        border.color: Theme.glass_border
 
                         MaterialIcon {
                             anchors.centerIn: parent
                             icon: "lock"
-                            font.pixelSize: 18
+                            font.pixelSize: 16
                             color: Theme.on_surface_variant
                         }
 
@@ -514,40 +601,37 @@ PanelWindow {
                     }
                 }
 
-                // Entry count badge
                 Text {
                     anchors.top: searchBar.bottom
                     anchors.topMargin: 8
                     anchors.left: parent.left
-                    anchors.leftMargin: 36
+                    anchors.leftMargin: 28
                     text: searchResults.length + (searchResults.length === 1 ? " entry" : " entries")
                     font.family: "Google Sans"
-                    font.pixelSize: 12
+                    font.pixelSize: 11
                     color: Theme.on_surface_variant
                     visible: searchResults.length > 0
                 }
 
-                // Entry list
                 ListView {
                     id: entriesList
                     anchors.top: searchBar.bottom
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.topMargin: 28
+                    anchors.topMargin: 24
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
-                    anchors.bottomMargin: 8
+                    anchors.bottomMargin: 10
                     clip: true
                     spacing: 2
                     currentIndex: keepassWindow.selectedIndex
-
                     model: keepassWindow.searchResults
 
                     delegate: Item {
                         id: delegateRoot
                         width: ListView.view.width
-                        height: 64
+                        height: 56
 
                         property bool isSelected: index === keepassWindow.selectedIndex
                         property bool isHovered: delegateMouse.containsMouse
@@ -557,13 +641,13 @@ PanelWindow {
                             anchors.fill: parent
                             anchors.leftMargin: 4
                             anchors.rightMargin: 4
-                            radius: 16
-
-                            scale: delegateMouse.pressed ? 0.98 : (delegateRoot.isSelected || delegateRoot.isHovered ? 1.01 : 1.0)
-                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-
-                            color: delegateRoot.isSelected ? Theme.secondary_container : (delegateRoot.isHovered ? Qt.lighter(Theme.surface_container_low, 1.08) : "transparent")
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            radius: 14
+                            color: delegateRoot.isSelected
+                                ? Theme.glass_selected
+                                : (delegateRoot.isHovered ? Theme.glass_hover : "transparent")
+                            border.width: delegateRoot.isSelected ? 1 : 0
+                            border.color: Theme.glass_border
+                            Behavior on color { ColorAnimation { duration: 120 } }
 
                             MouseArea {
                                 id: delegateMouse
@@ -577,13 +661,12 @@ PanelWindow {
                                 }
                             }
 
-                            // Active indicator bar
                             Rectangle {
-                                width: 4
-                                height: delegateRoot.isSelected ? parent.height * 0.5 : 0
+                                width: 3
+                                height: delegateRoot.isSelected ? parent.height * 0.45 : 0
                                 opacity: delegateRoot.isSelected ? 1.0 : 0.0
                                 anchors.left: parent.left
-                                anchors.leftMargin: 4
+                                anchors.leftMargin: 6
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: 2
                                 color: Theme.primary
@@ -593,36 +676,36 @@ PanelWindow {
 
                             Row {
                                 anchors.fill: parent
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 16
-                                spacing: 14
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 14
+                                spacing: 12
 
-                                // Icon
                                 Rectangle {
-                                    width: 42; height: 42
-                                    radius: 12
+                                    width: 36; height: 36
+                                    radius: 10
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: delegateRoot.isSelected ? Theme.surface : Theme.surface_container_low
+                                    color: Theme.glass_raised
+                                    border.width: 1
+                                    border.color: Theme.glass_border
 
                                     MaterialIcon {
                                         anchors.centerIn: parent
                                         icon: "key"
-                                        font.pixelSize: 22
-                                        color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+                                        font.pixelSize: 18
+                                        color: delegateRoot.isSelected ? Theme.primary : Theme.on_surface_variant
                                     }
                                 }
 
-                                // Text
                                 Column {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 42 - 14 - 18 - 16 - badgeRow.width - 8
+                                    width: parent.width - 36 - 12 - badgeRow.width - 8
 
                                     Text {
                                         text: modelData.title || ""
                                         textFormat: Text.PlainText
                                         width: parent.width
                                         font.family: "Google Sans"
-                                        font.pixelSize: 15
+                                        font.pixelSize: 14
                                         font.weight: delegateRoot.isSelected ? Font.DemiBold : Font.Medium
                                         color: Theme.on_surface
                                         elide: Text.ElideRight
@@ -632,19 +715,18 @@ PanelWindow {
                                         textFormat: Text.PlainText
                                         width: parent.width
                                         font.family: "Google Sans"
-                                        font.pixelSize: 12
-                                        color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
+                                        font.pixelSize: 11
+                                        color: Theme.on_surface_variant
                                         elide: Text.ElideRight
                                         visible: text !== ""
                                     }
                                 }
                             }
 
-                            // Badges
                             Row {
                                 id: badgeRow
                                 anchors.right: parent.right
-                                anchors.rightMargin: 16
+                                anchors.rightMargin: 14
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 6
 
@@ -652,7 +734,9 @@ PanelWindow {
                                     visible: modelData.has_otp
                                     width: otpLabel.implicitWidth + 12
                                     height: 20; radius: 10
-                                    color: Qt.rgba(Theme.tertiary.r, Theme.tertiary.g, Theme.tertiary.b, 0.15)
+                                    color: Theme.glass_tertiary_soft
+                                    border.width: 1
+                                    border.color: Theme.glass_border
                                     Text {
                                         id: otpLabel
                                         anchors.centerIn: parent
@@ -668,24 +752,23 @@ PanelWindow {
                     }
                 }
 
-                // Empty state
                 Column {
                     anchors.centerIn: parent
-                    anchors.verticalCenterOffset: 40
+                    anchors.verticalCenterOffset: 28
                     spacing: 8
                     visible: isUnlocked && searchResults.length === 0
 
                     MaterialIcon {
                         icon: keepassWindow.searchText !== "" ? "search_off" : "vpn_key"
-                        font.pixelSize: 48
+                        font.pixelSize: 40
                         color: Theme.on_surface_variant
                         anchors.horizontalCenter: parent.horizontalCenter
-                        opacity: 0.5
+                        opacity: 0.45
                     }
                     Text {
                         text: keepassWindow.searchText !== "" ? "No matching entries" : "No entries found"
                         font.family: "Google Sans"
-                        font.pixelSize: 15
+                        font.pixelSize: 14
                         color: Theme.on_surface_variant
                         anchors.horizontalCenter: parent.horizontalCenter
                     }

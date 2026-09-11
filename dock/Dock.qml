@@ -26,7 +26,7 @@ Variants {
         screen: modelData
 
         // --- Layer Shell ---
-        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "quickshell-dock"
         WlrLayershell.exclusiveZone: 28
         WlrLayershell.keyboardFocus: (typeof dynamicIsland !== "undefined" && dynamicIsland.requiresKeyboard) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -44,6 +44,11 @@ Variants {
         // Allow click-through everywhere except the bar and popups
         mask: Region {
             item: inputMaskContainer
+        }
+
+        BackgroundEffect.blurRegion: Region {
+            item: notchBg
+            radius: notchBg.radius
         }
 
         Item {
@@ -76,7 +81,8 @@ Variants {
                 return items ? items.filter(function(item) { return item.running; }) : [];
             }
 
-            // The visible background of the bar (floating notch)
+            // Fades out while the launcher or KeePass overlay swallows — that
+            // surface is the expanded glass; the dock only needs to hide its chrome.
             Rectangle {
                 id: notchBg
                 height: dockContent.animHeight
@@ -84,10 +90,48 @@ Variants {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: -14
                 radius: dockContent.animRadius
-                color: "#000000"
+                color: Qt.rgba(0, 0, 0, 0.4)
                 border.width: 1
-                border.color: "#1e1e1e"
+                border.color: Qt.rgba(1, 1, 1, 0.1)
+                opacity: dockContent.overlayCovering ? 0 : 1
                 z: -10
+                // Short: the overlay glass is translucent, so a slow fade here
+                // would show dock chrome ghosting through it.
+                Behavior on opacity { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+
+                // Volume / brightness fill — same clipped rounded bar as the old
+                // island OSD, painted as the dock background so widgets stay put.
+                Item {
+                    id: osdFill
+                    anchors.fill: parent
+                    opacity: dynamicIsland.osdVisible ? 1 : 0
+                    visible: dynamicIsland.osdVisible || opacity > 0.001
+                    Behavior on opacity { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                    Item {
+                        id: osdProgressClipper
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: parent.width * (dynamicIsland ? Math.min(1.0, Math.max(0.0, dynamicIsland.osdProgress)) : 0)
+                        clip: true
+
+                        Behavior on width {
+                            enabled: dynamicIsland && dynamicIsland.osdVisible
+                            NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                        }
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: notchBg.width
+                            color: Qt.rgba(1, 1, 1, 0.25)
+                            radius: notchBg.radius
+                            antialiasing: true
+                        }
+                    }
+                }
             }
 
             // Recording indicator — same layer / exclusive zone as the bar,
@@ -109,7 +153,10 @@ Variants {
                     return left;
                 }
                 height: {
-                    var h = dynamicIsland.isDockHidden ? dynamicIsland.implicitHeight + 16 : 28;
+                    var h = dynamicIsland.isDockHidden && !dockContent.overlayCovering
+                        ? dynamicIsland.implicitHeight + 16 : 28;
+                    if (dynamicIsland._dragQueenDragHover)
+                        h = Math.max(h, dynamicIsland.implicitHeight + 16, 56);
                     if (contextMenu.visible) h = Math.max(h, contextMenu.y + contextMenu.height + 4);
                     // Keep a bit of vertical slack while dragging so the
                     // pointer doesn't leave the layer-shell input region.
@@ -132,14 +179,16 @@ Variants {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
                 spacing: 6
-                opacity: dynamicIsland.isDockHidden ? 0 : 1
+                opacity: (dynamicIsland.isDockHidden || dockContent.overlayCovering) ? 0 : 1
                 visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { duration: dockContent.overlayCovering ? 110 : 200; easing.type: Easing.OutCubic } }
 
                 // 1. Time (DockClock)
                 DockClock {
                     id: clockModule
                     anchors.verticalCenter: parent.verticalCenter
+                    osdActive: dynamicIsland.osdVisible && dynamicIsland.osdType === "brightness"
+                    osdIcon: dynamicIsland.osdIcon
                 }
 
                 // 2. Workspaces
@@ -148,6 +197,8 @@ Variants {
                     anchors.verticalCenter: parent.verticalCenter
                     height: 28
                     
+                    // Collapsing this while an overlay takes over is pointless
+                    // (contentRow is already fading) and the snap was visible.
                     width: dynamicIsland.isDockHidden ? 0 : workspaceBar.implicitWidth
                     
                     clip: true
@@ -204,6 +255,8 @@ Variants {
                 DockSystemStats {
                     id: statsModule
                     anchors.verticalCenter: parent.verticalCenter
+                    osdActive: dynamicIsland.osdVisible && dynamicIsland.osdType === "volume"
+                    osdSeq: dynamicIsland.osdSeq
                 }
             }
 
@@ -222,12 +275,14 @@ Variants {
                     id: dynamicIsland
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: (activeMode === "osd" || activeMode === "charging") ? 0 : 22
-                    osdDockWidth: (activeMode === "osd" || activeMode === "charging") ? dockContent.dockTargetWidth : dockContent.dockTargetWidth - 32
+                    anchors.topMargin: (displayMode === "charging") ? 0 : 22
+                    osdDockWidth: (displayMode === "charging") ? dockContent.dockTargetWidth : dockContent.dockTargetWidth - 32
                     osdDockHeight: dockContent.dockTargetHeight
-                    opacity: isDockHidden ? 1 : 0
-                    visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    // Only hides island chrome while a top overlay owns the
+                    // expanded notch. Mode-to-mode fading belongs to
+                    // IslandMorph — doing it here too squared the curve.
+                    opacity: dockContent.overlayCovering ? 0 : 1
+                    Behavior on opacity { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
                 }
             }
 
@@ -260,9 +315,17 @@ Variants {
                 dropHoverActive: dockContent.dropHoverActive
             }
 
+            // Above island chrome so external file drags still hit while the
+            // notch is at dock size. IslandDragQueen has its own DropArea once
+            // expanded. DropArea only handles drag events — clicks pass through.
             DropArea {
                 id: dragQueenDropArea
-                anchors.fill: notchBg
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: notchBg.y
+                width: Math.max(notchBg.width, 120)
+                height: Math.max(notchBg.height, 42)
+                z: 50
+                keys: ["text/uri-list", "text/plain"]
 
                 onEntered: function (drag) {
                     if (drag.hasUrls) {
@@ -309,21 +372,59 @@ Variants {
                 }
             }
 
+            function _overlayOnThisScreen(launcherActive, keepassActive) {
+                if (!launcherActive && !keepassActive)
+                    return false;
+                var activeScreen = launcherActive ? LauncherState.screen : KeepassState.screen;
+                if (!activeScreen)
+                    return true;
+                return dockWindow.modelData && dockWindow.modelData.name === activeScreen.name;
+            }
+
+            // An overlay has asked for the notch but may not be on screen yet.
+            // Only used to freeze the published dock footprint, so the overlay
+            // morphs from a stable origin even if the dock reflows meanwhile.
+            readonly property bool overlayClaiming: _overlayOnThisScreen(
+                LauncherState.open || LauncherState.openProgress > 0.001,
+                KeepassState.open || KeepassState.openProgress > 0.001)
+
+            // The overlay is actually painting. Dock chrome yields only at this
+            // point: mapping that surface takes several frames under load, and
+            // fading any earlier leaves a gap where neither the dock nor the
+            // overlay is on screen — the artifact this whole split exists for.
+            readonly property bool overlayCovering: _overlayOnThisScreen(
+                LauncherState.openProgress > 0.001,
+                KeepassState.openProgress > 0.001)
+
             property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + (dockShareIcon && dockShareIcon.isVisible ? 6 : 0) + 16
             property real dockTargetHeight: 28 + 14
             property real dockTargetRadius: 14
 
-            property real islandTargetWidth: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetWidth : (dynamicIsland.activeMode === "drag_queen" ? Math.max(dockTargetWidth, dynamicIsland.implicitWidth + 32) : dynamicIsland.implicitWidth + 32)) : 0
-            property real islandTargetHeight: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetHeight : dynamicIsland.implicitHeight + 16 + 14) : 0
-            property real islandTargetRadius: dynamicIsland ? ((dynamicIsland.activeMode === "osd" || dynamicIsland.activeMode === "charging") ? dockTargetRadius : 20) : 20
+            // Keyed on the island's displayed mode, not its requested one, so
+            // the notch only grows once the content that fills it exists.
+            readonly property string islandMode: dynamicIsland ? dynamicIsland.displayMode : "dock"
 
-            property real animWidth: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetWidth : dockTargetWidth
-            property real animHeight: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetHeight : dockTargetHeight
-            property real animRadius: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetRadius : dockTargetRadius
+            property real islandTargetWidth: dynamicIsland ? ((islandMode === "charging") ? dockTargetWidth : (islandMode === "drag_queen" ? Math.max(dockTargetWidth, dynamicIsland.implicitWidth + 32) : dynamicIsland.implicitWidth + 32)) : 0
+            property real islandTargetHeight: dynamicIsland ? ((islandMode === "charging") ? dockTargetHeight : dynamicIsland.implicitHeight + 16 + 14) : 0
+            property real islandTargetRadius: dynamicIsland ? ((islandMode === "charging") ? dockTargetRadius : 20) : 20
+
+            property real animWidth: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetWidth : dockTargetWidth
+            property real animHeight: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetHeight : dockTargetHeight
+            property real animRadius: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetRadius : dockTargetRadius
 
             Behavior on animWidth { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
             Behavior on animHeight { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
             Behavior on animRadius { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
+
+            // Publish live dock footprint so overlays can morph from it.
+            onDockTargetWidthChanged: if (!overlayClaiming) LauncherState.dockWidth = dockTargetWidth
+            onDockTargetHeightChanged: if (!overlayClaiming) LauncherState.dockHeight = dockTargetHeight
+            onDockTargetRadiusChanged: if (!overlayClaiming) LauncherState.dockRadius = dockTargetRadius
+            Component.onCompleted: {
+                LauncherState.dockWidth = dockTargetWidth;
+                LauncherState.dockHeight = dockTargetHeight;
+                LauncherState.dockRadius = dockTargetRadius;
+            }
 
         }
     }

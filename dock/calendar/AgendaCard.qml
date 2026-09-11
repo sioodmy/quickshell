@@ -32,12 +32,12 @@ Rectangle {
     height: cardContent.implicitHeight + 12
     radius: 12
     color: cardMouse.containsMouse
-        ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-        : Theme.surface_container
+        ? Qt.rgba(1, 1, 1, 0.15)
+        : Qt.rgba(1, 1, 1, 0.05)
 
     border.color: root.isOverdue
         ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.25)
-        : "transparent"
+        : Qt.rgba(1, 1, 1, 0.1)
     border.width: root.isOverdue ? 1 : 0
 
     Behavior on color { ColorAnimation { duration: 120 } }

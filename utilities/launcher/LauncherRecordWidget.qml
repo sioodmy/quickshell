@@ -22,7 +22,9 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
         clip: true
 
         Column {
@@ -40,8 +42,8 @@ Item {
                     radius: 18
                     anchors.verticalCenter: parent.verticalCenter
                     color: ScreenRecord.recording
-                        ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22)
-                        : Theme.surface_variant
+                        ? Qt.alpha(Theme.critical, 0.22)
+                        : Theme.glass_raised
 
                     MaterialIcon {
                         anchors.centerIn: parent
@@ -79,10 +81,10 @@ Item {
                     height: 32
                     radius: 16
                     color: ScreenRecord.recordAudio
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.22)
-                        : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-                    border.color: ScreenRecord.recordAudio ? Theme.primary : "transparent"
-                    border.width: ScreenRecord.recordAudio ? 1 : 0
+                        ? Qt.alpha(Theme.primary, 0.22)
+                        : Theme.glass_hover
+                    border.color: ScreenRecord.recordAudio ? Theme.primary : Theme.glass_border
+                    border.width: 1
 
                     Behavior on color { ColorAnimation { duration: 140 } }
 
@@ -133,12 +135,14 @@ Item {
                         radius: 14
                         color: {
                             if (modelData.id === "stop")
-                                return stopMouse.containsMouse ? Theme.critical
-                                    : Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18);
+                                return stopMouse.containsMouse ? Qt.alpha(Theme.critical, 0.8)
+                                    : Qt.alpha(Theme.critical, 0.18);
                             return btnMouse.containsMouse
-                                ? Theme.primary_container
-                                : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06);
+                                ? Theme.glass_accent_soft
+                                : Theme.glass_hover;
                         }
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         Behavior on color { ColorAnimation { duration: 120 } }
                         scale: (modelData.id === "stop" ? stopMouse.pressed : btnMouse.pressed) ? 0.96 : 1
@@ -155,7 +159,7 @@ Item {
                                 color: {
                                     if (modelData.id === "stop")
                                         return stopMouse.containsMouse ? Theme.on_critical : Theme.critical;
-                                    return btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface;
+                                    return btnMouse.containsMouse ? Theme.primary : Theme.on_surface;
                                 }
                             }
                             Text {
@@ -165,7 +169,7 @@ Item {
                                 color: {
                                     if (modelData.id === "stop")
                                         return stopMouse.containsMouse ? Theme.on_critical : Theme.critical;
-                                    return btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface;
+                                    return btnMouse.containsMouse ? Theme.primary : Theme.on_surface;
                                 }
                             }
                         }

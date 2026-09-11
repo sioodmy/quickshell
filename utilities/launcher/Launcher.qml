@@ -5,7 +5,6 @@ import Quickshell.Services.Pipewire
 import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components
@@ -116,6 +115,14 @@ PanelWindow {
         }
     }
 
+    Connections {
+        target: LauncherState
+        function onCloseRequested() {
+            if (launcherWindow.menuOpen || launcherWindow.openProgress > 0)
+                launcherWindow.closeMenu();
+        }
+    }
+
     onShareModeActiveChanged: shareViewBlend = shareModeActive ? 1 : 0
     Behavior on shareViewBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
@@ -136,8 +143,16 @@ PanelWindow {
 
     property real openProgress: 0.0
     property bool menuOpen: false
+    // Geometry reveal is separate from mapped state. This lets the lightweight
+    // clip shell animate while the expensive launcher layout stays fixed.
+    property bool panelExpanded: false
     // When true, we want to open but are waiting for LazyLoader content to load.
     property bool _pendingOpen: false
+    // Set once this surface has presented a frame since being mapped.
+    property bool _framePresented: false
+    // A result rebuild that was queued while closed and held back so it cannot
+    // run on the GUI thread during the reveal.
+    property bool _rebuildAfterReveal: false
     property string bluetoothConnectedDeviceLabel: ""
 
     property var _debouncedResults: []
@@ -146,6 +161,12 @@ PanelWindow {
         id: filterDebounce
         interval: 50
         onTriggered: {
+            // buildFilteredList() blocks the GUI thread long enough to be seen
+            // as a stutter, so it never runs inside the reveal animation.
+            if (openAnim.running) {
+                launcherWindow._rebuildAfterReveal = true;
+                return;
+            }
             launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
         }
     }
@@ -187,10 +208,12 @@ PanelWindow {
     color: "transparent"
     visible: menuOpen || openAnim.running || closeAnim.running
 
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "launcher_overlay"
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-    exclusiveZone: -1
+    // A launcher is transient UI: keep it above panels, never reserve work area,
+    // and request focus only while this surface is mapped.
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "quickshell-launcher"
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
     anchors {
         top: true
@@ -199,28 +222,126 @@ PanelWindow {
         right: true
     }
 
+    // The launcher surface is fullscreen for click-away dismissal, but only
+    // this explicit rectangle is submitted to ext-background-effect-v1.
+    // Do not also force blur with a niri layer rule: that applies to the whole
+    // fullscreen surface and overrides the protocol-defined region.
+    BackgroundEffect.blurRegion: Region {
+        readonly property real panelWidth: contentLoader.item
+            ? Math.max(1, contentLoader.item.width)
+            : Math.max(1, LauncherState.dockWidth)
+        readonly property real panelHeight: contentLoader.item
+            ? Math.max(1, contentLoader.item.height)
+            : Math.max(1, LauncherState.dockHeight)
+
+        x: Math.round((launcherWindow.width - panelWidth) / 2)
+        y: 0
+        width: panelWidth
+        height: panelHeight
+        // Region only exposes a uniform radius in this Quickshell build.
+        // Keep it square so blur does not spill past the flush top edge.
+        radius: 0
+    }
+
+    // The reveal must start on the frame this surface first reaches the screen.
+    // Kicking it off from openMenu() instead lets these wall-clock animations
+    // burn through while the surface is still being mapped and its first polish
+    // builds the result delegates — exactly the work that gets slow under load.
+    // The first visible frame then lands mid-animation and the panel pops in at
+    // near-full size. Measured at ~47ms on an idle machine, i.e. three frames
+    // of the reveal already gone before anything is on screen.
+
+    // Draws nothing. It exists only to give grabToImage something to grab.
+    Item {
+        id: frameProbe
+        width: 1
+        height: 1
+    }
+
+    // grabToImage's callback runs after this window has rendered, which is the
+    // only "we are on screen" signal available: PanelWindow does not expose the
+    // backing QQuickWindow, and backingWindowVisible flips synchronously on
+    // map, well before the first frame.
+    function _armRevealProbe() {
+        var started = frameProbe.grabToImage(function () {
+            launcherWindow._onFramePresented();
+        }, Qt.size(1, 1));
+        if (!started) {
+            // No frame signal to wait for; reveal as the old code did.
+            _framePresented = true;
+            _maybeBeginReveal();
+            return;
+        }
+        revealFallback.restart();
+    }
+
+    // Insurance: never leave the launcher stuck invisible if no frame arrives.
+    Timer {
+        id: revealFallback
+        interval: 400
+        onTriggered: {
+            launcherWindow._framePresented = true;
+            launcherWindow._maybeBeginReveal();
+        }
+    }
+
+    function _onFramePresented() {
+        if (_framePresented || !menuOpen)
+            return;
+        _framePresented = true;
+        _maybeBeginReveal();
+    }
+
+    // Needs both halves: the content tree built, and the surface on screen.
+    function _maybeBeginReveal() {
+        if (!menuOpen || _pendingOpen || !_framePresented)
+            return;
+        if (openAnim.running || openProgress > 0)
+            return;
+        revealFallback.stop();
+        panelExpanded = true;
+        if (contentLoader.item)
+            contentLoader.item.focusSearch();
+        openAnim.start();
+    }
+
     NumberAnimation {
         id: openAnim
         target: launcherWindow
         property: "openProgress"
         from: 0; to: 1
-        duration: 200
+        duration: 280
         easing.type: Easing.OutCubic
-        onStarted: LauncherState.open = true
-        onFinished: LauncherState.openProgress = 1.0
+        onFinished: {
+            LauncherState.openProgress = 1.0;
+            if (launcherWindow._rebuildAfterReveal) {
+                launcherWindow._rebuildAfterReveal = false;
+                filterDebounce.restart();
+            }
+        }
     }
 
     NumberAnimation {
         id: closeAnim
         target: launcherWindow
         property: "openProgress"
-        from: 1; to: 0
-        duration: 150
+        // No `from`: closing before the reveal has started must not snap the
+        // panel to full size just to animate it back down.
+        to: 0
+        duration: 200
         easing.type: Easing.InCubic
         onFinished: {
             launcherWindow.menuOpen = false;
+            launcherWindow._framePresented = false;
+            launcherWindow._rebuildAfterReveal = false;
             LauncherState.open = false;
             LauncherState.openProgress = 0.0;
+            LauncherState.screen = null;
+            // Prepare the default view while hidden so the next open does not
+            // rebuild the result model during its animation.
+            ctrl.clearStates();
+            launcherWindow.pinSelectionToBest = true;
+            filterDebounce.restart();
         }
     }
 
@@ -1148,33 +1269,53 @@ PanelWindow {
             closeMenu();
             return;
         }
-        ctrl.clearStates();
+        if (KeepassState.open || KeepassState.openProgress > 0.001)
+            KeepassState.requestClose();
         pinSelectionToBest = true;
         closeAnim.stop();
+        panelExpanded = false;
         // Ensure openProgress starts at 0 so the mask is fully closed
         // before the content appears.
         openProgress = 0;
+        // Claim the dock notch now. The dock holds its own chrome until this
+        // surface reports progress, so the handoff has no uncovered frame.
+        LauncherState.open = true;
+        LauncherState.screen = launcherWindow.screen;
+        _framePresented = false;
         menuOpen = true;
-        filterDebounce.restart();
-        // If the LazyLoader content is already loaded, start the animation
-        // immediately. Otherwise, set _pendingOpen so the animation starts
-        // once loading finishes (see contentLoader.onItemChanged).
-        if (contentLoader.item) {
-            openAnim.start();
-        } else {
-            _pendingOpen = true;
+        // The result list is kept warm while closed, so there is normally
+        // nothing to rebuild. If one was still queued, flush it now: doing the
+        // work before the surface is even mapped hides it entirely, whereas
+        // letting the debounce fire would land it inside the reveal.
+        if (filterDebounce.running) {
+            filterDebounce.stop();
+            _debouncedResults = buildFilteredList();
         }
+        // Focus now, not at reveal time: the compositor hands this surface the
+        // keyboard as soon as it maps, so anything typed in between would
+        // otherwise miss the search field.
+        if (contentLoader.item)
+            contentLoader.item.focusSearch();
+
+        // Arm the reveal. It fires from _onFramePresented once the surface is
+        // actually up; if the content tree is still incubating, wait for that
+        // too (see contentLoader.onItemChanged).
+        _pendingOpen = !contentLoader.item;
+        _armRevealProbe();
     }
 
     function closeMenu() {
         _pendingOpen = false;
+        revealFallback.stop();
         shareModeActive = false;
         shareData = null;
         if (contentLoader.item)
             contentLoader.item.resetSpecialViewState();
         bluetoothConnectedNotifTimer.stop();
         openAnim.stop();
-        LauncherState.open = false;
+        panelExpanded = false;
+        // Keep LauncherState.open true until closeAnim finishes so the dock
+        // notch stays expanded while content fades out.
         closeAnim.start();
         ctrl.commitRecents();
     }
@@ -1182,14 +1323,28 @@ PanelWindow {
     LazyLoader {
         id: contentLoader
 
-        activeAsync: launcherWindow.menuOpen
+        // Warm once at shell startup and retain the component. Unloading this
+        // large tree on every close caused first-frame stalls on every opening.
+        activeAsync: true
 
-        // When activeAsync finishes loading and a pending open is waiting,
-        // kick off the reveal animation now that the mask layer is ready.
+        // When activeAsync finishes loading and a pending open is waiting, arm
+        // the reveal now that the mask layer is ready.
         onItemChanged: {
-            if (item && launcherWindow._pendingOpen) {
+            if (!item)
+                return;
+            if (launcherWindow._pendingOpen) {
                 launcherWindow._pendingOpen = false;
-                openAnim.start();
+                // Someone opened the launcher before warm-up finished. Build
+                // the list now, while still off screen, rather than letting the
+                // debounce drop it into the reveal.
+                launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
+                item.focusSearch();
+                // The surface may already have presented while this tree was
+                // still incubating, in which case no further frame is coming.
+                launcherWindow._maybeBeginReveal();
+            } else {
+                // Populate delegates during warm-up, not while opening.
+                filterDebounce.restart();
             }
         }
 
@@ -1198,10 +1353,41 @@ PanelWindow {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                width: 752 + 48
-                height: 609
                 anchors.horizontalCenter: parent.horizontalCenter
-                anchors.verticalCenter: parent.verticalCenter
+                y: 0
+                clip: true
+
+                // Only this clip shell changes geometry. mainUi keeps a fixed
+                // layout, avoiding a full anchor/layout pass on every spring frame.
+                width: launcherWindow.panelExpanded
+                    ? LauncherState.targetWidth : LauncherState.dockWidth
+                height: launcherWindow.panelExpanded
+                    ? LauncherState.targetHeight : LauncherState.dockHeight
+
+                Behavior on width {
+                    SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+                }
+                Behavior on height {
+                    SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+                }
+
+                // Special views are incubated asynchronously so a 600-line view
+                // never builds inside a frame. Every crossfade against them is
+                // keyed on this, so nothing ever dissolves into an empty panel.
+                readonly property bool specialViewReady: {
+                    if (launcherWindow.weatherModeActive) return weatherLoader.status === Loader.Ready;
+                    if (launcherWindow.colorPickerModeActive) return colorPickerLoader.status === Loader.Ready;
+                    if (launcherWindow.btModeActive) return btLoader.status === Loader.Ready;
+                    if (launcherWindow.wifiModeActive) return wifiLoader.status === Loader.Ready;
+                    if (launcherWindow.musicModeActive) return musicLoader.status === Loader.Ready;
+                    if (launcherWindow.nightModeActive) return nightLightLoader.status === Loader.Ready;
+                    if (launcherWindow.clipModeActive) return clipboardLoader.status === Loader.Ready;
+                    return false;
+                }
+
+                function focusSearch() {
+                    searchField.forceActiveFocus();
+                }
 
                 function syncFilePreviewForCurrentItem() {
                     if (launcherWindow.specialViewActive)
@@ -1439,112 +1625,39 @@ PanelWindow {
                     return false;
                 }
 
-                Component.onCompleted: {
-                    searchField.forceActiveFocus();
-                }
-
-                // Shadow for the floating launcher window
-                Rectangle {
-                    id: shadowCaster
-                    anchors.fill: mainUi
-                    anchors.margins: 4
-                    radius: mainUi.radius
-                    color: Theme.surface
-                    visible: false
-                }
-
-                MultiEffect {
-                    anchors.fill: shadowCaster
-                    source: shadowCaster
-                    shadowEnabled: true
-                    shadowBlur: 1.0
-                    shadowColor: "#40000000"
-                    shadowVerticalOffset: 8
-                    shadowHorizontalOffset: 4
-                    opacity: launcherWindow.openProgress
-                    visible: launcherWindow.openProgress > 0
-                }
-
-                // Simple rounded mask to clip children to the rounded corners
-                Item {
-                    id: mainUiMask
-                    anchors.fill: mainUi
-                    visible: false
-                    layer.enabled: launcherWindow.openProgress > 0
-                    layer.smooth: true
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 28
-                        color: "black"
-                    }
-                }
-
-                Rectangle {
+                ClippingRectangle {
                     id: mainUi
                     property var launcherWindowRef: launcherWindow
                     property var ctrlRef: ctrl
-                    width: 800
-
+                    width: LauncherState.targetWidth
+                    height: LauncherState.targetHeight
                     anchors.top: parent.top
-                    anchors.bottom: parent.bottom
                     anchors.horizontalCenter: parent.horizontalCenter
-                    
-                    color: Theme.surface
-                    radius: 28
+
+                    // Square top edge meets the screen like the dock; rounded
+                    // bottom corners clip glass fill + children (plain
+                    // Rectangle.clip does not honor radius).
+                    color: Qt.rgba(0, 0, 0, 0.4)
+                    topLeftRadius: 0
+                    topRightRadius: 0
+                    bottomLeftRadius: LauncherState.targetRadius
+                    bottomRightRadius: LauncherState.targetRadius
                     border.width: 1
-                    border.color: Theme.surface_container_high
-                    visible: launcherWindow.openProgress > 0
+                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                    // Keep layout flush to the card edges; border paints on top.
+                    contentUnderBorder: true
+                    // Stays visible and is hidden by opacity alone. Gating
+                    // `visible` on openProgress deferred the ListView's first
+                    // polish until the reveal had already begun, so building
+                    // ~10 heavy delegates landed inside the animation.
                     opacity: launcherWindow.openProgress
-                    scale: 0.95 + (0.05 * launcherWindow.openProgress)
                     focus: true
 
                     // Swallow clicks on the card so it doesn't dismiss
                     MouseArea { anchors.fill: parent }
 
-                    layer.enabled: launcherWindow.openProgress > 0
-                    layer.smooth: true
-                    layer.effect: MultiEffect {
-                        maskEnabled: true
-                        maskSource: mainUiMask
-                        maskThresholdMin: 0.5
-                        maskSpreadAtMin: 1.0
-                    }
-
                     LauncherWeatherData {
                         id: launcherWeatherData
-                    }
-
-                    LauncherBackgroundLayers {
-                        id: edgeBanner
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: 200
-
-                        weatherModeActive: launcherWindow.weatherModeActive
-                        colorPickerModeActive: launcherWindow.colorPickerModeActive
-                        nightModeActive: launcherWindow.nightModeActive
-                        menuOpen: launcherWindow.openProgress > 0
-
-                        weatherCode: launcherWeatherData.info.weatherCode || ""
-                        temperature: Number(launcherWeatherData.info.temp) || 0
-                        gradTop: launcherWeatherData.gradTop
-                        gradBottom: launcherWeatherData.gradBottom
-
-                        selectedColor: launcherWindow.colorPickerModeActive ? colorPickerView.selectedColor : "transparent"
-
-                        LauncherWeatherHeader {
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            anchors.leftMargin: 72
-                            anchors.bottomMargin: 76
-                            z: 2
-                            weather: launcherWeatherData
-                            headerReveal: edgeBanner.weatherBlend
-                            visible: edgeBanner.weatherBlend > 0.02
-                            enabled: false
-                        }
                     }
 
                     Keys.onPressed: event => {
@@ -1588,7 +1701,8 @@ PanelWindow {
                             lazyContentRoot.cycleListSelection(false);
                             event.accepted = true;
                         } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                            colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                            if (colorPickerLoader.item)
+                                colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                             event.accepted = true;
                         } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             if (listView.currentItem) {
@@ -1603,36 +1717,30 @@ PanelWindow {
                     Rectangle {
                         id: searchArea
                         z: 3
-                        height: 64
+                        height: 44
+                        anchors.top: parent.top
+                        anchors.topMargin: 22
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 48 + 32
-                        anchors.rightMargin: 32
-
-                        anchors.verticalCenter: edgeBanner.bottom
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
 
                         radius: height / 2
-                        color: Theme.surface_container_highest
-
-                        layer.enabled: launcherWindow.openProgress > 0
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowBlur: 1.0
-                            shadowColor: "#40000000"
-                            shadowVerticalOffset: 4
-                        }
+                        color: Theme.glass_raised
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         TextField {
                             id: searchField
                             // Prevent `onAccepted` from firing when we handle Return in `Keys.onReturnPressed`.
                             property bool suppressAcceptedNext: false
                             anchors.fill: parent
-                            leftPadding: 60
-                            rightPadding: 24
+                            leftPadding: 44
+                            rightPadding: 16
 
                             font {
                                 family: "Google Sans"
-                                pixelSize: 22
+                                pixelSize: 16
                                 weight: Font.Medium
                             }
                             color: Theme.on_surface
@@ -1717,10 +1825,10 @@ PanelWindow {
                             background: Item {
                                 MaterialIcon {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 20
+                                    anchors.leftMargin: 14
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "search"
-                                    font.pixelSize: 28
+                                    font.pixelSize: 20
                                     color: searchField.activeFocus ? Theme.primary : Theme.on_surface_variant
                                     Behavior on color {
                                         ColorAnimation {
@@ -1843,7 +1951,8 @@ PanelWindow {
                                     }
                                     event.accepted = true;
                                 } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    if (colorPickerLoader.item)
+                                        colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                                     event.accepted = true;
 
                                 } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
@@ -1865,28 +1974,32 @@ PanelWindow {
                         onCopyRequested: ctrl.copyResult()
                         visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive && !launcherWindow.pomModeActive && !launcherWindow.cocModeActive
                         anchors.top: searchArea.bottom
-                        anchors.topMargin: 12
+                        anchors.topMargin: 8
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 48 + 32
-                        anchors.rightMargin: 32
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
                     }
 
                     Item {
                         id: belowSearchArea
                         anchors.top: calcCard.visible ? calcCard.bottom : searchArea.bottom
-                        anchors.topMargin: launcherWindow.specialViewActive ? 0 : 16
+                        anchors.topMargin: launcherWindow.specialViewActive ? 4 : 10
                         Behavior on anchors.topMargin { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                         anchors.left: parent.left
-                        anchors.leftMargin: 48
+                        anchors.leftMargin: 8
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
                         clip: true
 
                         Item {
                             id: launcherResultsLayer
                             anchors.fill: parent
-                            opacity: launcherWindow.specialViewActive ? 0 : 1
+                            // Hold the results until the incoming special view
+                            // is built, otherwise the panel is briefly empty.
+                            opacity: (launcherWindow.specialViewActive && lazyContentRoot.specialViewReady) ? 0 : 1
                             visible: opacity > 0.02
 
                             Behavior on opacity {
@@ -1895,8 +2008,11 @@ PanelWindow {
 
                             LauncherWidgetArea {
                                 id: sliderWidgetArea
-                                launcherWindow: launcherWindow
-                                ctrl: ctrl
+                                // Named `launcher`/`backend` rather than matching the
+                                // outer ids: a property shadows the id of the same name,
+                                // so `launcherWindow: launcherWindow` binds to itself.
+                                launcher: launcherWindow
+                                backend: ctrl
                                 anchors.top: parent.top
                                 anchors.left: parent.left
                                 anchors.right: parent.right
@@ -1913,9 +2029,9 @@ PanelWindow {
                                 ListView {
                                     id: listView
                                     anchors.fill: parent
-                                    topMargin: 12
-                                    bottomMargin: 24
-                                    spacing: 4
+                                    topMargin: 4
+                                    bottomMargin: 8
+                                    spacing: 2
                                     clip: true
 
                                     // Recycle heavy delegates across keystroke model swaps
@@ -1941,24 +2057,6 @@ PanelWindow {
                                     onCountChanged: Qt.callLater(syncFilePreviewForCurrentItem)
                                 }
 
-                                Rectangle {
-                                    anchors {
-                                        bottom: parent.bottom
-                                        left: parent.left
-                                        right: parent.right
-                                    }
-                                    height: 48
-                                    gradient: Gradient {
-                                        GradientStop {
-                                            position: 0.0
-                                            color: "transparent"
-                                        }
-                                        GradientStop {
-                                            position: 1.0
-                                            color: Theme.surface
-                                        }
-                                    }
-                                }
                             }
 
                             Text {
@@ -1969,7 +2067,7 @@ PanelWindow {
                                 color: Theme.on_surface_variant
                                 font {
                                     family: "Google Sans Medium"
-                                    pixelSize: 18
+                                    pixelSize: 14
                                 }
                             }
 
@@ -1980,7 +2078,7 @@ PanelWindow {
                                     left: parent.left
                                 }
                                 width: listContainer.width
-                                height: 32
+                                height: 16
                             }
                         }
 
@@ -1989,15 +2087,16 @@ PanelWindow {
                             z: launcherWindow.weatherModeActive ? 2 : 0
                             enabled: launcherWindow.weatherModeActive
                             active: launcherWindow.weatherModeActive
+                            asynchronous: true
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 20
-                            anchors.bottomMargin: 20
-                            visible: active
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 8
+                            anchors.bottomMargin: 8
+                            visible: status === Loader.Ready
                             sourceComponent: LauncherWeatherView {
                                 weather: launcherWeatherData
                                 revealProgress: launcherWindow.weatherModeActive ? 1 : 0
@@ -2009,15 +2108,16 @@ PanelWindow {
                             z: launcherWindow.colorPickerModeActive ? 2 : 0
                             enabled: launcherWindow.colorPickerModeActive
                             active: launcherWindow.colorPickerModeActive
+                            asynchronous: true
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            visible: active
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            visible: status === Loader.Ready
                             sourceComponent: LauncherColorPickerView {
                                 searchQuery: ctrl.searchText
                                 defaultColor: Theme.primary
@@ -2038,7 +2138,7 @@ PanelWindow {
                             anchors.bottom: parent.bottom
                             width: parent.width * (1 - 0.48 * launcherWindow.musicSplitBlend)
                             clip: true
-                            opacity: launcherWindow.musicModeActive ? 1 : 0
+                            opacity: (launcherWindow.musicModeActive && musicLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on width {
@@ -2054,10 +2154,10 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.bottom: parent.bottom
                                 anchors.right: parent.right
-                                anchors.leftMargin: 32
-                                anchors.rightMargin: 16
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: 20
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                anchors.topMargin: 4
+                                anchors.bottomMargin: 8
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
                                 contentWidth: width
@@ -2066,8 +2166,12 @@ PanelWindow {
                                 Loader {
                                     id: musicLoader
                                     width: musicScroll.width
+                                    // The view's lists anchor to its edges and it has no
+                                    // implicit height, so it collapses without this.
+                                    height: musicScroll.height
                                     active: launcherWindow.musicModeActive
-                                    visible: active
+                                    asynchronous: true
+                                    visible: status === Loader.Ready
                                     sourceComponent: LauncherMusicView {
                                         width: musicScroll.width
                                         filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
@@ -2090,11 +2194,11 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.connectivityModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.connectivityModeActive && lazyContentRoot.specialViewReady) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
@@ -2105,7 +2209,8 @@ PanelWindow {
                                 id: btLoader
                                 anchors.fill: parent
                                 active: launcherWindow.btModeActive
-                                visible: active && launcherWindow.btModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready && launcherWindow.btModeActive
                                 sourceComponent: LauncherBluetoothView {
                                     anchors.fill: parent
                                     filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
@@ -2122,7 +2227,8 @@ PanelWindow {
                                 id: wifiLoader
                                 anchors.fill: parent
                                 active: launcherWindow.wifiModeActive
-                                visible: active && launcherWindow.wifiModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready && launcherWindow.wifiModeActive
                                 sourceComponent: LauncherWifiView {
                                     anchors.fill: parent
                                     filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
@@ -2142,11 +2248,11 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.nightModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.nightModeActive && nightLightLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
@@ -2157,7 +2263,8 @@ PanelWindow {
                                 id: nightLightLoader
                                 anchors.fill: parent
                                 active: launcherWindow.nightModeActive
-                                visible: active
+                                asynchronous: true
+                                visible: status === Loader.Ready
                                 sourceComponent: LauncherNightLightView {
                                     anchors.fill: parent
                                     revealProgress: launcherWindow.nightModeActive ? 1 : 0
@@ -2173,11 +2280,11 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.clipModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.clipModeActive && clipboardLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
@@ -2188,7 +2295,8 @@ PanelWindow {
                                 id: clipboardLoader
                                 anchors.fill: parent
                                 active: launcherWindow.clipModeActive
-                                visible: active
+                                asynchronous: true
+                                visible: status === Loader.Ready
                                 sourceComponent: LauncherClipboardView {
                                     anchors.fill: parent
                                     filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
@@ -2213,9 +2321,10 @@ PanelWindow {
                     }
                     // ──── Separator ────
                     Rectangle {
-                        x: 48 + (launcherWindow.musicModeActive ? musicListContainer.width : listContainer.width)
+                        x: 8 + (launcherWindow.musicModeActive ? musicListContainer.width : listContainer.width)
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
                         width: 1
                         opacity: launcherWindow.activeSplitBlend
                         Behavior on opacity {
@@ -2229,14 +2338,8 @@ PanelWindow {
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "transparent" }
-                            GradientStop {
-                                position: 0.15
-                                color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
-                            }
-                            GradientStop {
-                                position: 0.85
-                                color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
-                            }
+                            GradientStop { position: 0.15; color: Theme.glass_border }
+                            GradientStop { position: 0.85; color: Theme.glass_border }
                             GradientStop { position: 1.0; color: "transparent" }
                         }
                     }
@@ -2249,9 +2352,11 @@ PanelWindow {
                         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
-                        width: parent.width - 48 - musicListContainer.width
+                        anchors.bottomMargin: 0
+                        width: parent.width - 16 - musicListContainer.width
                         clip: true
 
                         transform: [
@@ -2277,17 +2382,38 @@ PanelWindow {
                     }
 
                     // ──── File Preview Panel (Split View) ────
-                    LauncherFilePreview {
-                        id: previewPanel
-                        launcherWindow: mainUi.launcherWindowRef
-                        ctrl: mainUi.ctrlRef
-                        visible: launcherWindow ? launcherWindow.fileSplitBlend > 0 : false
-                        opacity: launcherWindow ? launcherWindow.fileSplitBlend : 0
+                    // Built on the first file selection and kept from then on.
+                    // It is the largest subtree in the launcher and plenty of
+                    // sessions never select a file, so it stays out of the
+                    // warm-up until it is actually wanted.
+                    Loader {
+                        id: previewLoader
+                        property bool needed: false
+
+                        active: needed
+                        asynchronous: true
+                        visible: status === Loader.Ready && launcherWindow.fileSplitBlend > 0
+                        opacity: launcherWindow.fileSplitBlend
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
-                        width: parent.width - 48 - listContainer.width
+                        anchors.bottomMargin: 0
+                        width: parent.width - 16 - listContainer.width
                         clip: true
+
+                        sourceComponent: LauncherFilePreview {
+                            launcherWindow: mainUi.launcherWindowRef
+                            ctrl: mainUi.ctrlRef
+                        }
+
+                        Connections {
+                            target: launcherWindow
+                            function onHasFileSelectedChanged() {
+                                if (launcherWindow.hasFileSelected)
+                                    previewLoader.needed = true;
+                            }
+                        }
                     }
                 } // End of mainUi
             }

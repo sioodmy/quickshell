@@ -86,115 +86,176 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 20
-        color: Theme.surface_container_high
-        border.color: Theme.outline_variant
+        radius: 16
+        color: Theme.glass_panel
+        border.color: Theme.glass_border
         border.width: 1
+        clip: true
+
+        // Soft selected-color wash instead of a full banner
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Qt.alpha(root.selectedColor, 0.22)
+                    Behavior on color { ColorAnimation { duration: 180 } }
+                }
+                GradientStop {
+                    position: 0.45
+                    color: Qt.alpha(root.selectedColor, 0.06)
+                    Behavior on color { ColorAnimation { duration: 180 } }
+                }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+        }
 
         Column {
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 14
+            anchors.margins: 14
+            spacing: 10
+
+            // Hero row — large swatch + values (replaces banner)
+            Row {
+                width: parent.width
+                height: 52
+                spacing: 12
+
+                Rectangle {
+                    width: 52
+                    height: 52
+                    radius: 16
+                    color: root.selectedColor
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.28)
+
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                }
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    width: parent.width - 52 - 12 - copyHexBtn.width - 8
+
+                    Text {
+                        text: "COLOR"
+                        color: Theme.on_surface_variant
+                        font { family: "Google Sans"; pixelSize: 9; weight: Font.Bold; letterSpacing: 1.2 }
+                    }
+
+                    Text {
+                        text: root.hexValue
+                        color: Theme.on_surface
+                        font { family: "JetBrains Mono"; pixelSize: 18; weight: Font.Medium }
+                    }
+
+                    Text {
+                        text: "rgb(" + root.rgbValue + ")"
+                        color: Theme.on_surface_variant
+                        font { family: "Google Sans"; pixelSize: 11 }
+                    }
+                }
+
+                Rectangle {
+                    id: copyHexBtn
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 72
+                    height: 32
+                    radius: 16
+                    color: copyHexMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 4
+                        MaterialIcon {
+                            icon: "content_copy"
+                            color: Theme.primary
+                            font.pixelSize: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: "Copy"
+                            color: Theme.primary
+                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: copyHexMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.copyColor(root.hexValue, "HEX")
+                    }
+                }
+            }
 
             Row {
                 id: pickerTopRow
                 width: parent.width
-                height: 168
-                spacing: 12
+                height: 140
+                spacing: 10
 
-                // Left: header + large preview
-                Item {
-                    width: (parent.width - parent.spacing) / 2
+                // Shade chips
+                Flow {
+                    id: shadesList
+                    width: (parent.width - parent.spacing) * 0.42
                     height: parent.height
+                    spacing: 6
+                    clip: true
 
-                    Column {
-                        id: headerCol
-                        width: parent.width
-                        spacing: 4
+                    Repeater {
+                        model: [
+                            Qt.hsva(root.hue / 360, root.saturation, 0.15, 1),
+                            Qt.hsva(root.hue / 360, root.saturation, 0.35, 1),
+                            Qt.hsva(root.hue / 360, root.saturation, 0.55, 1),
+                            Qt.hsva(root.hue / 360, root.saturation, 0.75, 1),
+                            Qt.hsva(root.hue / 360, root.saturation, 0.9, 1),
+                            Qt.hsva(root.hue / 360, root.saturation * 0.7, 1.0, 1),
+                            Qt.hsva(root.hue / 360, root.saturation * 0.4, 1.0, 1),
+                            Qt.hsva(root.hue / 360, 0.08, 1.0, 1)
+                        ]
+                        delegate: Rectangle {
+                            property color shadeColor: modelData
+                            width: (shadesList.width - 2 * 6) / 3
+                            height: (shadesList.height - 2 * 6) / 3
+                            radius: 8
+                            color: shadeColor
+                            border.color: String(root.selectedColor) === String(shadeColor) ? Theme.primary : Qt.alpha(Theme.on_surface, 0.14)
+                            border.width: String(root.selectedColor) === String(shadeColor) ? 2 : 1
 
-                        Text {
-                            text: "COLOR PICKER"
-                            color: Theme.on_surface_variant
-                            font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.4 }
-                        }
-
-                        Text {
-                            text: hexValue
-                            color: Theme.on_surface
-                            font { family: "JetBrains Mono"; pixelSize: 20; weight: Font.Medium }
-                        }
-
-                        Text {
-                            text: "rgb(" + rgbValue + ")"
-                            color: Theme.on_surface_variant
-                            font { family: "Google Sans"; pixelSize: 12 }
-                        }
-                    }
-
-                    Flow {
-                        id: shadesList
-                        anchors.top: headerCol.bottom
-                        anchors.topMargin: 10
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        spacing: 8
-                        clip: true
-
-                        Repeater {
-                            model: [
-                                Qt.hsva(root.hue / 360, root.saturation, 0.15, 1),
-                                Qt.hsva(root.hue / 360, root.saturation, 0.30, 1),
-                                Qt.hsva(root.hue / 360, root.saturation, 0.45, 1),
-                                Qt.hsva(root.hue / 360, root.saturation, 0.65, 1),
-                                Qt.hsva(root.hue / 360, root.saturation, 0.85, 1),
-                                Qt.hsva(root.hue / 360, root.saturation * 0.8, 1.0, 1),
-                                Qt.hsva(root.hue / 360, root.saturation * 0.6, 1.0, 1),
-                                Qt.hsva(root.hue / 360, root.saturation * 0.4, 1.0, 1),
-                                Qt.hsva(root.hue / 360, root.saturation * 0.2, 1.0, 1),
-                                Qt.hsva(root.hue / 360, 0.05, 1.0, 1)
-                            ]
-                            delegate: Rectangle {
-                                property color shadeColor: modelData
-                                width: (shadesList.width - 4 * 8) / 5
-                                height: (shadesList.height - 8) / 2
-                                radius: 8
-                                color: shadeColor
-                                border.color: String(root.selectedColor) === String(shadeColor) ? Theme.primary : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.14)
-                                border.width: String(root.selectedColor) === String(shadeColor) ? 2 : 1
-                                
-                                MouseArea {
-                                    id: shadeMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.setFromColor(shadeColor);
-                                    }
-                                }
-                                scale: shadeMouse.pressed ? 0.92 : (shadeMouse.containsMouse ? 1.06 : 1)
-                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
+                            MouseArea {
+                                id: shadeMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.setFromColor(shadeColor)
                             }
+                            scale: shadeMouse.pressed ? 0.92 : (shadeMouse.containsMouse ? 1.05 : 1)
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
                         }
                     }
                 }
 
-                // Right: saturation / value spectrum
+                // SV plane
                 Item {
                     id: svPlane
-                    width: (pickerTopRow.width - pickerTopRow.spacing) / 2
+                    width: (pickerTopRow.width - pickerTopRow.spacing) * 0.58
                     height: parent.height
                     clip: true
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 16
+                        radius: 12
                         color: Qt.hsva(root.hue / 360, 1, 1, 1)
                     }
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 16
+                        radius: 12
                         gradient: Gradient {
                             orientation: Gradient.Horizontal
                             GradientStop { position: 0.0; color: "#ffffff" }
@@ -204,7 +265,7 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 16
+                        radius: 12
                         gradient: Gradient {
                             orientation: Gradient.Vertical
                             GradientStop { position: 0.0; color: "transparent" }
@@ -214,25 +275,23 @@ Item {
 
                     Rectangle {
                         id: svCursor
-                        width: 22
-                        height: 22
-                        radius: 11
+                        width: 18
+                        height: 18
+                        radius: 9
                         x: Math.max(0, Math.min(svPlane.width - width, root.saturation * svPlane.width - width / 2))
                         y: Math.max(0, Math.min(svPlane.height - height, (1 - root.value) * svPlane.height - height / 2))
                         color: "transparent"
-                        border.width: 3
+                        border.width: 2
                         border.color: root.value > 0.55 ? "#ffffff" : "#1a1c20"
                         Behavior on x { NumberAnimation { duration: 40 } }
                         Behavior on y { NumberAnimation { duration: 40 } }
 
                         Rectangle {
                             anchors.centerIn: parent
-                            width: 10
-                            height: 10
-                            radius: 5
+                            width: 8
+                            height: 8
+                            radius: 4
                             color: root.selectedColor
-                            border.width: 1
-                            border.color: Qt.rgba(0, 0, 0, 0.25)
                         }
                     }
 
@@ -260,11 +319,11 @@ Item {
             Item {
                 id: hueTrack
                 width: parent.width
-                height: 22
+                height: 18
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 11
+                    radius: 9
                     clip: true
 
                     gradient: Gradient {
@@ -280,12 +339,12 @@ Item {
                 }
 
                 Rectangle {
-                    width: 18
-                    height: parent.height + 6
-                    radius: 9
-                    y: -3
+                    width: 16
+                    height: parent.height + 4
+                    radius: 8
+                    y: -2
                     x: Math.max(-2, Math.min(hueTrack.width - width + 2, root.hue / 360 * hueTrack.width - width / 2))
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
                     border.width: 2
                     border.color: Qt.hsva(root.hue / 360, 1, 1, 1)
                     Behavior on x { NumberAnimation { duration: 40 } }
@@ -312,7 +371,7 @@ Item {
             // Preset swatches
             Row {
                 width: parent.width
-                spacing: 8
+                spacing: 6
 
                 Repeater {
                     model: [
@@ -324,12 +383,12 @@ Item {
                             ? (ColorLogic.normalizeHex(modelData) || modelData.toUpperCase())
                             : ColorLogic.colorToHex(modelData)
 
-                        width: (parent.width - 6 * 8) / 7
-                        height: 28
-                        radius: 8
+                        width: (parent.width - 6 * 6) / 7
+                        height: 22
+                        radius: 6
                         color: modelData
                         border.color: root.hexValue === swatchHex
-                            ? Theme.primary : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
+                            ? Theme.primary : Qt.alpha(Theme.on_surface, 0.1)
                         border.width: root.hexValue === swatchHex ? 2 : 1
                         scale: presetMouse.pressed ? 0.92 : (presetMouse.containsMouse ? 1.06 : 1)
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
@@ -347,17 +406,17 @@ Item {
 
             Row {
                 width: parent.width
-                spacing: 10
+                spacing: 8
 
                 ColorValueRow {
-                    width: (parent.width - 10) / 2
+                    width: (parent.width - 8) / 2
                     label: "HEX"
                     value: root.hexValue
                     onCopyClicked: root.copyColor(root.hexValue, "HEX")
                 }
 
                 ColorValueRow {
-                    width: (parent.width - 10) / 2
+                    width: (parent.width - 8) / 2
                     label: "RGB"
                     value: root.rgbValue
                     onCopyClicked: root.copyColor("rgb(" + root.rgbValue + ")", "RGB")
@@ -368,9 +427,11 @@ Item {
 
     component ColorValueRow: Rectangle {
         id: valueRow
-        height: 44
-        radius: 14
-        color: Theme.surface_container_highest
+        height: 36
+        radius: 12
+        color: Theme.glass_raised
+        border.width: 1
+        border.color: Theme.glass_border
 
         property string label: ""
         property string value: ""
@@ -379,26 +440,26 @@ Item {
         Text {
             id: rowLabel
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 12
             anchors.top: parent.top
-            anchors.topMargin: 8
+            anchors.topMargin: 5
             text: valueRow.label
             color: Theme.on_surface_variant
-            font { family: "Google Sans"; pixelSize: 9; weight: Font.Bold; letterSpacing: 1.1 }
+            font { family: "Google Sans"; pixelSize: 8; weight: Font.Bold; letterSpacing: 1.0 }
         }
 
         Text {
             anchors.left: rowLabel.left
             anchors.right: copyChip.left
-            anchors.rightMargin: 8
+            anchors.rightMargin: 6
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 8
+            anchors.bottomMargin: 5
             text: valueRow.value
             color: Theme.on_surface
             elide: Text.ElideRight
             font {
                 family: valueRow.label === "HEX" ? "JetBrains Mono" : "Google Sans"
-                pixelSize: 14
+                pixelSize: 12
                 weight: Font.Medium
             }
         }
@@ -406,30 +467,20 @@ Item {
         Rectangle {
             id: copyChip
             anchors.right: parent.right
-            anchors.rightMargin: 8
+            anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
-            width: 64
-            height: 30
-            radius: 15
-            color: copyMouse.containsMouse ? Theme.primary : Theme.primary_container
+            width: 56
+            height: 26
+            radius: 13
+            color: copyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
 
             Behavior on color { ColorAnimation { duration: 100 } }
 
-            Row {
+            Text {
                 anchors.centerIn: parent
-                spacing: 3
-
-                MaterialIcon {
-                    icon: "content_copy"
-                    color: copyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                    font.pixelSize: 12
-                }
-
-                Text {
-                    text: "Copy"
-                    color: copyMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                    font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                }
+                text: "Copy"
+                color: Theme.primary
+                font { family: "Google Sans"; pixelSize: 10; weight: Font.Medium }
             }
 
             MouseArea {
@@ -445,11 +496,13 @@ Item {
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 8
-        width: copyToastText.width + 28
-        height: 34
-        radius: 17
-        color: Theme.inverse_surface
+        anchors.bottomMargin: 6
+        width: copyToastText.width + 24
+        height: 28
+        radius: 14
+        color: Theme.glass_raised
+        border.width: 1
+        border.color: Theme.glass_border
         opacity: root.copyFeedback !== "" ? 1 : 0
         scale: root.copyFeedback !== "" ? 1 : 0.92
         visible: opacity > 0.01
@@ -462,8 +515,8 @@ Item {
             id: copyToastText
             anchors.centerIn: parent
             text: root.copyFeedback
-            color: Theme.inverse_on_surface
-            font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+            color: Theme.on_surface
+            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
         }
     }
 }

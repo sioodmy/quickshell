@@ -49,12 +49,20 @@ Item {
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
             
+            FontMetrics {
+                id: fontMetrics
+                font: pomodoroText.font
+            }
+            
             Text {
+                id: pomodoroText
                 anchors.verticalCenter: parent.verticalCenter
                 text: Pomodoro.formattedTime
                 color: Theme.on_surface
                 font.pixelSize: 13
                 font.weight: Font.Medium
+                width: fontMetrics.advanceWidth("00:00")
+                horizontalAlignment: Text.AlignHCenter
             }
         }
         

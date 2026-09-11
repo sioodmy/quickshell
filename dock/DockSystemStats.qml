@@ -7,15 +7,26 @@ import qs.components
 Rectangle {
     id: root
 
+    property bool osdActive: false
+    property int osdSeq: 0
+
     implicitWidth: layout.implicitWidth + 8
     implicitHeight: 22
     radius: height / 2
     color: "transparent"
 
-    // --- Audio State Management ---
     readonly property var activeSink: Pipewire.defaultAudioSink
     readonly property bool isMuted: activeSink?.audio?.muted ?? true
     readonly property real volumeLevel: activeSink?.audio?.volume ?? 0.0
+    readonly property string volumeIcon: {
+        if (root.isMuted)
+            return "volume_off";
+        if (root.volumeLevel > 0.5)
+            return "volume_up";
+        if (root.volumeLevel > 0)
+            return "volume_down";
+        return "volume_mute";
+    }
 
     PwObjectTracker {
         objects: root.activeSink ? [root.activeSink] : []
@@ -26,74 +37,37 @@ Rectangle {
         anchors.centerIn: parent
         spacing: 6
 
-        // --- Audio ---
+        // Fixed slot so scale pops never shift battery / dock width.
         Item {
-            width: 11
-            height: 11
+            id: audioSlot
+            width: 16
+            height: 16
             anchors.verticalCenter: parent.verticalCenter
 
-            Canvas {
-                id: audioIcon
-                anchors.fill: parent
-                visible: !(root.isMuted || root.volumeLevel <= 0.0)
-
-                property real _v: root.volumeLevel
-                property bool _m: root.isMuted
-
-                on_VChanged: requestPaint()
-                on_MChanged: requestPaint()
-                Component.onCompleted: requestPaint()
-
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-                    var cx = width / 2;
-                    var cy = height / 2;
-                    var r = (width / 2) - 1.0;
-
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                    ctx.lineWidth = 1.8;
-                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.3);
-                    ctx.stroke();
-
-                    if (root.volumeLevel > 0) {
-                        ctx.beginPath();
-                        var startAngle = -Math.PI / 2;
-                        var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
-                        ctx.arc(cx, cy, r, startAngle, endAngle);
-                        ctx.lineWidth = 1.8;
-                        ctx.lineCap = "round";
-                        ctx.strokeStyle = root.isMuted ? Qt.rgba(1, 1, 1, 0.5) : "#ffffff";
-                        ctx.stroke();
-                    }
-                }
-            }
-
             MaterialIcon {
+                id: audioIcon
                 anchors.centerIn: parent
-                visible: root.isMuted || root.volumeLevel <= 0.0
-                icon: "volume_off"
-                font.pixelSize: 10
+                icon: root.volumeIcon
+                fill: 0
+                font.pixelSize: 16
+                opticalSize: 20
                 color: "#ffffff"
+                transformOrigin: Item.Center
             }
         }
 
-        // --- Battery ---
         Item {
             id: batteryIconItem
             width: 22
             height: 12
             anchors.verticalCenter: parent.verticalCenter
 
-            // Internal logic
             readonly property bool isVisible: UPower.displayDevice?.isPresent ?? false
             readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
             readonly property bool isCharging: !UPower.onBattery
 
             visible: isVisible
 
-            // Battery nub (terminal on the right)
             Rectangle {
                 id: batteryNub
                 width: 2
@@ -167,5 +141,25 @@ Rectangle {
                 color: "#ffffff"
             }
         }
+    }
+
+    SequentialAnimation {
+        id: iconPop
+        NumberAnimation { target: audioIcon; property: "scale"; to: 0.6; duration: 50; easing.type: Easing.InCubic }
+        NumberAnimation { target: audioIcon; property: "scale"; to: 1.0; duration: 140; easing.type: Easing.OutBack }
+    }
+
+    onOsdActiveChanged: {
+        if (root.osdActive)
+            iconPop.restart();
+        else {
+            iconPop.stop();
+            audioIcon.scale = 1;
+        }
+    }
+
+    onOsdSeqChanged: {
+        if (root.osdActive)
+            iconPop.restart();
     }
 }
