@@ -74,20 +74,23 @@ Item {
                     delegate: Rectangle {
                         width: (parent.width - 24) / 4
                         height: 64
-                        radius: 14
-                        color: btnMouse.containsMouse
-                            ? Theme.glass_accent_soft
-                            : Theme.glass_hover
+                        radius: 18
+                        color: btnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble
                         border.width: 1
-                        border.color: Theme.glass_border
+                        border.color: btnMouse.containsMouse ? Theme.bubble_border : Theme.bubble_border_soft
+                        clip: true
 
                         Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
                         scale: btnMouse.pressed ? 0.94 : 1
                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                        BubbleSheen {}
 
                         Column {
                             anchors.centerIn: parent
                             spacing: 4
+                            z: 1
 
                             MaterialIcon {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -99,7 +102,7 @@ Item {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: modelData.label
                                 font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                color: btnMouse.containsMouse ? Theme.primary : Theme.on_surface_variant
+                                color: btnMouse.containsMouse ? Theme.primary : Theme.on_surface
                             }
                         }
 

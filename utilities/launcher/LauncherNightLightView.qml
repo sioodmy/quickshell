@@ -228,10 +228,11 @@ Item {
                         color: isActive
                             ? Qt.rgba(1, 0.72, 0.3, 0.22)
                             : (presetMouse.containsMouse
-                                ? Theme.glass_hover
-                                : Theme.glass_raised)
-                        border.color: isActive ? "#ffb74d" : Theme.glass_border
+                                ? Theme.bubble_hover
+                                : Theme.bubble)
+                        border.color: isActive ? "#ffb74d" : Theme.bubble_border_soft
                         border.width: isActive ? 1.5 : 1
+                        clip: true
 
                         Behavior on color { ColorAnimation { duration: 120 } }
                         Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -239,9 +240,12 @@ Item {
                         scale: presetMouse.pressed ? 0.94 : (presetMouse.containsMouse ? 1.03 : 1)
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
 
+                        BubbleSheen {}
+
                         Column {
                             anchors.centerIn: parent
                             spacing: 3
+                            z: 1
 
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter

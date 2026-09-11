@@ -289,13 +289,13 @@ PanelWindow {
             anchors.horizontalCenter: parent.horizontalCenter
 
             // Same language as the dock / launcher island.
-            color: Qt.rgba(0, 0, 0, 0.4)
+            color: Theme.glass_shell
             topLeftRadius: 0
             topRightRadius: 0
             bottomLeftRadius: KeepassState.targetRadius
             bottomRightRadius: KeepassState.targetRadius
             border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.1)
+            border.color: Theme.glass_shell_border
             contentUnderBorder: true
             // Hidden by opacity alone. Gating `visible` on openProgress pushed
             // the entry list's first polish into the reveal animation.
@@ -577,12 +577,16 @@ PanelWindow {
                         anchors.rightMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
                         width: 32; height: 32; radius: 16
-                        color: lockMouse.containsMouse ? Theme.glass_hover : "transparent"
-                        border.width: lockMouse.containsMouse ? 1 : 0
-                        border.color: Theme.glass_border
+                        color: lockMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                        border.width: 1
+                        border.color: Theme.bubble_border_soft
+                        clip: true
+
+                        BubbleSheen {}
 
                         MaterialIcon {
                             anchors.centerIn: parent
+                            z: 1
                             icon: "lock"
                             font.pixelSize: 16
                             color: Theme.on_surface_variant

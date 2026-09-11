@@ -24,23 +24,31 @@ Row {
         signal clicked()
         width: 80
         height: 32
-        radius: 16
-        color: m.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
-        border.color: Qt.rgba(1, 1, 1, 0.1)
+        radius: height / 2
+        color: m.containsMouse ? Theme.bubble_hover : Theme.bubble
+        border.color: Theme.bubble_border
         border.width: 1
+        clip: true
+        scale: m.pressed ? 0.94 : 1
+        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+        BubbleSheen {}
+
         Row {
             anchors.centerIn: parent
             spacing: 4
+            z: 1
             MaterialIcon {
                 icon: parent.parent.icon
                 font.pixelSize: 14
-                color: m.containsMouse ? Theme.on_primary_container : "#ffffff"
+                color: m.containsMouse ? Theme.primary : Theme.on_surface
             }
             Text {
                 text: parent.parent.label
                 font.family: "Google Sans Medium"
                 font.pixelSize: 12
-                color: m.containsMouse ? Theme.on_primary_container : "#ffffff"
+                color: m.containsMouse ? Theme.primary : Theme.on_surface
             }
         }
         MouseArea {

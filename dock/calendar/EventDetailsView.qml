@@ -109,11 +109,17 @@ Item {
                     width: 36
                     height: 36
                     radius: 18
-                    color: backMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                    color: backMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
+                    clip: true
                     Behavior on color { ColorAnimation { duration: 150 } }
+
+                    BubbleSheen {}
                     
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: "arrow_back"
                         color: Theme.on_surface
                         font.pixelSize: 20

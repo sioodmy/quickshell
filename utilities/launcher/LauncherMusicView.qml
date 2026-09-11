@@ -457,16 +457,20 @@ Item {
                             id: playAllBtn
                             width: 36; height: 36
                             radius: 18
-                            color: Theme.glass_accent
+                            color: Theme.bubble_accent
                             border.width: 1
-                            border.color: Theme.glass_border
+                            border.color: Theme.bubble_border
                             anchors.verticalCenter: parent.verticalCenter
+                            clip: true
                             scale: playAllMouse.containsMouse ? 1.08 : 1.0
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                            BubbleSheen {}
 
                             MaterialIcon {
                                 anchors.centerIn: parent
                                 anchors.horizontalCenterOffset: 1
+                                z: 1
                                 icon: "play_arrow"
                                 font.pixelSize: 18
                                 color: Theme.primary

@@ -457,24 +457,27 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: pillRow.width + 18
                 height: 26
-                radius: 13
+                radius: height / 2
                 color: {
                     if (delegateRoot.itemType === "emoji")
-                        return Theme.glass_tertiary;
+                        return Theme.bubble_tertiary;
                     if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
-                        return Theme.glass_secondary;
+                        return Theme.bubble_secondary;
                     if (delegateRoot.itemType === "focus")
-                        return Theme.glass_tertiary;
+                        return Theme.bubble_tertiary;
                     if (delegateRoot.itemType === "file")
-                        return Theme.glass_secondary;
+                        return Theme.bubble_secondary;
                     if (delegateRoot.itemType === "bookmark")
-                        return Theme.glass_secondary;
-                    return Theme.glass_accent;
+                        return Theme.bubble_secondary;
+                    return Theme.bubble_accent;
                 }
                 border.width: 1
-                border.color: Theme.glass_border
+                border.color: Theme.bubble_border
                 opacity: delegateRoot.isSelected ? 1.0 : 0.0
                 scale: delegateRoot.isSelected ? 1.0 : 0.8
+                clip: true
+
+                BubbleSheen {}
 
                 Behavior on opacity {
                     NumberAnimation {
@@ -492,6 +495,7 @@ Item {
                     id: pillRow
                     anchors.centerIn: parent
                     spacing: 6
+                    z: 1
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -609,23 +613,27 @@ Item {
                     width: actionText.implicitWidth + 20
                     height: 32
                     anchors.verticalCenter: parent.verticalCenter
-                    radius: 16
+                    radius: height / 2
                     color: isActionSelected
-                        ? (isPrimaryAction ? Theme.glass_accent : Theme.glass_secondary)
-                        : Theme.glass_raised
+                        ? (isPrimaryAction ? Theme.bubble_accent : Theme.bubble_secondary)
+                        : Theme.bubble
                     border.width: 1
-                    border.color: Theme.glass_border
+                    border.color: isActionSelected ? Theme.bubble_border : Theme.bubble_border_soft
+                    clip: true
 
                     Behavior on color { ColorAnimation { duration: 100 } }
+
+                    BubbleSheen {}
 
                     Text {
                         id: actionText
                         anchors.centerIn: parent
+                        z: 1
                         text: modelData.name || ""
                         font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                         color: isActionSelected
                             ? (isPrimaryAction ? Theme.primary : Theme.secondary)
-                            : Theme.on_surface_variant
+                            : Theme.on_surface
 
                         Behavior on color { ColorAnimation { duration: 100 } }
                     }

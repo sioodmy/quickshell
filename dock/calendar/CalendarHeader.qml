@@ -111,7 +111,10 @@ Item {
             width: 28
             height: 28
             radius: 14
-            color: prevMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+            color: prevMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+            border.width: 1
+            border.color: Theme.bubble_border_soft
+            clip: true
             scale: prevMouse.pressed ? 0.9 : (prevMouse.containsMouse ? 1.05 : 1.0)
 
             Behavior on scale {
@@ -127,8 +130,11 @@ Item {
                 }
             }
 
+            BubbleSheen {}
+
             MaterialIcon {
                 anchors.centerIn: parent
+                z: 1
                 icon: "chevron_left"
                 color: Theme.on_surface
                 font.pixelSize: 14
@@ -146,7 +152,10 @@ Item {
             width: 28
             height: 28
             radius: 14
-            color: nextMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+            color: nextMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+            border.width: 1
+            border.color: Theme.bubble_border_soft
+            clip: true
             scale: nextMouse.pressed ? 0.9 : (nextMouse.containsMouse ? 1.05 : 1.0)
 
             Behavior on scale {
@@ -162,8 +171,11 @@ Item {
                 }
             }
 
+            BubbleSheen {}
+
             MaterialIcon {
                 anchors.centerIn: parent
+                z: 1
                 icon: "chevron_right"
                 color: Theme.on_surface
                 font.pixelSize: 14

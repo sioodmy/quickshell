@@ -13,8 +13,10 @@ Row {
         id: previewContainer
         width: 142
         height: 80
-        radius: 12
-        color: Theme.surface_container_high
+        radius: 16
+        color: Theme.bubble
+        border.width: 1
+        border.color: Theme.bubble_border_soft
         clip: true
 
         MouseArea {
@@ -64,24 +66,30 @@ Row {
 
             width: 96
             height: 36
-            radius: 18
+            radius: height / 2
             color: {
-                if (done) return Qt.alpha(Theme.primary, 0.18);
-                if (pillMouse.containsMouse) return Qt.alpha(Theme.primary, 0.14);
-                return Qt.alpha(Theme.on_surface, 0.08);
+                if (done) return Theme.bubble_accent_soft;
+                if (pillMouse.containsMouse) return Theme.bubble_hover;
+                return Theme.bubble;
             }
+            border.width: 1
+            border.color: done ? Qt.alpha(Theme.primary, 0.45) : Theme.bubble_border_soft
+            clip: true
             Behavior on color { ColorAnimation { duration: 150 } }
             scale: pillMouse.pressed ? 0.94 : 1.0
             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
+            BubbleSheen {}
+
             Row {
                 anchors.centerIn: parent
                 spacing: 6
+                z: 1
                 MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
                     icon: pill.done ? "check" : (pill.busy ? "sync" : pill.icon)
                     font.pixelSize: 13
-                    color: pill.done ? Theme.primary : Theme.on_surface_variant
+                    color: pill.done ? Theme.primary : Theme.on_surface
                     RotationAnimation on rotation {
                         running: pill.busy; from: 0; to: 360; duration: 1000; loops: Animation.Infinite
                     }

@@ -474,7 +474,7 @@ Item {
                                                 width: 22
                                                 height: 22
                                                 radius: 11
-                                                color: openBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_raised
+                                                color: openBtnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble
                                                 border.width: 1
                                                 border.color: Theme.glass_border
 
@@ -498,7 +498,7 @@ Item {
                                                 width: 22
                                                 height: 22
                                                 radius: 11
-                                                color: copyBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_raised
+                                                color: copyBtnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble
                                                 border.width: 1
                                                 border.color: Theme.glass_border
 
@@ -522,7 +522,7 @@ Item {
                                                 width: 22
                                                 height: 22
                                                 radius: 11
-                                                color: removeBtnMouse.containsMouse ? "#EF4444" : Theme.glass_raised
+                                                color: removeBtnMouse.containsMouse ? Theme.bubble_critical : Theme.bubble
                                                 border.width: 1
                                                 border.color: Theme.glass_border
 

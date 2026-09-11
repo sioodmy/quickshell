@@ -233,30 +233,34 @@ Item {
             height: 34
             radius: 17
             color: clearMouse.containsMouse
-                ? Qt.alpha(Theme.critical, 0.8)
-                : Qt.alpha(Theme.critical, 0.18)
+                ? Theme.bubble_critical
+                : Theme.bubble_critical_soft
             border.width: 1
-            border.color: Theme.glass_border
+            border.color: Theme.bubble_border_soft
+            clip: true
 
             Behavior on color { ColorAnimation { duration: 120 } }
             scale: clearMouse.pressed ? 0.94 : 1.0
             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutBack } }
 
+            BubbleSheen {}
+
             Row {
                 id: clearRow
                 anchors.centerIn: parent
                 spacing: 6
+                z: 1
 
                 MaterialIcon {
                     anchors.verticalCenter: parent.verticalCenter
                     icon: "delete_sweep"
                     font.pixelSize: 14
-                    color: clearMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
+                    color: clearMouse.containsMouse ? Theme.critical : Theme.on_surface
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Clear all"
-                    color: clearMouse.containsMouse ? Theme.on_critical : Theme.on_surface_variant
+                    color: clearMouse.containsMouse ? Theme.critical : Theme.on_surface
                     font { family: "Google Sans Medium"; pixelSize: 13 }
                 }
             }
@@ -399,8 +403,8 @@ Item {
                         Rectangle {
                             width: 30; height: 30; radius: 15
                             color: imgDeleteMouse.containsMouse
-                                ? Qt.alpha(Theme.critical, 0.18)
-                                : "transparent"
+                                ? Theme.bubble_critical_soft
+                                : Theme.bubble
                             Behavior on color { ColorAnimation { duration: 100 } }
                             MaterialIcon {
                                 anchors.centerIn: parent
@@ -419,14 +423,17 @@ Item {
 
                         Rectangle {
                             width: imgCopyRow.implicitWidth + 20; height: 30; radius: 15
-                            color: imgCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            color: imgCopyMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                             border.width: 1
-                            border.color: Theme.glass_border
+                            border.color: Theme.bubble_border_soft
+                            clip: true
                             Behavior on color { ColorAnimation { duration: 100 } }
+                            BubbleSheen {}
                             Row {
                                 id: imgCopyRow
                                 anchors.centerIn: parent
                                 spacing: 5
+                                z: 1
                                 MaterialIcon {
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "content_copy"
@@ -513,8 +520,8 @@ Item {
                     Rectangle {
                         width: 30; height: 30; radius: 15
                         color: txtDeleteMouse.containsMouse
-                            ? Qt.alpha(Theme.critical, 0.18)
-                            : "transparent"
+                            ? Theme.bubble_critical_soft
+                            : Theme.bubble
                         Behavior on color { ColorAnimation { duration: 100 } }
                         MaterialIcon {
                             anchors.centerIn: parent
@@ -533,14 +540,17 @@ Item {
 
                     Rectangle {
                         width: txtCopyRow.implicitWidth + 20; height: 30; radius: 15
-                        color: txtCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                        color: txtCopyMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                         border.width: 1
-                        border.color: Theme.glass_border
+                        border.color: Theme.bubble_border_soft
+                        clip: true
                         Behavior on color { ColorAnimation { duration: 100 } }
+                        BubbleSheen {}
                         Row {
                             id: txtCopyRow
                             anchors.centerIn: parent
                             spacing: 5
+                            z: 1
                             MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
                                 icon: "content_copy"

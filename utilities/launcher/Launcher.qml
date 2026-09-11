@@ -1637,13 +1637,13 @@ PanelWindow {
                     // Square top edge meets the screen like the dock; rounded
                     // bottom corners clip glass fill + children (plain
                     // Rectangle.clip does not honor radius).
-                    color: Qt.rgba(0, 0, 0, 0.4)
+                    color: Theme.glass_shell
                     topLeftRadius: 0
                     topRightRadius: 0
                     bottomLeftRadius: LauncherState.targetRadius
                     bottomRightRadius: LauncherState.targetRadius
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                    border.color: Theme.glass_shell_border
                     // Keep layout flush to the card edges; border paints on top.
                     contentUnderBorder: true
                     // Stays visible and is hidden by opacity alone. Gating

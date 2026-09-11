@@ -118,11 +118,17 @@ Item {
 
                 Rectangle {
                     width: 28; height: 28; radius: 14
-                    color: backMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                    color: backMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
+                    clip: true
                     Behavior on color { ColorAnimation { duration: 150 } }
+
+                    BubbleSheen {}
 
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: "arrow_back"
                         color: Theme.on_surface
                         font.pixelSize: 18
@@ -188,14 +194,18 @@ Item {
                     width: 30
                     height: 30
                     radius: 15
-                    color: useTime ? Theme.primary : "transparent"
-                    border.color: useTime ? "transparent" : Theme.outline_variant
+                    color: useTime ? Theme.bubble_accent : Theme.bubble
+                    border.color: useTime ? Qt.alpha(Theme.primary, 0.5) : Theme.bubble_border_soft
                     border.width: 1
+                    clip: true
+
+                    BubbleSheen {}
                     
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: "schedule"
-                        color: useTime ? Theme.on_primary : Theme.on_surface_variant
+                        color: useTime ? Theme.primary : Theme.on_surface_variant
                         font.pixelSize: 15
                     }
                     
@@ -225,17 +235,21 @@ Item {
                     width: 96
                     height: 34
                     radius: 17
-                    color: Qt.rgba(1, 1, 1, 0.1)
-                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                    color: Theme.bubble
+                    border.color: Theme.bubble_border_soft
                     border.width: 1
+                    clip: true
+
+                    BubbleSheen {}
                     
                     Row {
                         anchors.centerIn: parent
                         spacing: 8
+                        z: 1
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: hrMinus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                            color: hrMinus.containsMouse ? Theme.bubble_hover : "transparent"
                             Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: hrMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -253,7 +267,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: hrPlus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                            color: hrPlus.containsMouse ? Theme.bubble_hover : "transparent"
                             Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: hrPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -287,17 +301,21 @@ Item {
                     width: 96
                     height: 34
                     radius: 17
-                    color: Qt.rgba(1, 1, 1, 0.1)
-                    border.color: Qt.rgba(1, 1, 1, 0.1)
+                    color: Theme.bubble
+                    border.color: Theme.bubble_border_soft
                     border.width: 1
+                    clip: true
+
+                    BubbleSheen {}
                     
                     Row {
                         anchors.centerIn: parent
                         spacing: 8
+                        z: 1
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: minMinus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                            color: minMinus.containsMouse ? Theme.bubble_hover : "transparent"
                             Text { text: "−"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: minMinus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -315,7 +333,7 @@ Item {
                         
                         Rectangle {
                             width: 20; height: 20; radius: 10
-                            color: minPlus.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                            color: minPlus.containsMouse ? Theme.bubble_hover : "transparent"
                             Text { text: "+"; anchors.centerIn: parent; font.bold: true; color: Theme.on_surface_variant; font.pointSize: 11 }
                             MouseArea {
                                 id: minPlus; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -371,20 +389,26 @@ Item {
                 Rectangle {
                     width: 68
                     height: 30
-                    radius: 15
-                    color: "transparent"
-                    border.color: Qt.rgba(1, 1, 1, 0.15)
+                    radius: height / 2
+                    color: cancelMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.color: Theme.bubble_border
                     border.width: 1
+                    clip: true
+
+                    BubbleSheen {}
                     
                     Text {
                         anchors.centerIn: parent
+                        z: 1
                         text: "Cancel"
                         color: Theme.on_surface
                         font { family: "Google Sans"; pointSize: 10; weight: Font.Medium }
                     }
                     
                     MouseArea {
+                        id: cancelMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             root.requestClose();
@@ -397,14 +421,20 @@ Item {
                 Rectangle {
                     width: 68
                     height: 30
-                    radius: 15
-                    color: titleField.text.trim() === "" ? Qt.rgba(1, 1, 1, 0.1) : Theme.primary
-                    opacity: titleField.text.trim() === "" ? 0.5 : 1.0
+                    radius: height / 2
+                    color: titleField.text.trim() === "" ? Theme.bubble : Theme.bubble_accent
+                    border.width: 1
+                    border.color: titleField.text.trim() === "" ? Theme.bubble_border_soft : Theme.bubble_border
+                    opacity: titleField.text.trim() === "" ? 0.55 : 1.0
+                    clip: true
+
+                    BubbleSheen {}
                     
                     Text {
                         anchors.centerIn: parent
+                        z: 1
                         text: "Save"
-                        color: titleField.text.trim() === "" ? Theme.on_surface_variant : Theme.on_primary
+                        color: titleField.text.trim() === "" ? Theme.on_surface_variant : Theme.primary
                         font { family: "Google Sans"; pointSize: 10; weight: Font.Medium }
                     }
                     

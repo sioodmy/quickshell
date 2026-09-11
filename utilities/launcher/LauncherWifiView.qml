@@ -222,7 +222,7 @@ Item {
                 width: 48
                 height: 28
                 radius: 14
-                color: Networking.wifiEnabled ? Theme.glass_accent : Theme.glass_raised
+                color: Networking.wifiEnabled ? Theme.bubble_accent : Theme.bubble
                 border.color: Networking.wifiEnabled ? Theme.primary : Theme.outline
                 border.width: 2
 
@@ -440,7 +440,7 @@ Item {
                             width: connectLabel.implicitWidth + 20
                             height: 28
                             radius: 14
-                            color: connectBtnMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            color: connectBtnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                             border.width: 1
                             border.color: Theme.glass_border
                             Behavior on color { ColorAnimation { duration: 100 } }
@@ -474,7 +474,7 @@ Item {
                             width: disconnectLabel.implicitWidth + 20
                             height: 28
                             radius: 14
-                            color: disconnectMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                            color: disconnectMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                             border.width: 1
                             border.color: Theme.glass_border
 
@@ -501,16 +501,20 @@ Item {
                             height: 28
                             radius: 14
                             color: forgetMouse.containsMouse
-                                ? Qt.alpha(Theme.critical, 0.8)
-                                : Qt.alpha(Theme.critical, 0.18)
+                                ? Theme.bubble_critical
+                                : Theme.bubble_critical_soft
                             border.width: 1
-                            border.color: Theme.glass_border
+                            border.color: Theme.bubble_border_soft
+                            clip: true
+
+                            BubbleSheen {}
 
                             Text {
                                 id: forgetLabel
                                 anchors.centerIn: parent
+                                z: 1
                                 text: "Forget"
-                                color: forgetMouse.containsMouse ? Theme.on_critical : Theme.critical
+                                color: Theme.critical
                                 font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                             }
 

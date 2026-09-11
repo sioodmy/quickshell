@@ -291,7 +291,7 @@ Item {
                 width: 48
                 height: 28
                 radius: 14
-                color: (root.adapter && root.adapter.enabled) ? Theme.glass_accent : Theme.glass_raised
+                color: (root.adapter && root.adapter.enabled) ? Theme.bubble_accent : Theme.bubble
                 border.color: (root.adapter && root.adapter.enabled) ? Theme.primary : Theme.outline
                 border.width: 2
 
@@ -492,7 +492,7 @@ Item {
                         width: devConnLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devConnMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                        color: devConnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                         border.width: 1
                         border.color: Theme.glass_border
                         Behavior on color { ColorAnimation { duration: 100 } }
@@ -522,7 +522,7 @@ Item {
                         width: devDisconnLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devDisconnMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                        color: devDisconnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                         border.width: 1
                         border.color: Theme.glass_border
 
@@ -548,7 +548,7 @@ Item {
                         width: devCancelLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devCancelMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                        color: devCancelMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                         border.width: 1
                         border.color: Theme.glass_border
 
@@ -575,16 +575,20 @@ Item {
                         height: 28
                         radius: 14
                         color: devForgetMouse.containsMouse
-                            ? Qt.alpha(Theme.critical, 0.8)
-                            : Qt.alpha(Theme.critical, 0.18)
+                            ? Theme.bubble_critical
+                            : Theme.bubble_critical_soft
                         border.width: 1
-                        border.color: Theme.glass_border
+                        border.color: Theme.bubble_border_soft
+                        clip: true
+
+                        BubbleSheen {}
 
                         Text {
                             id: devForgetLabel
                             anchors.centerIn: parent
+                            z: 1
                             text: "Forget"
-                            color: devForgetMouse.containsMouse ? Theme.on_critical : Theme.critical
+                            color: Theme.critical
                             font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                         }
 

@@ -30,15 +30,13 @@ Rectangle {
     readonly property var _tags: entryData.tags || []
 
     height: cardContent.implicitHeight + 12
-    radius: 12
-    color: cardMouse.containsMouse
-        ? Qt.rgba(1, 1, 1, 0.15)
-        : Qt.rgba(1, 1, 1, 0.05)
-
+    radius: 16
+    color: cardMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
     border.color: root.isOverdue
-        ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.25)
-        : Qt.rgba(1, 1, 1, 0.1)
-    border.width: root.isOverdue ? 1 : 0
+        ? Qt.alpha(Theme.critical, 0.4)
+        : Theme.bubble_border_soft
+    border.width: 1
+    clip: true
 
     Behavior on color { ColorAnimation { duration: 120 } }
     Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -47,6 +45,8 @@ Rectangle {
     Behavior on scale {
         NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
     }
+
+    BubbleSheen {}
 
     MouseArea {
         id: cardMouse
@@ -58,6 +58,7 @@ Rectangle {
 
     Rectangle {
         id: stateStripe
+        z: 1
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         width: 3
@@ -79,6 +80,7 @@ Rectangle {
 
     Column {
         id: cardContent
+        z: 1
         anchors.left: stateStripe.right
         anchors.leftMargin: 8
         anchors.right: parent.right

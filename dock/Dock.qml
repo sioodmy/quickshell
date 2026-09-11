@@ -28,7 +28,7 @@ Variants {
         // --- Layer Shell ---
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "quickshell-dock"
-        WlrLayershell.exclusiveZone: 28
+        WlrLayershell.exclusiveZone: 0
         WlrLayershell.keyboardFocus: (typeof dynamicIsland !== "undefined" && dynamicIsland.requiresKeyboard) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
         anchors {
@@ -90,9 +90,9 @@ Variants {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: -14
                 radius: dockContent.animRadius
-                color: Qt.rgba(0, 0, 0, 0.4)
+                color: Theme.glass_shell
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.1)
+                border.color: Theme.glass_shell_border
                 opacity: dockContent.overlayCovering ? 0 : 1
                 z: -10
                 // Short: the overlay glass is translucent, so a slow fade here

@@ -76,18 +76,22 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 70
                 height: 32
-                radius: 16
-                color: calcCopyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                radius: height / 2
+                color: calcCopyMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                 border.width: 1
-                border.color: Theme.glass_border
+                border.color: Theme.bubble_border
+                clip: true
 
                 Behavior on color {
                     ColorAnimation { duration: 100 }
                 }
 
+                BubbleSheen {}
+
                 Row {
                     anchors.centerIn: parent
                     spacing: 4
+                    z: 1
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter

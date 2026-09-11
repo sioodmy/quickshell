@@ -134,12 +134,16 @@ Row {
     Rectangle {
         width: 32; height: 32; radius: 16
         anchors.verticalCenter: parent.verticalCenter
-        color: Theme.glass_accent
+        color: Theme.bubble_accent
         border.width: 1
-        border.color: Theme.glass_border
+        border.color: Theme.bubble_border
+        clip: true
+
+        BubbleSheen {}
 
         MaterialIcon {
             anchors.centerIn: parent
+            z: 1
             icon: "vpn_key"
             font.pixelSize: 16
             color: Theme.primary
@@ -181,22 +185,26 @@ Row {
         Rectangle {
             visible: root.entry && root.entry.username !== ""
             width: userRow.implicitWidth + 16
-            height: 28; radius: 14
-            color: root.copiedUser ? Theme.glass_accent_soft
-                : (userBtnMouse.containsMouse ? Theme.glass_hover : Theme.glass_raised)
+            height: 28; radius: height / 2
+            color: root.copiedUser ? Theme.bubble_accent_soft
+                : (userBtnMouse.containsMouse ? Theme.bubble_hover : Theme.bubble)
             border.width: 1
-            border.color: root.copiedUser ? Theme.primary : Theme.glass_border
+            border.color: root.copiedUser ? Qt.alpha(Theme.primary, 0.5) : Theme.bubble_border_soft
+            clip: true
 
             Behavior on color { ColorAnimation { duration: 120 } }
+
+            BubbleSheen {}
 
             Row {
                 id: userRow
                 anchors.centerIn: parent
                 spacing: 4
+                z: 1
                 MaterialIcon {
                     icon: root.copiedUser ? "check" : "person"
                     font.pixelSize: 13
-                    color: root.copiedUser ? Theme.primary : Theme.on_surface_variant
+                    color: root.copiedUser ? Theme.primary : Theme.on_surface
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
@@ -205,7 +213,7 @@ Row {
                     font.family: "Google Sans"
                     font.pixelSize: 12
                     font.weight: Font.Medium
-                    color: root.copiedUser ? Theme.primary : Theme.on_surface_variant
+                    color: root.copiedUser ? Theme.primary : Theme.on_surface
                     anchors.verticalCenter: parent.verticalCenter
                 }
             }
@@ -222,17 +230,21 @@ Row {
 
         Rectangle {
             width: passRow.implicitWidth + 16
-            height: 28; radius: 14
-            color: root.copiedPass ? Theme.glass_accent_soft : Theme.glass_accent
+            height: 28; radius: height / 2
+            color: root.copiedPass ? Theme.bubble_accent_soft : Theme.bubble_accent
             border.width: 1
-            border.color: root.copiedPass ? Theme.primary : Theme.glass_border
+            border.color: root.copiedPass ? Qt.alpha(Theme.primary, 0.5) : Theme.bubble_border
+            clip: true
 
             Behavior on color { ColorAnimation { duration: 120 } }
+
+            BubbleSheen {}
 
             Row {
                 id: passRow
                 anchors.centerIn: parent
                 spacing: 4
+                z: 1
                 MaterialIcon {
                     icon: root.copiedPass ? "check" : "key"
                     font.pixelSize: 13
@@ -263,17 +275,21 @@ Row {
         Rectangle {
             visible: root.entry && root.entry.has_otp
             width: otpRow.implicitWidth + 24
-            height: 28; radius: 14
-            color: root.copiedOtp ? Theme.glass_tertiary_soft : Theme.glass_tertiary
+            height: 28; radius: height / 2
+            color: root.copiedOtp ? Theme.bubble_tertiary_soft : Theme.bubble_tertiary
             border.width: 1
-            border.color: root.copiedOtp ? Theme.tertiary : Theme.glass_border
+            border.color: root.copiedOtp ? Qt.alpha(Theme.tertiary, 0.5) : Theme.bubble_border
+            clip: true
 
             Behavior on color { ColorAnimation { duration: 120 } }
+
+            BubbleSheen {}
 
             Row {
                 id: otpRow
                 anchors.centerIn: parent
                 spacing: 6
+                z: 1
 
                 Item {
                     width: 14; height: 14
@@ -343,12 +359,16 @@ Row {
     Rectangle {
         width: 32; height: 32; radius: 16
         anchors.verticalCenter: parent.verticalCenter
-        color: closeBtnMouse.containsMouse ? Theme.glass_hover : "transparent"
-        border.width: closeBtnMouse.containsMouse ? 1 : 0
-        border.color: Theme.glass_border
+        color: closeBtnMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+        border.width: 1
+        border.color: Theme.bubble_border_soft
+        clip: true
+
+        BubbleSheen {}
 
         MaterialIcon {
             anchors.centerIn: parent
+            z: 1
             icon: "close"
             font.pixelSize: 18
             color: Theme.on_surface

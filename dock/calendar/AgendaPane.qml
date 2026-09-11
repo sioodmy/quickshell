@@ -117,14 +117,20 @@ Item {
                     width: 28
                     height: 28
                     radius: 14
-                    color: addMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                    color: addMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
+                    clip: true
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
+                    BubbleSheen {}
+
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: "add"
-                        color: Theme.on_surface_variant
+                        color: Theme.on_surface
                         font.pixelSize: 16
                     }
 
@@ -144,15 +150,21 @@ Item {
                     width: 28
                     height: 28
                     radius: 14
-                    color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                    color: closeMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
+                    clip: true
                     
                     Behavior on color { ColorAnimation { duration: 150 } }
+
+                    BubbleSheen {}
                     
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: "close"
                         font.pixelSize: 18
-                        color: Theme.on_surface_variant
+                        color: Theme.on_surface
                     }
                     
                     MouseArea {

@@ -234,10 +234,10 @@ Item {
                     radius: 20
                     anchors.verticalCenter: parent.verticalCenter
                     color: BackendDaemon.musicState.loopAlbum
-                        ? Theme.glass_selected
-                        : (loopHover.containsMouse ? Theme.glass_hover : "transparent")
-                    border.width: BackendDaemon.musicState.loopAlbum ? 1 : 0
-                    border.color: Theme.glass_border
+                        ? Theme.bubble_accent_soft
+                        : (loopHover.containsMouse ? Theme.bubble_hover : Theme.bubble)
+                    border.width: 1
+                    border.color: BackendDaemon.musicState.loopAlbum ? Qt.alpha(Theme.primary, 0.45) : Theme.bubble_border_soft
                     Behavior on color { ColorAnimation { duration: 120 } }
 
                     MaterialIcon {
@@ -262,7 +262,9 @@ Item {
                     height: 48
                     radius: 24
                     anchors.verticalCenter: parent.verticalCenter
-                    color: prevHover.containsMouse ? Theme.glass_hover : "transparent"
+                    color: prevHover.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     MaterialIcon {
@@ -287,16 +289,20 @@ Item {
                     height: 56
                     radius: 28
                     anchors.verticalCenter: parent.verticalCenter
-                    color: BackendDaemon.musicState.playing ? Theme.glass_accent : Theme.glass_accent_soft
+                    color: BackendDaemon.musicState.playing ? Theme.bubble_accent : Theme.bubble_accent_soft
                     border.width: 1
-                    border.color: Theme.glass_border
+                    border.color: Theme.bubble_border
+                    clip: true
                     scale: ppHover.pressed ? 0.92 : (ppHover.containsMouse ? 1.06 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 200 } }
 
+                    BubbleSheen {}
+
                     MaterialIcon {
                         id: ppIcon
                         anchors.centerIn: parent
+                        z: 1
                         icon: BackendDaemon.musicState.playing ? "pause" : "play_arrow"
                         font.pixelSize: 26
                         color: Theme.primary
@@ -324,7 +330,9 @@ Item {
                     height: 48
                     radius: 24
                     anchors.verticalCenter: parent.verticalCenter
-                    color: nextHover.containsMouse ? Theme.glass_hover : "transparent"
+                    color: nextHover.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     MaterialIcon {
@@ -349,7 +357,9 @@ Item {
                     height: 40
                     radius: 20
                     anchors.verticalCenter: parent.verticalCenter
-                    color: lyricsHover.containsMouse ? Theme.glass_hover : "transparent"
+                    color: lyricsHover.containsMouse ? Theme.bubble_hover : Theme.bubble
+                    border.width: 1
+                    border.color: Theme.bubble_border_soft
                     Behavior on color { ColorAnimation { duration: 100 } }
 
                     MaterialIcon {

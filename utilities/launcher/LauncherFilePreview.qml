@@ -56,7 +56,7 @@ Item {
                                     width: 34
                                     height: 34
                                     radius: 17
-                                    color: shareBackMouse.containsMouse ? Theme.glass_raised : Theme.glass_panel
+                                    color: shareBackMouse.containsMouse ? Theme.bubble_hover : Theme.bubble
                                     border.width: 1
                                     border.color: Theme.glass_border
 
@@ -160,7 +160,7 @@ Item {
                                 width: parent.width
                                 height: 40
                                 radius: 16
-                                color: copyLinkMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                                color: copyLinkMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                                 border.width: 1
                                 border.color: Theme.glass_border
 
@@ -410,9 +410,9 @@ Item {
                                         height: 24
                                         width: formatChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.glass_accent_soft
+                                        color: Theme.bubble_accent_soft
                                         border.width: 1
-                                        border.color: Theme.glass_border
+                                        border.color: Theme.bubble_border_soft
 
                                         Text {
                                             id: formatChipText
@@ -428,9 +428,9 @@ Item {
                                         height: 24
                                         width: filesChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.glass_secondary_soft
+                                        color: Theme.bubble_secondary_soft
                                         border.width: 1
-                                        border.color: Theme.glass_border
+                                        border.color: Theme.bubble_border_soft
 
                                         Text {
                                             id: filesChipText
@@ -453,9 +453,9 @@ Item {
                                         height: 24
                                         width: sizeChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.glass_raised
+                                        color: Theme.bubble
                                         border.width: 1
-                                        border.color: Theme.glass_border
+                                        border.color: Theme.bubble_border_soft
 
                                         Text {
                                             id: sizeChipText
@@ -475,9 +475,9 @@ Item {
                                         height: 24
                                         width: truncChipText.implicitWidth + 16
                                         radius: 12
-                                        color: Theme.glass_tertiary_soft
+                                        color: Theme.bubble_tertiary_soft
                                         border.width: 1
-                                        border.color: Theme.glass_border
+                                        border.color: Theme.bubble_border_soft
 
                                         Text {
                                             id: truncChipText
@@ -656,7 +656,7 @@ Item {
                                     width: 32
                                     height: 32
                                     radius: 16
-                                    color: copyFileMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                                    color: copyFileMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
                                     border.width: 1
                                     border.color: Theme.glass_border
 
@@ -685,7 +685,7 @@ Item {
                                     width: 32
                                     height: 32
                                     radius: 16
-                                    color: copyPathMouse.containsMouse ? Theme.glass_secondary : Theme.glass_secondary_soft
+                                    color: copyPathMouse.containsMouse ? Theme.bubble_secondary : Theme.bubble_secondary_soft
                                     border.width: 1
                                     border.color: Theme.glass_border
 
@@ -778,7 +778,7 @@ Item {
                                     width: 32
                                     height: 32
                                     radius: 16
-                                    color: shareFileMouse.containsMouse ? Theme.glass_tertiary : Theme.glass_tertiary_soft
+                                    color: shareFileMouse.containsMouse ? Theme.bubble_tertiary : Theme.bubble_tertiary_soft
                                     border.width: 1
                                     border.color: Theme.glass_border
 

@@ -162,7 +162,7 @@ Item {
                     width: 72
                     height: 32
                     radius: 16
-                    color: copyHexMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+                    color: copyHexMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
 
                     Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -472,7 +472,7 @@ Item {
             width: 56
             height: 26
             radius: 13
-            color: copyMouse.containsMouse ? Theme.glass_accent : Theme.glass_accent_soft
+            color: copyMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
 
             Behavior on color { ColorAnimation { duration: 100 } }
 

@@ -258,22 +258,30 @@ PanelWindow {
             component ActionBtn: Rectangle {
                 property string icon
                 property string label
-                property color baseColor: "transparent"
-                property color hoverColor: Theme.surface_variant
+                property color baseColor: Theme.bubble
+                property color hoverColor: Theme.bubble_hover
                 property color contentColor: Theme.on_surface
                 signal clicked()
 
                 width: lbl.implicitWidth > 0 ? lbl.implicitWidth + icn.implicitWidth + 48 : 56
                 height: 56
-                radius: 28
+                radius: height / 2
                 color: m.containsMouse ? hoverColor : baseColor
+                border.width: 1
+                border.color: Theme.bubble_border
+                clip: true
+                scale: m.pressed ? 0.94 : 1
 
                 Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                BubbleSheen {}
 
                 Item {
                     width: icn.implicitWidth + (lbl.implicitWidth > 0 ? 12 : 0) + lbl.implicitWidth
                     height: Math.max(icn.implicitHeight, lbl.implicitHeight)
                     anchors.centerIn: parent
+                    z: 1
 
                     MaterialIcon {
                         id: icn
@@ -361,15 +369,25 @@ PanelWindow {
                     width: 48
                     height: 48
                     radius: 24
-                    color: drawCanvas.activeTool === toolName ? Theme.primary_container : (mTool.containsMouse ? Theme.surface_variant : "transparent")
+                    color: drawCanvas.activeTool === toolName
+                        ? Theme.bubble_accent
+                        : (mTool.containsMouse ? Theme.bubble_hover : Theme.bubble)
+                    border.width: 1
+                    border.color: drawCanvas.activeTool === toolName
+                        ? Qt.alpha(Theme.primary, 0.5)
+                        : Theme.bubble_border_soft
+                    clip: true
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
+                    BubbleSheen {}
+
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: parent.icon
                         font.pixelSize: 22
-                        color: drawCanvas.activeTool === toolName ? Theme.on_primary_container : Theme.on_surface
+                        color: drawCanvas.activeTool === toolName ? Theme.primary : Theme.on_surface
                     }
                     
                     MouseArea {
@@ -440,9 +458,9 @@ PanelWindow {
             ActionBtn {
                 icon: "save"
                 label: "Save & Copy"
-                baseColor: Theme.primary_container
-                hoverColor: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.4)
-                contentColor: Theme.on_primary_container
+                baseColor: Theme.bubble_accent
+                hoverColor: Theme.bubble_hover
+                contentColor: Theme.primary
                 onClicked: {
                     if (typeof floatingTextInput !== "undefined" && floatingTextInput.visible) {
                         floatingTextInput.commitText();
