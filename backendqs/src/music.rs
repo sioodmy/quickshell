@@ -45,6 +45,7 @@ pub struct PlaybackState {
     pub artist: String,
     pub album: String,
     pub art_url: String,
+    pub palette: crate::artpalette::ArtPalette,
     pub duration_us: i64,
     pub playlist: Vec<String>,
     pub playlist_index: usize,
@@ -63,6 +64,7 @@ impl Default for PlaybackState {
             artist: String::new(),
             album: String::new(),
             art_url: String::new(),
+            palette: crate::artpalette::ArtPalette::default(),
             duration_us: 0,
             playlist: Vec::new(),
             playlist_index: 0,
@@ -219,7 +221,8 @@ impl Player {
                         s.title = title;
                         s.artist = artist;
                         s.album = album;
-                        s.art_url = art;
+                        s.art_url = art.clone();
+                        s.palette = crate::artpalette::extract(&art);
                         s.duration_us = dur;
                         s.position_snapshot_us = 0;
                         s.position_at = Instant::now();

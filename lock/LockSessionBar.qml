@@ -9,39 +9,48 @@ Rectangle {
 
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
-    anchors.bottomMargin: -22
-    width: bottomChrome.implicitWidth + 32
-    height: bottomChrome.implicitHeight + 24 + 22
-    radius: 22
-    color: Theme.surface
+    anchors.bottomMargin: 28
+    width: bottomChrome.implicitWidth + 28
+    height: 52
+    radius: height / 2
+    color: Qt.rgba(1, 1, 1, 0.26)
+    border.width: 1
+    border.color: Qt.rgba(1, 1, 1, 0.4)
+
+    BubbleSheen {}
 
     Row {
         id: bottomChrome
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: -11
-        spacing: 12
+        spacing: 10
+        z: 1
 
-        // Battery
         Rectangle {
             id: battPill
-            height: 40
-            width: battRow.implicitWidth + 28
-            radius: 14
-            color: "transparent"
+            height: 36
+            width: battRow.implicitWidth + 20
+            radius: height / 2
+            color: Qt.rgba(1, 1, 1, 0.32)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.4)
             visible: UPower.displayDevice?.isPresent ?? false
             anchors.verticalCenter: parent.verticalCenter
+            clip: true
+
+            BubbleSheen {}
 
             Row {
                 id: battRow
                 anchors.centerIn: parent
                 spacing: 8
+                z: 1
 
                 readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
                 readonly property bool charging: !UPower.onBattery
 
                 Item {
-                    width: 28
-                    height: 14
+                    width: 26
+                    height: 13
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
@@ -58,7 +67,7 @@ Rectangle {
                                 return Theme.critical;
                             if (battRow.charging)
                                 return "#7ee787";
-                            return Theme.on_surface;
+                            return Qt.rgba(1, 1, 1, 0.75);
                         }
                     }
                     Rectangle {
@@ -83,43 +92,48 @@ Rectangle {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: Math.round(battRow.capacity) + "%"
-                    color: Theme.on_surface
-                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                    color: Qt.rgba(1, 1, 1, 0.92)
+                    font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                 }
             }
         }
 
-        // Session controls
         Row {
-            spacing: 8
+            spacing: 6
             anchors.verticalCenter: parent.verticalCenter
 
             component SessionBtn: Rectangle {
                 property string icon
-                property color accent: Theme.on_surface
+                property color accent: Qt.rgba(1, 1, 1, 0.88)
                 signal triggered
 
-                width: 40
-                height: 40
-                radius: 14
-                scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.04 : 1.0)
+                width: 36
+                height: 36
+                radius: width / 2
+                scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.06 : 1.0)
                 color: {
                     if (btnArea.pressed)
-                        return Theme.surface_container_high;
+                        return Qt.rgba(1, 1, 1, 0.48);
                     if (btnArea.containsMouse)
-                        return Theme.surface_container;
-                    return "transparent";
+                        return Qt.rgba(1, 1, 1, 0.38);
+                    return Qt.rgba(1, 1, 1, 0.28);
                 }
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.4)
+                clip: true
 
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                 Behavior on color { ColorAnimation { duration: 120 } }
 
+                BubbleSheen {}
+
                 MaterialIcon {
                     anchors.centerIn: parent
+                    z: 1
                     icon: parent.icon
-                    font.pixelSize: 16
+                    font.pixelSize: 15
                     color: parent.accent
-                    opacity: btnArea.containsMouse ? 1 : 0.85
+                    opacity: btnArea.containsMouse ? 1 : 0.92
                 }
 
                 MouseArea {

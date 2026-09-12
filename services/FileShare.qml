@@ -62,13 +62,13 @@ Singleton {
             var idx = indexOfId(sh.id);
             if (idx < 0) {
                 shareModel.append({
-                    id: sh.id,
-                    path: sh.path,
-                    name: sh.name,
-                    size: sh.size,
-                    bytes_sent: sh.bytes_sent,
-                    status: sh.status,
-                    url: sh.url
+                    id: sh.id || "",
+                    path: sh.path || "",
+                    name: sh.name || "",
+                    size: Number(sh.size) || 0,
+                    bytes_sent: Number(sh.bytes_sent) || 0,
+                    status: sh.status || "waiting",
+                    url: sh.url || ""
                 });
                 continue;
             }

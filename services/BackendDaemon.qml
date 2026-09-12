@@ -67,7 +67,14 @@ Singleton {
         "position": 0,
         "volume": 1.0,
         "loopAlbum": false,
-        "hasPlayer": false
+        "hasPlayer": false,
+        "palette": {
+            "primary": "#ff7ec0",
+            "secondary": "#8b74ff",
+            "accent": "#e08cff",
+            "bg": "#24143a",
+            "fg": "#ffffff"
+        }
     }
 
     Process {
@@ -144,20 +151,49 @@ Singleton {
                         }
                         root.musicLibraryStatus = parsed.status;
                     } else if (type === "music_state_update") {
-                        let rawUrl = parsed.state.art_url;
-                        let finalUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http")) ? rawUrl : (rawUrl !== "" ? "file://" + rawUrl : "");
-                        root.musicState = {
-                            "playing": parsed.state.playing,
-                            "title": parsed.state.title,
-                            "artist": parsed.state.artist,
-                            "album": parsed.state.album,
+                        // art_url can be missing/null if the backend DTO is
+                        // partial; never call startsWith on a non-string.
+                        let rawUrl = parsed.state && parsed.state.art_url != null
+                            ? ("" + parsed.state.art_url) : "";
+                        let finalUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http"))
+                            ? rawUrl
+                            : (rawUrl !== "" ? "file://" + rawUrl : "");
+                        let next = {
+                            "playing": !!(parsed.state && parsed.state.playing),
+                            "title": (parsed.state && parsed.state.title) ? ("" + parsed.state.title) : "",
+                            "artist": (parsed.state && parsed.state.artist) ? ("" + parsed.state.artist) : "",
+                            "album": (parsed.state && parsed.state.album) ? ("" + parsed.state.album) : "",
                             "artUrl": finalUrl,
-                            "duration": parsed.state.duration_us / 1000000.0,
-                            "position": parsed.state.position_us / 1000000.0,
-                            "volume": parsed.state.volume,
-                            "loopAlbum": parsed.state.loop_album,
-                            "hasPlayer": parsed.state.has_player
+                            "duration": parsed.state ? (parsed.state.duration_us / 1000000.0) : 0,
+                            "position": parsed.state ? (parsed.state.position_us / 1000000.0) : 0,
+                            "volume": parsed.state && parsed.state.volume != null ? parsed.state.volume : 1.0,
+                            "loopAlbum": !!(parsed.state && parsed.state.loop_album),
+                            "hasPlayer": !!(parsed.state && parsed.state.has_player),
+                            "palette": (parsed.state && parsed.state.palette) ? parsed.state.palette : {
+                                "primary": "#ff7ec0",
+                                "secondary": "#8b74ff",
+                                "accent": "#e08cff",
+                                "bg": "#24143a",
+                                "fg": "#ffffff"
+                            }
                         };
+                        // Skip no-op updates so bindings (and any layered
+                        // Image/MultiEffect consumers) are not churned at 2Hz.
+                        let prev = root.musicState;
+                        if (!prev
+                            || prev.playing !== next.playing
+                            || prev.title !== next.title
+                            || prev.artist !== next.artist
+                            || prev.album !== next.album
+                            || prev.artUrl !== next.artUrl
+                            || (prev.palette && next.palette && prev.palette.primary !== next.palette.primary)
+                            || prev.loopAlbum !== next.loopAlbum
+                            || prev.hasPlayer !== next.hasPlayer
+                            || prev.volume !== next.volume
+                            || Math.abs((prev.duration || 0) - next.duration) > 0.05
+                            || Math.abs((prev.position || 0) - next.position) > 0.2) {
+                            root.musicState = next;
+                        }
                     } else if (type === "frecency_update") {
                         root.frecencyScores = parsed.scores || { apps: {}, quickkeys: {} };
                     } else if (type === "app_search_result") {
@@ -255,7 +291,7 @@ Singleton {
                     }
 
                 } catch(e) {
-                    console.error("BackendDaemon: failed to process event");
+                    console.error("BackendDaemon: failed to process event:", e);
                 }
             }
         }
@@ -286,8 +322,17 @@ Singleton {
         interval: 100
         repeat: false
         onTriggered: {
-            root.send({action: "music_library"});
+            // Defer library scan so launcher LazyLoader warm-up is not
+            // competing with a large JSON parse on the GUI thread at boot.
             root.send({action: "frecency_load"});
+            libraryDefer.restart();
         }
+    }
+
+    Timer {
+        id: libraryDefer
+        interval: 800
+        repeat: false
+        onTriggered: root.send({action: "music_library"})
     }
 }

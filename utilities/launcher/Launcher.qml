@@ -117,6 +117,8 @@ PanelWindow {
 
     Connections {
         target: LauncherState
+        function onDockWidthChanged() { launcherWindow.syncBlurRegion() }
+        function onDockHeightChanged() { launcherWindow.syncBlurRegion() }
         function onCloseRequested() {
             if (launcherWindow.menuOpen || launcherWindow.openProgress > 0)
                 launcherWindow.closeMenu();
@@ -222,22 +224,31 @@ PanelWindow {
         right: true
     }
 
+    // Blur region size is mirrored into plain properties (not a self-referential
+    // Region binding) — the previous `property panelWidth → width: panelWidth`
+    // form logged a binding loop on every open and is a known Qt instability.
+    property real blurPanelWidth: Math.max(1, LauncherState.dockWidth)
+    property real blurPanelHeight: Math.max(1, LauncherState.dockHeight)
+
+    function syncBlurRegion() {
+        if (contentLoader.item) {
+            blurPanelWidth = Math.max(1, contentLoader.item.width);
+            blurPanelHeight = Math.max(1, contentLoader.item.height);
+        } else {
+            blurPanelWidth = Math.max(1, LauncherState.dockWidth);
+            blurPanelHeight = Math.max(1, LauncherState.dockHeight);
+        }
+    }
+
     // The launcher surface is fullscreen for click-away dismissal, but only
     // this explicit rectangle is submitted to ext-background-effect-v1.
     // Do not also force blur with a niri layer rule: that applies to the whole
     // fullscreen surface and overrides the protocol-defined region.
     BackgroundEffect.blurRegion: Region {
-        readonly property real panelWidth: contentLoader.item
-            ? Math.max(1, contentLoader.item.width)
-            : Math.max(1, LauncherState.dockWidth)
-        readonly property real panelHeight: contentLoader.item
-            ? Math.max(1, contentLoader.item.height)
-            : Math.max(1, LauncherState.dockHeight)
-
-        x: Math.round((launcherWindow.width - panelWidth) / 2)
+        x: Math.round((launcherWindow.width - launcherWindow.blurPanelWidth) / 2)
         y: 0
-        width: panelWidth
-        height: panelHeight
+        width: launcherWindow.blurPanelWidth
+        height: launcherWindow.blurPanelHeight
         // Region only exposes a uniform radius in this Quickshell build.
         // Keep it square so blur does not spill past the flush top edge.
         radius: 0
@@ -340,12 +351,18 @@ PanelWindow {
             // Prepare the default view while hidden so the next open does not
             // rebuild the result model during its animation.
             ctrl.clearStates();
+            if (contentLoader.item)
+                contentLoader.item.clearSearch();
             launcherWindow.pinSelectionToBest = true;
             filterDebounce.restart();
         }
     }
 
-    onOpenProgressChanged: LauncherState.openProgress = openProgress
+    onPanelExpandedChanged: syncBlurRegion()
+    onOpenProgressChanged: {
+        LauncherState.openProgress = openProgress;
+        syncBlurRegion();
+    }
 
     // Ensure the notification appears right after the launcher has closed.
     Timer {
@@ -1283,6 +1300,10 @@ PanelWindow {
         LauncherState.screen = launcherWindow.screen;
         _framePresented = false;
         menuOpen = true;
+        // Always start from an empty query. clearStates alone is not enough:
+        // the TextField keeps its own text, and a close interrupted mid-animation
+        // never reaches closeAnim.onFinished.
+        ctrl.clearStates();
         // The result list is kept warm while closed, so there is normally
         // nothing to rebuild. If one was still queued, flush it now: doing the
         // work before the surface is even mapped hides it entirely, whereas
@@ -1294,8 +1315,10 @@ PanelWindow {
         // Focus now, not at reveal time: the compositor hands this surface the
         // keyboard as soon as it maps, so anything typed in between would
         // otherwise miss the search field.
-        if (contentLoader.item)
+        if (contentLoader.item) {
+            contentLoader.item.clearSearch();
             contentLoader.item.focusSearch();
+        }
 
         // Arm the reveal. It fires from _onFramePresented once the surface is
         // actually up; if the content tree is still incubating, wait for that
@@ -1332,11 +1355,15 @@ PanelWindow {
         onItemChanged: {
             if (!item)
                 return;
+            launcherWindow.syncBlurRegion();
+            item.widthChanged.connect(launcherWindow.syncBlurRegion);
+            item.heightChanged.connect(launcherWindow.syncBlurRegion);
             if (launcherWindow._pendingOpen) {
                 launcherWindow._pendingOpen = false;
                 // Someone opened the launcher before warm-up finished. Build
                 // the list now, while still off screen, rather than letting the
                 // debounce drop it into the reveal.
+                item.clearSearch();
                 launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
                 item.focusSearch();
                 // The surface may already have presented while this tree was
@@ -1383,6 +1410,10 @@ PanelWindow {
                     if (launcherWindow.nightModeActive) return nightLightLoader.status === Loader.Ready;
                     if (launcherWindow.clipModeActive) return clipboardLoader.status === Loader.Ready;
                     return false;
+                }
+
+                function clearSearch() {
+                    searchField.clear();
                 }
 
                 function focusSearch() {
@@ -2136,7 +2167,8 @@ PanelWindow {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.bottom: parent.bottom
-                            width: parent.width * (1 - 0.48 * launcherWindow.musicSplitBlend)
+                            // Leave ~50% for the now-compact controls panel.
+                            width: parent.width * (1 - 0.50 * launcherWindow.musicSplitBlend)
                             clip: true
                             opacity: (launcherWindow.musicModeActive && musicLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
@@ -2345,9 +2377,15 @@ PanelWindow {
                     }
 
                     // ──── Music Controls Panel (Split View) ────
-                    Item {
+                    // Loaded only while music mode has a player. Keeping
+                    // MultiEffect/Image layers mounted at shell warm-up (even
+                    // invisible) was crashing updatePixelRatioHelper on Asahi
+                    // when album art arrived during startup.
+                    Loader {
                         id: musicControlsPanel
-                        visible: launcherWindow.musicSplitBlend > 0.02
+                        active: launcherWindow.musicSplitBlend > 0.02
+                        asynchronous: true
+                        visible: status === Loader.Ready && launcherWindow.musicSplitBlend > 0.02
                         opacity: launcherWindow.musicSplitBlend
                         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
@@ -2359,26 +2397,7 @@ PanelWindow {
                         width: parent.width - 16 - musicListContainer.width
                         clip: true
 
-                        transform: [
-                            Translate {
-                                id: musicSlide
-                                x: (1 - launcherWindow.musicSplitBlend) * 18
-                                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            },
-                            Scale {
-                                id: musicScale
-                                origin.x: 0
-                                origin.y: 0
-                                xScale: 0.97 + 0.03 * launcherWindow.musicSplitBlend
-                                yScale: 0.98 + 0.02 * launcherWindow.musicSplitBlend
-                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            }
-                        ]
-
-                        LauncherMusicControls {
-                            anchors.fill: parent
-                        }
+                        sourceComponent: LauncherMusicControls {}
                     }
 
                     // ──── File Preview Panel (Split View) ────

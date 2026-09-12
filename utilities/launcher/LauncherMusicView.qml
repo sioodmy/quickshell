@@ -34,12 +34,12 @@ Item {
         let res = [];
         for (let i = 0; i < library.length; i++) {
             let album = library[i];
-            if (album.title.toLowerCase().includes(q) || album.artist.toLowerCase().includes(q)) {
+            if ((album.title || "").toLowerCase().includes(q) || (album.artist || "").toLowerCase().includes(q)) {
                 res.push(album);
                 continue;
             }
             for (let j = 0; j < album.tracks.length; j++) {
-                if (album.tracks[j].title.toLowerCase().includes(q)) {
+                if ((album.tracks[j].title || "").toLowerCase().includes(q)) {
                     res.push(album);
                     break;
                 }

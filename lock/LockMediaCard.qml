@@ -10,9 +10,11 @@ Rectangle {
     property bool mediaActive: Playerctl.hasPlayer && Playerctl.title.length > 0
 
     width: parent.width
-    height: mediaActive ? 72 : 0
-    radius: 16
-    color: Theme.surface_container
+    height: mediaActive ? 68 : 0
+    radius: 18
+    color: Qt.rgba(1, 1, 1, 0.28)
+    border.width: 1
+    border.color: Qt.rgba(1, 1, 1, 0.4)
     clip: true
     visible: height > 0.5
     opacity: mediaActive ? 1 : 0
@@ -20,18 +22,20 @@ Rectangle {
     Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
     Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
 
+    BubbleSheen {}
+
     Row {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 12
+        anchors.margins: 9
+        spacing: 10
         opacity: root.mediaActive ? 1 : 0
+        z: 1
 
-        // Album Art
         Rectangle {
-            width: 52
-            height: 52
+            width: 48
+            height: 48
             radius: 12
-            color: Theme.surface_container_highest
+            color: Qt.rgba(1, 1, 1, 0.22)
             clip: true
             anchors.verticalCenter: parent.verticalCenter
 
@@ -42,7 +46,7 @@ Rectangle {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true
-                sourceSize: Qt.size(104, 104)
+                sourceSize: Qt.size(96, 96)
                 visible: status === Image.Ready
 
                 layer.enabled: root.mediaActive && status === Image.Ready
@@ -66,14 +70,13 @@ Rectangle {
                 anchors.centerIn: parent
                 visible: artImg.status !== Image.Ready
                 icon: "music_note"
-                font.pixelSize: 20
-                color: Theme.on_surface_variant
+                font.pixelSize: 18
+                color: Qt.rgba(1, 1, 1, 0.45)
             }
         }
 
-        // Track Info & Progress
         Column {
-            width: parent.width - 52 - 12 - transport.width - 8
+            width: parent.width - 48 - 10 - transport.width - 8
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
 
@@ -81,22 +84,22 @@ Rectangle {
                 width: parent.width
                 text: Playerctl.title
                 elide: Text.ElideRight
-                color: Theme.on_surface
-                font { family: "Google Sans"; pixelSize: 14; weight: Font.DemiBold }
+                color: Qt.rgba(1, 1, 1, 0.92)
+                font { family: "Google Sans"; pixelSize: 13; weight: Font.DemiBold }
             }
 
             Text {
                 width: parent.width
                 text: Playerctl.artist
                 elide: Text.ElideRight
-                color: Theme.on_surface_variant
-                font { family: "Google Sans"; pixelSize: 12 }
+                color: Qt.rgba(1, 1, 1, 0.62)
+                font { family: "Google Sans"; pixelSize: 11 }
                 visible: text.length > 0
             }
 
             Item {
                 width: parent.width
-                height: 7
+                height: 6
                 visible: Playerctl.length > 0
 
                 Rectangle {
@@ -104,7 +107,7 @@ Rectangle {
                     width: parent.width
                     height: 3
                     radius: 1.5
-                    color: Theme.surface_container_highest
+                    color: Qt.rgba(1, 1, 1, 0.22)
 
                     Rectangle {
                         height: parent.height
@@ -118,7 +121,6 @@ Rectangle {
             }
         }
 
-        // Playback Controls
         Row {
             id: transport
             spacing: 4
@@ -129,23 +131,29 @@ Rectangle {
                 property bool accent: false
                 signal triggered
 
-                width: 36
-                height: 36
-                radius: 10
+                width: 34
+                height: 34
+                radius: width / 2
                 color: {
                     if (accent)
-                        return Theme.primary;
+                        return Qt.alpha(Theme.primary, 0.5);
                     return btnMouse.containsMouse
-                        ? Theme.surface_container_highest
-                        : "transparent";
+                        ? Qt.rgba(1, 1, 1, 0.4)
+                        : Qt.rgba(1, 1, 1, 0.26);
                 }
+                border.width: 1
+                border.color: accent ? Qt.alpha(Theme.primary, 0.55) : Qt.rgba(1, 1, 1, 0.4)
+                clip: true
                 Behavior on color { ColorAnimation { duration: 120 } }
+
+                BubbleSheen { visible: accent }
 
                 MaterialIcon {
                     anchors.centerIn: parent
+                    z: 1
                     icon: parent.icon
-                    font.pixelSize: 15
-                    color: parent.accent ? Theme.on_primary : Theme.on_surface
+                    font.pixelSize: 14
+                    color: parent.accent ? Theme.on_primary : Qt.rgba(1, 1, 1, 0.92)
                 }
 
                 MouseArea {

@@ -285,6 +285,7 @@ pub struct MusicStateDto {
     pub volume: f32,
     pub loop_album: bool,
     pub has_player: bool,
+    pub palette: crate::artpalette::ArtPalette,
 }
 
 #[derive(Serialize, Clone)]

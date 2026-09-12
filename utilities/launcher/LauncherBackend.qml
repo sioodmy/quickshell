@@ -18,6 +18,12 @@ Item {
         onTriggered: backend.closeMenuRequested()
     }
 
+    Timer {
+        id: lockAfterClose
+        interval: 420
+        onTriggered: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] })
+    }
+
     property string searchText: ""
     property string calcExpression: backend.searchText.trim()
 
@@ -722,7 +728,10 @@ Item {
         } else if (actionId === "sleep") {
             Quickshell.execDetached({ command: ["systemctl", "suspend"] });
         } else if (actionId === "lock") {
-            Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] });
+            // Wait for the launcher close animation. Mapping WlSessionLock
+            // while this MultiEffect-heavy surface is still up crashes
+            // updatePixelRatioHelper on Asahi.
+            lockAfterClose.restart();
         } else if (actionId === "audio_out_hdmi") {
             Quickshell.execDetached({ command: ["bash", "-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"] });
         } else if (actionId === "bt_connect") {

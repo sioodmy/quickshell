@@ -1,6 +1,7 @@
 mod agenda;
 mod api;
 mod appsearch;
+mod artpalette;
 mod archivepreview;
 mod bookmarks;
 mod cliphist;
@@ -109,11 +110,17 @@ async fn main() -> Result<()> {
             let (tx_event, mut rx_event) = tmpsc::channel::<api::DaemonEvent>(100);
             keepass_db::init(tx_event.clone());
 
-            // Output task
+            // Output task. Never use println!: a broken pipe (parent died)
+            // panics the whole daemon and takes the shell's IPC with it.
             tokio::spawn(async move {
+                use std::io::{self, Write};
                 while let Some(ev) = rx_event.recv().await {
                     if let Ok(json) = serde_json::to_string(&ev) {
-                        println!("{}", json);
+                        let mut out = io::stdout().lock();
+                        if writeln!(out, "{}", json).is_err() {
+                            break;
+                        }
+                        let _ = out.flush();
                     }
                 }
             });
@@ -138,6 +145,7 @@ async fn main() -> Result<()> {
                                 volume: state.volume,
                                 loop_album: state.loop_album,
                                 has_player: !state.title.is_empty(),
+                                palette: state.palette.clone(),
                             }
                         };
                         let _ = tx_event_clone

@@ -55,10 +55,10 @@ FileView {
     readonly property color glass_raised: Qt.alpha(colors.surface_container_highest, 0.58)
     readonly property color glass_fade: Qt.alpha(colors.surface, 0.6)
 
-    // Outer shell for dock / launcher / keepass. Soft shadow wash over the
-    // blur — low enough that bright wallpapers stay vivid instead of muddying.
-    readonly property color glass_shell: Qt.rgba(0, 0, 0, 0.26)
-    readonly property color glass_shell_border: Qt.rgba(1, 1, 1, 0.2)
+    // Outer shell for dock / launcher / keepass. Dense enough that white
+    // text stays readable on bright wallpapers, while blur still shows through.
+    readonly property color glass_shell: Qt.rgba(0, 0, 0, 0.52)
+    readonly property color glass_shell_border: Qt.rgba(1, 1, 1, 0.22)
 
     readonly property color glass_hover: Qt.rgba(1, 1, 1, 0.12)
     readonly property color glass_selected: Qt.alpha(colors.primary, 0.22)

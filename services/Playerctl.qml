@@ -12,6 +12,12 @@ Singleton {
     property string title: BackendDaemon.musicState.title
     property string artist: BackendDaemon.musicState.artist
     property string artUrl: BackendDaemon.musicState.artUrl
+    readonly property var palette: BackendDaemon.musicState.palette || ({})
+    readonly property color artPrimary: palette.primary || "#ff7ec0"
+    readonly property color artSecondary: palette.secondary || "#8b74ff"
+    readonly property color artAccent: palette.accent || "#e08cff"
+    readonly property color artBg: palette.bg || "#24143a"
+    readonly property color artFg: palette.fg || "#ffffff"
     property bool isPlaying: BackendDaemon.musicState.playing
     property bool hasPlayer: BackendDaemon.musicState.hasPlayer
     property double position: BackendDaemon.musicState.position
