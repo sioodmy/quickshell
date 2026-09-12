@@ -1,7 +1,7 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell.Widgets
 import "../../theme"
-import "../../popups/weather"
 import qs.components
 
 Item {
@@ -33,10 +33,6 @@ Item {
     Behavior on colorBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
     Behavior on nightBlend { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
 
-    onBannerBlendChanged: {
-        console.log("BannerBlend changed:", bannerBlend, "weather:", weatherModeActive, "color:", colorPickerModeActive);
-    }
-
     onWeatherModeActiveChanged: {
         bannerShimmer.restart();
     }
@@ -44,80 +40,135 @@ Item {
         bannerShimmer.restart();
     }
 
-    // --- Pink launcher background ---
+    // A pool of coloured light with a smooth radial falloff. Nothing reaches
+    // full opacity, so the compositor blur stays visible through the header,
+    // and nothing has an edge, so no shape reads as a drawn object.
+    component LightPool: Shape {
+        id: pool
+
+        property color tint: "#ffffff"
+        property real centerX: 0
+        property real centerY: 0
+        property real spread: 320
+        property real intensity: 0.7
+
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            strokeWidth: -1
+            fillGradient: RadialGradient {
+                centerX: pool.centerX
+                centerY: pool.centerY
+                centerRadius: pool.spread
+                focalX: pool.centerX
+                focalY: pool.centerY
+
+                // A steep tail lets the pool reach zero well inside the header,
+                // so the colour melts into the glass with no cut-off edge.
+                GradientStop { position: 0.0; color: Qt.rgba(pool.tint.r, pool.tint.g, pool.tint.b, pool.intensity) }
+                GradientStop { position: 0.35; color: Qt.rgba(pool.tint.r, pool.tint.g, pool.tint.b, pool.intensity * 0.62) }
+                GradientStop { position: 0.62; color: Qt.rgba(pool.tint.r, pool.tint.g, pool.tint.b, pool.intensity * 0.26) }
+                GradientStop { position: 0.82; color: Qt.rgba(pool.tint.r, pool.tint.g, pool.tint.b, pool.intensity * 0.06) }
+                GradientStop { position: 1.0; color: Qt.rgba(pool.tint.r, pool.tint.g, pool.tint.b, 0.0) }
+            }
+
+            startX: 0
+            startY: 0
+            PathLine { x: pool.width; y: 0 }
+            PathLine { x: pool.width; y: pool.height }
+            PathLine { x: 0; y: pool.height }
+        }
+    }
+
+    // --- Liquid aurora launcher background ---
     Item {
         id: pinkLayer
         anchors.fill: parent
         opacity: 1 - bgLayersRoot.bannerBlend
-        scale: 1 - 0.05 * bgLayersRoot.bannerBlend
-        transformOrigin: Item.Center
+        visible: opacity > 0.01
 
         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
-        Behavior on scale { NumberAnimation { duration: 340; easing.type: Easing.InOutCubic } }
 
+        LightPool {
+            tint: "#ff5aa8"
+            centerY: 10
+            spread: 220
+            intensity: 0.68
+            centerX: 150
+
+            SequentialAnimation on centerX {
+                loops: Animation.Infinite
+                paused: !bgLayersRoot.menuOpen
+                NumberAnimation { to: 300; duration: 13000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 150; duration: 15000; easing.type: Easing.InOutSine }
+            }
+        }
+
+        LightPool {
+            tint: "#c76ad9"
+            centerX: 405
+            centerY: 10
+            spread: 230
+            intensity: 0.56
+
+            SequentialAnimation on centerY {
+                loops: Animation.Infinite
+                paused: !bgLayersRoot.menuOpen
+                NumberAnimation { to: -18; duration: 10500; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 10; duration: 12500; easing.type: Easing.InOutSine }
+            }
+        }
+
+        LightPool {
+            tint: "#7a5cf0"
+            centerY: 0
+            spread: 230
+            intensity: 0.7
+            centerX: 660
+
+            SequentialAnimation on centerX {
+                loops: Animation.Infinite
+                paused: !bgLayersRoot.menuOpen
+                NumberAnimation { to: 510; duration: 16000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 660; duration: 12000; easing.type: Easing.InOutSine }
+            }
+        }
+
+        LightPool {
+            tint: "#ffd4ec"
+            centerX: 330
+            spread: 190
+            intensity: 0.4
+            centerY: -40
+
+            SequentialAnimation on centerY {
+                loops: Animation.Infinite
+                paused: !bgLayersRoot.menuOpen
+                NumberAnimation { to: 4; duration: 9000; easing.type: Easing.InOutSine }
+                NumberAnimation { to: -40; duration: 11000; easing.type: Easing.InOutSine }
+            }
+        }
+
+        // Specular sheen along the top edge, the way light catches the lip of
+        // a thick glass panel.
         Rectangle {
             anchors.fill: parent
-            color: "#f5bde6"
-        }
-
-        Rectangle {
-            width: 320
-            height: 320
-            radius: 160
-            color: "#ffffff"
-            opacity: 0.40
-            x: -20
-            y: -50
-            transformOrigin: Item.Center
-
-            SequentialAnimation on x {
-                loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
-                NumberAnimation { to: 180; duration: 16000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -60; duration: 18000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -20; duration: 15000; easing.type: Easing.InOutSine }
-            }
-            SequentialAnimation on y {
-                loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
-                NumberAnimation { to: -100; duration: 17000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 40; duration: 16000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -50; duration: 16000; easing.type: Easing.InOutSine }
-            }
-            NumberAnimation on rotation {
-                from: 0; to: 360; duration: 30000; loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.24) }
+                GradientStop { position: 0.16; color: Qt.rgba(1, 1, 1, 0.05) }
+                GradientStop { position: 0.5; color: "transparent" }
+                GradientStop { position: 1.0; color: "transparent" }
             }
         }
 
         Rectangle {
-            width: 300
-            height: 300
-            radius: 150
-            color: "#c6a0f6"
-            opacity: 0.60
-            x: 350
-            y: -40
-            transformOrigin: Item.Center
-
-            SequentialAnimation on x {
-                loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
-                NumberAnimation { to: 150; duration: 18000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 480; duration: 19000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 350; duration: 17000; easing.type: Easing.InOutSine }
-            }
-            SequentialAnimation on y {
-                loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
-                NumberAnimation { to: 60; duration: 16000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -120; duration: 18000; easing.type: Easing.InOutSine }
-                NumberAnimation { to: -40; duration: 16000; easing.type: Easing.InOutSine }
-            }
-            NumberAnimation on rotation {
-                from: 360; to: 0; duration: 35000; loops: Animation.Infinite
-                paused: !bgLayersRoot.menuOpen || bgLayersRoot.weatherModeActive
-            }
+            width: parent.width * 0.6
+            height: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 1
+            color: Qt.rgba(1, 1, 1, 0.45)
         }
     }
 

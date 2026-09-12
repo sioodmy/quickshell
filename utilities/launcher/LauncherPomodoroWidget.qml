@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components
@@ -94,36 +93,14 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
 
-        // Rounded mask — Rectangle.clip does not honor radius
-        Item {
-            id: cardMask
-            anchors.fill: parent
-            visible: false
-            layer.enabled: true
-
-            Rectangle {
-                anchors.fill: parent
-                radius: 20
-                color: "black"
-            }
-        }
-
         Item {
             id: card
             anchors.fill: parent
-
-            layer.enabled: true
-            layer.smooth: true
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: cardMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
-            }
+            clip: true
 
             Rectangle {
                 anchors.fill: parent
-                color: Theme.surface_container_high
+                color: Theme.glass_panel
             }
 
             // Soft forest wash — gradients only
@@ -305,23 +282,29 @@ Item {
                                 height: 32
                                 radius: 16
                                 color: Pomodoro.mode === modelData.modeId
-                                    ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
-                                    : Qt.rgba(0, 0, 0, 0.22)
-                                border.color: Pomodoro.mode === modelData.modeId ? root.accent : "transparent"
-                                border.width: Pomodoro.mode === modelData.modeId ? 1 : 0
+                                    ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.32)
+                                    : Theme.bubble
+                                border.color: Pomodoro.mode === modelData.modeId
+                                    ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.5)
+                                    : Theme.bubble_border_soft
+                                border.width: 1
+                                clip: true
 
                                 Behavior on color { ColorAnimation { duration: 160 } }
                                 Behavior on border.color { ColorAnimation { duration: 160 } }
 
+                                BubbleSheen {}
+
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 5
+                                    z: 1
 
                                     MaterialIcon {
                                         anchors.verticalCenter: parent.verticalCenter
                                         icon: modelData.icon
                                         font.pixelSize: 12
-                                        color: Pomodoro.mode === modelData.modeId ? root.accent : Theme.on_surface_variant
+                                        color: Pomodoro.mode === modelData.modeId ? root.accent : Theme.on_surface
                                     }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -430,13 +413,17 @@ Item {
                             radius: 20
                             anchors.verticalCenter: parent.verticalCenter
                             color: resetMouse.containsMouse
-                                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16)
-                                : Qt.rgba(0, 0, 0, 0.22)
+                                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
+                                : Theme.bubble
                             border.width: 1
-                            border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
+                            border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.35)
+                            clip: true
+
+                            BubbleSheen {}
 
                             MaterialIcon {
                                 anchors.centerIn: parent
+                                z: 1
                                 icon: "restart_alt"
                                 font.pixelSize: 16
                                 color: root.accent
@@ -459,13 +446,21 @@ Item {
                             height: 44
                             radius: 22
                             anchors.verticalCenter: parent.verticalCenter
-                            color: Pomodoro.isRunning ? root.accentContainer : root.accent
+                            color: Pomodoro.isRunning
+                                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
+                                : Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.4)
+                            border.width: 1
+                            border.color: Theme.bubble_border
+                            clip: true
+
+                            BubbleSheen {}
 
                             Text {
                                 anchors.centerIn: parent
+                                z: 1
                                 text: Pomodoro.isRunning ? "󰏤  Pause" : "󰐊  Start"
                                 font { family: "Google Sans Medium"; pixelSize: 14 }
-                                color: Pomodoro.isRunning ? root.onAccentContainer : root.accentOn
+                                color: root.accent
                             }
 
                             MouseArea {
@@ -490,14 +485,18 @@ Item {
                             radius: 20
                             anchors.verticalCenter: parent.verticalCenter
                             color: Pomodoro.completedSessions > 0
-                                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.22)
-                                : Qt.rgba(0, 0, 0, 0.22)
+                                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.28)
+                                : Theme.bubble
                             border.width: 1
                             border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b,
-                                Pomodoro.completedSessions > 0 ? 0.4 : 0.2)
+                                Pomodoro.completedSessions > 0 ? 0.45 : 0.25)
+                            clip: true
+
+                            BubbleSheen {}
 
                             Text {
                                 anchors.centerIn: parent
+                                z: 1
                                 text: Pomodoro.completedSessions.toString()
                                 font { family: "Google Sans Medium"; pixelSize: 14 }
                                 color: root.accent

@@ -7,114 +7,74 @@ import qs.components
 Rectangle {
     id: root
 
-    implicitWidth: 28
-    implicitHeight: layout.implicitHeight + 20
-    radius: width / 2
+    property bool osdActive: false
+    property int osdSeq: 0
+
+    implicitWidth: layout.implicitWidth + 8
+    implicitHeight: 22
+    radius: height / 2
     color: "transparent"
 
-    // --- Audio State Management ---
     readonly property var activeSink: Pipewire.defaultAudioSink
     readonly property bool isMuted: activeSink?.audio?.muted ?? true
     readonly property real volumeLevel: activeSink?.audio?.volume ?? 0.0
+    readonly property string volumeIcon: {
+        if (root.isMuted)
+            return "volume_off";
+        if (root.volumeLevel > 0.5)
+            return "volume_up";
+        if (root.volumeLevel > 0)
+            return "volume_down";
+        return "volume_mute";
+    }
 
     PwObjectTracker {
         objects: root.activeSink ? [root.activeSink] : []
     }
 
-    Column {
+    Row {
         id: layout
         anchors.centerIn: parent
-        spacing: 16
+        spacing: 6
 
-        // --- Network ---
+        // Fixed slot so scale pops never shift battery / dock width.
         Item {
-            width: netIcon.width; height: netIcon.height
-            anchors.horizontalCenter: parent.horizontalCenter
-            DockNetwork { id: netIcon; anchors.centerIn: parent }
-        }
-
-        // --- Bluetooth ---
-        Item {
-            width: btIcon.width; height: btIcon.height
-            anchors.horizontalCenter: parent.horizontalCenter
-            DockBluetooth { id: btIcon; anchors.centerIn: parent }
-        }
-
-        // --- Audio ---
-        Item {
-            width: 14
-            height: 14
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Canvas {
-                id: audioIcon
-                anchors.fill: parent
-                visible: !(root.isMuted || root.volumeLevel <= 0.0)
-
-                property real _v: root.volumeLevel
-                property bool _m: root.isMuted
-
-                on_VChanged: requestPaint()
-                on_MChanged: requestPaint()
-                Component.onCompleted: requestPaint()
-
-                onPaint: {
-                    var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-                    var cx = width / 2;
-                    var cy = height / 2;
-                    var r = (width / 2) - 1.5;
-
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-                    ctx.lineWidth = 2.5;
-                    ctx.strokeStyle = Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.4);
-                    ctx.stroke();
-
-                    if (root.volumeLevel > 0) {
-                        ctx.beginPath();
-                        var startAngle = -Math.PI / 2;
-                        var endAngle = startAngle + (Math.min(root.volumeLevel, 1.0) * 2 * Math.PI);
-                        ctx.arc(cx, cy, r, startAngle, endAngle);
-                        ctx.lineWidth = 2.5;
-                        ctx.lineCap = "round";
-                        ctx.strokeStyle = root.isMuted ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.5) : Theme.primary;
-                        ctx.stroke();
-                    }
-                }
-            }
+            id: audioSlot
+            width: 16
+            height: 16
+            anchors.verticalCenter: parent.verticalCenter
 
             MaterialIcon {
+                id: audioIcon
                 anchors.centerIn: parent
-                visible: root.isMuted || root.volumeLevel <= 0.0
-                icon: "volume_off"
-                font.pixelSize: 13
-                color: Theme.on_surface_variant
+                icon: root.volumeIcon
+                fill: 0
+                font.pixelSize: 16
+                opticalSize: 20
+                color: "#ffffff"
+                transformOrigin: Item.Center
             }
         }
 
-        // --- Battery ---
         Item {
             id: batteryIconItem
-            width: 10
-            height: 20
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: 22
+            height: 12
+            anchors.verticalCenter: parent.verticalCenter
 
-            // Internal logic
             readonly property bool isVisible: UPower.displayDevice?.isPresent ?? false
             readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
             readonly property bool isCharging: !UPower.onBattery
 
             visible: isVisible
 
-            // Battery nub (terminal)
             Rectangle {
                 id: batteryNub
-                width: 4
-                height: 2
+                width: 2
+                height: 5
                 anchors {
-                    top: parent.top
-                    horizontalCenter: parent.horizontalCenter
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
                 }
                 radius: 1
                 color: batteryBody.border.color
@@ -124,9 +84,10 @@ Rectangle {
                 id: batteryBody
                 anchors {
                     left: parent.left
-                    top: batteryNub.bottom
+                    top: parent.top
                     bottom: parent.bottom
-                    right: parent.right
+                    right: batteryNub.left
+                    rightMargin: 1
                 }
                 radius: 3
                 color: "transparent"
@@ -138,7 +99,7 @@ Rectangle {
                         return "#ea999c";
                     if (batteryIconItem.isCharging)
                         return "#259b50";
-                    return Theme.primary;
+                    return "#ffffff";
                 }
                 Behavior on border.color { ColorAnimation { duration: 250 } }
             }
@@ -147,17 +108,27 @@ Rectangle {
                 id: batteryFill
                 anchors {
                     left: batteryBody.left
-                    right: batteryBody.right
+                    top: batteryBody.top
                     bottom: batteryBody.bottom
                     margins: 2
                 }
-                radius: 1
-                height: Math.max(0, (batteryBody.height - 4) * (batteryIconItem.capacity / 100))
+                radius: 1.5
+                width: Math.max(0, (batteryBody.width - 4) * (batteryIconItem.capacity / 100))
                 color: batteryBody.border.color
-                opacity: 1.0
+                opacity: 0.4
 
-                Behavior on height { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on color { ColorAnimation { duration: 250 } }
+            }
+
+            Text {
+                visible: !batteryIconItem.isCharging
+                anchors.centerIn: batteryBody
+                text: Math.round(batteryIconItem.capacity)
+                font.family: "Google Sans"
+                font.pixelSize: 7
+                font.bold: true
+                color: "#ffffff"
             }
 
             MaterialIcon {
@@ -166,9 +137,29 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 icon: "bolt"
-                font.pixelSize: 7
-                color: Theme.on_surface
+                font.pixelSize: 8
+                color: "#ffffff"
             }
         }
+    }
+
+    SequentialAnimation {
+        id: iconPop
+        NumberAnimation { target: audioIcon; property: "scale"; to: 0.6; duration: 50; easing.type: Easing.InCubic }
+        NumberAnimation { target: audioIcon; property: "scale"; to: 1.0; duration: 140; easing.type: Easing.OutBack }
+    }
+
+    onOsdActiveChanged: {
+        if (root.osdActive)
+            iconPop.restart();
+        else {
+            iconPop.stop();
+            audioIcon.scale = 1;
+        }
+    }
+
+    onOsdSeqChanged: {
+        if (root.osdActive)
+            iconPop.restart();
     }
 }

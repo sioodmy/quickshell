@@ -21,7 +21,7 @@ Singleton {
         let s = BackendDaemon.musicState;
         s.title = album.tracks[index].title;
         s.artist = album.artist;
-        let rawUrl = album.cover_path ? album.cover_path : "";
+        let rawUrl = album.cover_path ? ("" + album.cover_path) : "";
         s.artUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http")) ? rawUrl : (rawUrl !== "" ? "file://" + rawUrl : "");
         s.playing = true;
         s.hasPlayer = true;

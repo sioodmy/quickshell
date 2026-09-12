@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.components
 
@@ -34,7 +33,9 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
         clip: true
 
         Rectangle {

@@ -1,50 +1,55 @@
 import QtQuick
-import "../theme"
+import qs.theme
 import qs.services
 import qs.components
 
 Item {
     id: root
-    width: 32
-    // total height includes 32 (icon) + 12 (margin above it)
-    height: FileShare.active ? 44 : 0
-    opacity: FileShare.active ? 1 : 0
-
-    // Always visible so the anchors can smoothly interpolate
-    visible: true
-    clip: true // to prevent drawing outside when shrinking
-
-    Behavior on height { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
-    Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+    
+    readonly property bool isVisible: FileShare.active
+    
+    // Smooth appearance horizontally
+    implicitWidth: isVisible ? 22 : 0
+    implicitHeight: 22
+    
+    clip: true
+    opacity: isVisible ? 1 : 0
+    
+    Behavior on implicitWidth { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
+    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
 
     Rectangle {
-        width: 32
-        height: 32
-        anchors.bottom: parent.bottom // Pin to the bottom of the container
-        anchors.horizontalCenter: parent.horizontalCenter
-        radius: width / 2
-        color: hoverArea.hovered ? "#f38ba8" : "transparent"
-        border.color: hoverArea.hovered ? "#f38ba8" : "transparent"
-        border.width: 1
-
+        id: visualPill
+        anchors.centerIn: parent
+        width: 22
+        height: 22
+        radius: 11
+        
+        color: {
+            if (pillMouse.containsMouse)
+                return Qt.rgba(1, 1, 1, 0.1);
+            return "transparent";
+        }
+        
+        scale: pillMouse.pressed ? 0.95 : 1.0
         Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on border.color { ColorAnimation { duration: 150 } }
-
+        Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
+        
         MaterialIcon {
+            id: layout
             anchors.centerIn: parent
-            icon: hoverArea.hovered ? "close" : "share"
-            font.pixelSize: 14
-            color: hoverArea.hovered ? "#11111b" : "#cdd6f4"
+            icon: pillMouse.containsMouse ? "close" : "wifi_tethering"
+            font.pixelSize: 13
+            color: pillMouse.containsMouse ? Theme.critical : Theme.primary
             Behavior on color { ColorAnimation { duration: 150 } }
         }
-    }
-
-    HoverHandler {
-        id: hoverArea
-        cursorShape: Qt.PointingHandCursor
-    }
-
-    TapHandler {
-        onTapped: FileShare.cancelAll()
+        
+        MouseArea {
+            id: pillMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: FileShare.cancelAll()
+        }
     }
 }

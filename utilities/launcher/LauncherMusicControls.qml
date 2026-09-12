@@ -1,426 +1,347 @@
 import QtQuick
-import QtQuick.Effects
 import qs.theme
 import qs.services
 import qs.components
 
 Item {
     id: root
+    anchors.fill: parent
+
+    readonly property var state: BackendDaemon.musicState || ({})
+    readonly property real pad: 12
+    readonly property real innerWidth: Math.max(0, width - pad * 2)
+    // Transport must always fit: five buttons + gaps inside innerWidth.
+    readonly property real btnGap: 6
+    readonly property real btnSize: Math.max(28, Math.min(36, (innerWidth - btnGap * 4) / 5.6))
+    readonly property real playSize: Math.min(btnSize + 8, innerWidth * 0.22)
+    readonly property real artSize: Math.min(52, Math.max(40, Math.min(innerWidth * 0.22, height * 0.18)))
 
     function formatTime(secs) {
-        if (isNaN(secs) || secs < 0) return "0:00";
+        secs = Number(secs);
+        if (isNaN(secs) || secs < 0)
+            return "0:00";
         var m = Math.floor(secs / 60);
         var s = Math.floor(secs % 60);
         return m + ":" + (s < 10 ? "0" : "") + s;
     }
 
-    readonly property real topSectionWidth: width - 32
-    readonly property real artSize: Math.min((topSectionWidth - 12) / 2, 140)
+    function safeStr(v) {
+        return (v === undefined || v === null) ? "" : ("" + v);
+    }
+
+    component TransportBtn: Rectangle {
+        property string iconName
+        property real size: root.btnSize
+        property int iconPx: Math.round(size * 0.48)
+        property bool accent: false
+        property bool active: false
+        signal triggered
+
+        width: size
+        height: size
+        radius: size / 2
+        color: {
+            if (accent)
+                return root.state.playing ? Theme.bubble_accent : Theme.bubble_accent_soft;
+            if (active)
+                return Theme.bubble_accent_soft;
+            return hover.containsMouse ? Theme.bubble_hover : Theme.bubble;
+        }
+        border.width: 1
+        border.color: accent || active ? Theme.bubble_border : Theme.bubble_border_soft
+        clip: true
+        scale: hover.pressed ? 0.92 : (hover.containsMouse ? 1.04 : 1.0)
+        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: 120 } }
+
+        BubbleSheen {
+            visible: accent
+        }
+
+        MaterialIcon {
+            anchors.centerIn: parent
+            z: 1
+            icon: parent.iconName
+            font.pixelSize: parent.iconPx
+            color: parent.accent || parent.active ? Theme.primary : Theme.on_surface
+        }
+
+        MouseArea {
+            id: hover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: parent.triggered()
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.03)
+        color: Qt.alpha(Theme.on_surface, 0.03)
     }
 
-    Flickable {
-        id: controlsScroll
-        anchors.fill: parent
-        contentWidth: width
-        contentHeight: Math.max(height, controlsCol.height + 32)
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+    Column {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: root.pad
+        anchors.topMargin: 10
+        spacing: 10
 
-        Column {
-            id: controlsCol
+        // ── Art + metadata ──
+        Row {
             width: parent.width
-            y: Math.max(16, (controlsScroll.height - height) / 2)
-            spacing: 0
+            spacing: 10
+            height: root.artSize
 
-            // ── Album art + metadata (50/50) ──
-            Row {
-                width: root.topSectionWidth
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 12
-                height: artSize
+            Rectangle {
+                width: root.artSize
+                height: root.artSize
+                radius: 10
+                color: Theme.glass_raised
+                clip: true
+                anchors.verticalCenter: parent.verticalCenter
 
-                Item {
-                    width: (parent.width - parent.spacing) / 2
-                    height: artSize
-
-                    Rectangle {
-                        id: artContainer
-                        anchors.centerIn: parent
-                        width: root.artSize
-                        height: root.artSize
-                        radius: 16
-                        color: Theme.surface_variant
-                        clip: true
-
-                        Image {
-                            id: albumArt
-                            anchors.fill: parent
-                            source: BackendDaemon.musicState.artUrl !== "" ? BackendDaemon.musicState.artUrl : ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    sourceItem: Rectangle {
-                                        width: albumArt.width
-                                        height: albumArt.height
-                                        radius: 16
-                                    }
-                                }
-                            }
-                        }
-
-                        MaterialIcon {
-                            anchors.centerIn: parent
-                            icon: "music_note"
-                            font.pixelSize: root.artSize * 0.32
-                            color: Theme.on_surface_variant
-                            visible: albumArt.status !== Image.Ready
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: Lyrics.showFullscreen = true
-                        }
+                Image {
+                    id: albumArt
+                    anchors.fill: parent
+                    source: {
+                        var url = root.safeStr(root.state.artUrl);
+                        return url !== "" ? url : "";
                     }
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
+                    visible: status === Image.Ready
                 }
-
-                Column {
-                    id: metaCol
-                    width: (parent.width - parent.spacing) / 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 6
-
-                    Text {
-                        width: parent.width
-                        text: BackendDaemon.musicState.title !== "" ? BackendDaemon.musicState.title : "Not Playing"
-                        font.family: "Google Sans"
-                        font.pixelSize: 15
-                        font.weight: Font.DemiBold
-                        color: Theme.on_surface
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignLeft
-                        maximumLineCount: 2
-                        wrapMode: Text.WordWrap
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: BackendDaemon.musicState.artist !== "" ? BackendDaemon.musicState.artist : ""
-                        font.family: "Google Sans"
-                        font.pixelSize: 12
-                        color: Theme.on_surface_variant
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignLeft
-                        visible: text !== ""
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: BackendDaemon.musicState.album !== "" ? BackendDaemon.musicState.album : ""
-                        font.family: "Google Sans"
-                        font.pixelSize: 11
-                        color: Theme.on_surface_variant
-                        opacity: 0.7
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignLeft
-                        visible: text !== ""
-                    }
-                }
-            }
-
-            Item { width: 1; height: 20 }
-
-            // ── Progress bar ──
-            Column {
-                width: parent.width - 32
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 6
-
-                Item {
-                    id: progressTrack
-                    width: parent.width
-                    height: 20
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 8
-                        radius: 4
-                        color: Theme.surface_variant
-                    }
-
-                    Rectangle {
-                        id: progressFill
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 8
-                        radius: 4
-                        color: Theme.primary
-                        width: BackendDaemon.musicState.duration > 0
-                            ? Math.max(8, parent.width * Math.min(BackendDaemon.musicState.position / BackendDaemon.musicState.duration, 1.0))
-                            : 0
-                    }
-
-                    Rectangle {
-                        width: 14
-                        height: 14
-                        radius: 7
-                        color: Theme.primary
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: progressFill.width - width / 2
-                        visible: seekMouse.containsMouse || seekMouse.pressed
-                        scale: seekMouse.pressed ? 1.2 : 1.0
-                        Behavior on scale { NumberAnimation { duration: 100 } }
-                    }
-
-                    MouseArea {
-                        id: seekMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function(mouse) {
-                            if (BackendDaemon.musicState.duration <= 0) return;
-                            var frac = Math.max(0, Math.min(1, mouse.x / width));
-                            MusicService.setPosition(frac * BackendDaemon.musicState.duration);
-                        }
-                    }
-                }
-
-                Row {
-                    width: parent.width
-
-                    Text {
-                        id: posLabel
-                        text: formatTime(BackendDaemon.musicState.position)
-                        font.family: "Google Sans"
-                        font.pixelSize: 11
-                        color: Theme.on_surface_variant
-                    }
-
-                    Item { width: parent.width - posLabel.width - durLabel.width; height: 1 }
-
-                    Text {
-                        id: durLabel
-                        text: formatTime(BackendDaemon.musicState.duration)
-                        font.family: "Google Sans"
-                        font.pixelSize: 11
-                        color: Theme.on_surface_variant
-                    }
-                }
-            }
-
-            Item { width: 1; height: 16 }
-
-            // ── Transport controls ──
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 8
-
-                // Loop
-                Rectangle {
-                    width: 40
-                    height: 40
-                    radius: 20
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: BackendDaemon.musicState.loopAlbum
-                        ? Theme.secondary_container
-                        : (loopHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent")
-                    Behavior on color { ColorAnimation { duration: 120 } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: "repeat"
-                        font.pixelSize: 18
-                        color: BackendDaemon.musicState.loopAlbum ? Theme.on_secondary_container : Theme.on_surface_variant
-                    }
-
-                    MouseArea {
-                        id: loopHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.toggleLoop()
-                    }
-                }
-
-                // Previous
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 24
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: prevHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: "skip_previous"
-                        font.pixelSize: 22
-                        color: Theme.on_surface
-                    }
-
-                    MouseArea {
-                        id: prevHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.previous()
-                    }
-                }
-
-                // Play / Pause
-                Rectangle {
-                    width: 56
-                    height: 56
-                    radius: 28
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: BackendDaemon.musicState.playing ? Theme.primary : Theme.primary_container
-                    scale: ppHover.pressed ? 0.92 : (ppHover.containsMouse ? 1.06 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Behavior on color { ColorAnimation { duration: 200 } }
-
-                    MaterialIcon {
-                        id: ppIcon
-                        anchors.centerIn: parent
-                        icon: BackendDaemon.musicState.playing ? "pause" : "play_arrow"
-                        font.pixelSize: 26
-                        color: BackendDaemon.musicState.playing ? Theme.on_primary : Theme.on_primary_container
-                        scale: 1.0
-                        onIconChanged: ppBounce.restart()
-                        SequentialAnimation {
-                            id: ppBounce
-                            NumberAnimation { target: ppIcon; property: "scale"; to: 0.7; duration: 80; easing.type: Easing.OutCubic }
-                            NumberAnimation { target: ppIcon; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
-                        }
-                    }
-
-                    MouseArea {
-                        id: ppHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.toggle()
-                    }
-                }
-
-                // Next
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 24
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: nextHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: "skip_next"
-                        font.pixelSize: 22
-                        color: Theme.on_surface
-                    }
-
-                    MouseArea {
-                        id: nextHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: MusicService.next()
-                    }
-                }
-
-                // Lyrics / fullscreen
-                Rectangle {
-                    width: 40
-                    height: 40
-                    radius: 20
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: lyricsHover.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08) : "transparent"
-                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: "lyrics"
-                        font.pixelSize: 18
-                        color: Theme.on_surface_variant
-                    }
-
-                    MouseArea {
-                        id: lyricsHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Lyrics.showFullscreen = true
-                    }
-                }
-            }
-
-            Item { width: 1; height: 16 }
-
-            // ── Volume ──
-            Row {
-                id: volRow
-                width: parent.width - 48
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 10
 
                 MaterialIcon {
-                    id: volIcon
+                    anchors.centerIn: parent
+                    icon: "music_note"
+                    font.pixelSize: root.artSize * 0.4
+                    color: Theme.on_surface_variant
+                    visible: albumArt.status !== Image.Ready
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Lyrics.showFullscreen = true
+                }
+            }
+
+            Column {
+                width: Math.max(0, parent.width - root.artSize - parent.spacing)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+
+                Text {
+                    width: parent.width
+                    text: {
+                        var t = root.safeStr(root.state.title);
+                        return t !== "" ? t : "Not Playing";
+                    }
+                    font.family: "Google Sans"
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: Theme.on_surface
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                Text {
+                    width: parent.width
+                    text: root.safeStr(root.state.artist)
+                    font.family: "Google Sans"
+                    font.pixelSize: 11
+                    color: Theme.on_surface_variant
+                    elide: Text.ElideRight
+                    visible: text !== ""
+                }
+
+                Text {
+                    width: parent.width
+                    text: root.safeStr(root.state.album)
+                    font.family: "Google Sans"
+                    font.pixelSize: 10
+                    color: Theme.on_surface_variant
+                    opacity: 0.7
+                    elide: Text.ElideRight
+                    visible: text !== ""
+                }
+            }
+        }
+
+        // ── Progress ──
+        Column {
+            width: parent.width
+            spacing: 4
+
+            Item {
+                width: parent.width
+                height: 14
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    icon: BackendDaemon.musicState.volume >= 0.5 ? "volume_up"
-                        : (BackendDaemon.musicState.volume > 0 ? "volume_down" : "volume_mute")
-                    font.pixelSize: 16
+                    height: 4
+                    radius: 2
+                    color: Theme.glass_raised
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 4
+                    radius: 2
+                    color: Theme.primary
+                    width: {
+                        var dur = Number(root.state.duration) || 0;
+                        var pos = Number(root.state.position) || 0;
+                        if (dur <= 0)
+                            return 0;
+                        return Math.max(4, parent.width * Math.min(pos / dur, 1.0));
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function(mouse) {
+                        var dur = Number(root.state.duration) || 0;
+                        if (dur <= 0)
+                            return;
+                        var frac = Math.max(0, Math.min(1, mouse.x / Math.max(1, width)));
+                        MusicService.setPosition(frac * dur);
+                    }
+                }
+            }
+
+            Row {
+                width: parent.width
+
+                Text {
+                    id: posLabel
+                    text: root.formatTime(root.state.position)
+                    font.family: "Google Sans"
+                    font.pixelSize: 10
                     color: Theme.on_surface_variant
                 }
 
                 Item {
-                    id: volTrack
-                    width: volRow.width - volIcon.width - volRow.spacing
-                    height: 32
+                    width: Math.max(0, parent.width - posLabel.width - durLabel.width)
+                    height: 1
+                }
+
+                Text {
+                    id: durLabel
+                    text: root.formatTime(root.state.duration)
+                    font.family: "Google Sans"
+                    font.pixelSize: 10
+                    color: Theme.on_surface_variant
+                }
+            }
+        }
+
+        // ── Transport ──
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: root.btnGap
+            height: Math.max(root.playSize, root.btnSize)
+
+            TransportBtn {
+                iconName: "repeat"
+                size: root.btnSize
+                anchors.verticalCenter: parent.verticalCenter
+                active: !!root.state.loopAlbum
+                onTriggered: MusicService.toggleLoop()
+            }
+            TransportBtn {
+                iconName: "skip_previous"
+                size: root.btnSize
+                anchors.verticalCenter: parent.verticalCenter
+                onTriggered: MusicService.previous()
+            }
+            TransportBtn {
+                iconName: root.state.playing ? "pause" : "play_arrow"
+                size: root.playSize
+                iconPx: Math.round(root.playSize * 0.46)
+                anchors.verticalCenter: parent.verticalCenter
+                accent: true
+                onTriggered: MusicService.toggle()
+            }
+            TransportBtn {
+                iconName: "skip_next"
+                size: root.btnSize
+                anchors.verticalCenter: parent.verticalCenter
+                onTriggered: MusicService.next()
+            }
+            TransportBtn {
+                iconName: "lyrics"
+                size: root.btnSize
+                anchors.verticalCenter: parent.verticalCenter
+                onTriggered: Lyrics.showFullscreen = true
+            }
+        }
+
+        // ── Volume ──
+        Row {
+            id: volRow
+            width: parent.width
+            spacing: 8
+
+            MaterialIcon {
+                id: volIcon
+                anchors.verticalCenter: parent.verticalCenter
+                icon: {
+                    var v = Number(root.state.volume) || 0;
+                    if (v >= 0.5)
+                        return "volume_up";
+                    if (v > 0)
+                        return "volume_down";
+                    return "volume_mute";
+                }
+                font.pixelSize: 15
+                color: Theme.on_surface_variant
+            }
+
+            Item {
+                width: Math.max(0, volRow.width - volIcon.width - volRow.spacing)
+                height: 22
+                anchors.verticalCenter: parent.verticalCenter
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
+                    height: 3
+                    radius: 1.5
+                    color: Theme.glass_raised
+                }
 
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 4
-                        radius: 2
-                        color: Theme.surface_variant
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 3
+                    radius: 1.5
+                    color: Theme.primary
+                    width: Math.max(3, parent.width * Math.max(0, Math.min(1, Number(root.state.volume) || 0)))
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function(mouse) {
+                        MusicService.setVolume(Math.max(0, Math.min(1, mouse.x / Math.max(1, width))));
                     }
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 4
-                        radius: 2
-                        color: Theme.primary
-                        width: Math.max(4, parent.width * BackendDaemon.musicState.volume)
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: function(mouse) {
-                            MusicService.setVolume(Math.max(0, Math.min(1, mouse.x / width)));
-                        }
-                        onPositionChanged: function(mouse) {
-                            if (pressed)
-                                MusicService.setVolume(Math.max(0, Math.min(1, mouse.x / width)));
-                        }
+                    onPositionChanged: function(mouse) {
+                        if (pressed)
+                            MusicService.setVolume(Math.max(0, Math.min(1, mouse.x / Math.max(1, width))));
                     }
                 }
             }
-
-            Item { width: 1; height: 16 }
         }
     }
 }

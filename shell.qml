@@ -8,6 +8,7 @@ import "lock"
 import "desktop"
 
 import qs.utilities.launcher
+import qs.utilities.keepass
 import qs.popups
 import qs.services
 
@@ -15,71 +16,29 @@ import qs.services
 ShellRoot {
     id: root
 
-    // Application dock (vertical, left side)
+    // Application dock & top notch (Dynamic Island)
     Dock {
         id: applicationDock
     }
-
-    // Screen masking for rounded workspace effect
-    BezelsMask {
-        id: desktopBezels
-    }
-
-
 
     // Session lock screen
     Lock {
         id: lockScreen
     }
 
-    // Floating notification overlay
-    NotifPopup {
-        id: notificationOverlay
-    }
-
-    // Polkit authentication popup
-    PolkitPopup {
-        id: polkitPopup
-    }
-
-    // Top-right Drag Queen dropzone
-    FileStashPopup {
-        id: fileStashOverlay
-    }
-
-
-
     // Application Launcher
     Launcher {
         id: launcherWindow
     }
 
-    VolumePopup {
-        id: volumePopupWindow
+    KeepassPopup {
+        id: keepassWindow
     }
 
-    BrightnessPopup {
-        id: brightnessPopupWindow
-    }
 
-    SpeakerWarningPopup {
-        id: speakerWarningPopupWindow
-    }
 
-    ChargePopup {
-        id: chargePopupWindow
-    }
-
-    Loader {
-        active: Screenshot.editorActive
-        asynchronous: true
-        sourceComponent: ScreenshotEditor { id: screenshotEditor }
-    }
-
-    Loader {
-        active: Screenshot.overlayActive
-        asynchronous: true
-        sourceComponent: ScreenshotOverlay { id: screenshotOverlay }
+    ScreenshotEditor {
+        id: screenshotEditor
     }
 
     // Live synced lyrics on desktop (wallpaper)
@@ -94,6 +53,26 @@ ShellRoot {
         active: Lyrics.showFullscreen
         asynchronous: true
         sourceComponent: FullscreenMedia { id: fullscreenMedia }
+    }
+
+    // RSVP speed reader overlay
+    Loader {
+        active: RsvpReader.active
+        asynchronous: true
+        sourceComponent: RsvpOverlay { id: rsvpOverlay }
+    }
+
+    IpcHandler {
+        target: "keepass"
+        function toggle() {
+            keepassWindow.toggle();
+        }
+        function open() {
+            keepassWindow.openMenu();
+        }
+        function close() {
+            keepassWindow.closeMenu();
+        }
     }
 
     IpcHandler {

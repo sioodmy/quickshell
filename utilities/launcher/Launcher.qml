@@ -5,9 +5,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import "../../theme"
-import "../../popups/weather"
 import qs.services
 import qs.components
 
@@ -67,8 +65,6 @@ PanelWindow {
     readonly property var cocQuery: parseCocQuery(trimmedQuery)
     readonly property bool cocModeActive: cocQuery !== null
 
-    readonly property var torrentQuery: parseTorrentQuery(trimmedQuery)
-    readonly property bool torrentModeActive: torrentQuery !== null || normalizedQuery === "torrent" || (BackendDaemon.activeTorrents && BackendDaemon.activeTorrents.length > 0 && normalizedQuery.startsWith("torrent"))
 
     readonly property var bringQuery: parseBringQuery(trimmedQuery)
     readonly property bool bringModeActive: bringQuery !== null
@@ -80,7 +76,7 @@ PanelWindow {
     // scroll/cycle. Cleared only by Tab/arrows or mouse hover selection.
     property bool pinSelectionToBest: true
 
-    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive || torrentModeActive
+    readonly property bool specialViewActive: weatherModeActive || colorPickerModeActive || connectivityModeActive || musicModeActive || nightModeActive || clipModeActive
 
     readonly property var pipewireSink: Pipewire.defaultAudioSink
     PwObjectTracker { objects: launcherWindow.pipewireSink ? [launcherWindow.pipewireSink] : [] }
@@ -89,7 +85,7 @@ PanelWindow {
     onWeatherModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onColorPickerModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
     onNightModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
-    onTorrentModeActiveChanged: fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0
+
     onClipModeActiveChanged: {
         fileSplitBlend = (hasFileSelected && !specialViewActive) ? 1 : 0;
         if (clipModeActive && contentLoader.item)
@@ -106,9 +102,7 @@ PanelWindow {
         musicSplitBlend = (musicModeActive && BackendDaemon.musicState.hasPlayer) ? 1 : 0
     }
 
-    Behavior on fileSplitBlend {
-        NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-    }
+    // File preview split is instant for snappiness (no animation)
 
     Behavior on musicSplitBlend {
         NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
@@ -118,6 +112,16 @@ PanelWindow {
         target: BackendDaemon
         function onMusicStateChanged() {
             launcherWindow.syncMusicSplitBlend()
+        }
+    }
+
+    Connections {
+        target: LauncherState
+        function onDockWidthChanged() { launcherWindow.syncBlurRegion() }
+        function onDockHeightChanged() { launcherWindow.syncBlurRegion() }
+        function onCloseRequested() {
+            if (launcherWindow.menuOpen || launcherWindow.openProgress > 0)
+                launcherWindow.closeMenu();
         }
     }
 
@@ -141,8 +145,16 @@ PanelWindow {
 
     property real openProgress: 0.0
     property bool menuOpen: false
+    // Geometry reveal is separate from mapped state. This lets the lightweight
+    // clip shell animate while the expensive launcher layout stays fixed.
+    property bool panelExpanded: false
     // When true, we want to open but are waiting for LazyLoader content to load.
     property bool _pendingOpen: false
+    // Set once this surface has presented a frame since being mapped.
+    property bool _framePresented: false
+    // A result rebuild that was queued while closed and held back so it cannot
+    // run on the GUI thread during the reveal.
+    property bool _rebuildAfterReveal: false
     property string bluetoothConnectedDeviceLabel: ""
 
     property var _debouncedResults: []
@@ -151,6 +163,12 @@ PanelWindow {
         id: filterDebounce
         interval: 50
         onTriggered: {
+            // buildFilteredList() blocks the GUI thread long enough to be seen
+            // as a stutter, so it never runs inside the reveal animation.
+            if (openAnim.running) {
+                launcherWindow._rebuildAfterReveal = true;
+                return;
+            }
             launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
         }
     }
@@ -162,6 +180,7 @@ PanelWindow {
         function onFileSearchResultsChanged() { filterDebounce.restart() }
         function onBookmarkSearchResultsChanged() { filterDebounce.restart() }
         function onAppFrequenciesChanged() { filterDebounce.restart() }
+        function onAppSearchResultsChanged() { filterDebounce.restart() }
     }
 
     Connections {
@@ -191,10 +210,12 @@ PanelWindow {
     color: "transparent"
     visible: menuOpen || openAnim.running || closeAnim.running
 
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "launcher_overlay"
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-    exclusiveZone: -1
+    // A launcher is transient UI: keep it above panels, never reserve work area,
+    // and request focus only while this surface is mapped.
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "quickshell-launcher"
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
     anchors {
         top: true
@@ -203,32 +224,127 @@ PanelWindow {
         right: true
     }
 
+    // Blur region size is mirrored into plain properties (not a self-referential
+    // Region binding) — the previous `property panelWidth → width: panelWidth`
+    // form logged a binding loop on every open and is a known Qt instability.
+    property real blurPanelWidth: Math.max(1, LauncherState.dockWidth)
+    property real blurPanelHeight: Math.max(1, LauncherState.dockHeight)
+
+    function syncBlurRegion() {
+        if (contentLoader.item) {
+            blurPanelWidth = Math.max(1, contentLoader.item.width);
+            blurPanelHeight = Math.max(1, contentLoader.item.height);
+        } else {
+            blurPanelWidth = Math.max(1, LauncherState.dockWidth);
+            blurPanelHeight = Math.max(1, LauncherState.dockHeight);
+        }
+    }
+
+    // The launcher surface is fullscreen for click-away dismissal, but only
+    // this explicit rectangle is submitted to ext-background-effect-v1.
+    // Do not also force blur with a niri layer rule: that applies to the whole
+    // fullscreen surface and overrides the protocol-defined region.
+    BackgroundEffect.blurRegion: Region {
+        x: Math.round((launcherWindow.width - launcherWindow.blurPanelWidth) / 2)
+        y: 0
+        width: launcherWindow.blurPanelWidth
+        height: launcherWindow.blurPanelHeight
+        // Region only exposes a uniform radius in this Quickshell build.
+        // Keep it square so blur does not spill past the flush top edge.
+        radius: 0
+    }
+
+    // The reveal must start on the frame this surface first reaches the screen.
+    // Kicking it off from openMenu() instead lets these wall-clock animations
+    // burn through while the surface is still being mapped and its first polish
+    // builds the result delegates — exactly the work that gets slow under load.
+    // The first visible frame then lands mid-animation and the panel pops in at
+    // near-full size. Measured at ~47ms on an idle machine, i.e. three frames
+    // of the reveal already gone before anything is on screen.
+
+    // grabToImage / ShaderEffectSource paths crash updatePixelRatioHelper on
+    // Asahi when PanelWindows map under load. A short timer is close enough to
+    // "first frame" without touching the GPU readback path.
+    function _armRevealProbe() {
+        revealFallback.restart();
+    }
+
+    Timer {
+        id: revealFallback
+        interval: 32
+        onTriggered: {
+            launcherWindow._framePresented = true;
+            launcherWindow._maybeBeginReveal();
+        }
+    }
+
+    function _onFramePresented() {
+        if (_framePresented || !menuOpen)
+            return;
+        _framePresented = true;
+        _maybeBeginReveal();
+    }
+
+    // Needs both halves: the content tree built, and the surface on screen.
+    function _maybeBeginReveal() {
+        if (!menuOpen || _pendingOpen || !_framePresented)
+            return;
+        if (openAnim.running || openProgress > 0)
+            return;
+        revealFallback.stop();
+        panelExpanded = true;
+        if (contentLoader.item)
+            contentLoader.item.focusSearch();
+        openAnim.start();
+    }
+
     NumberAnimation {
         id: openAnim
         target: launcherWindow
         property: "openProgress"
         from: 0; to: 1
-        duration: 200
+        duration: 280
         easing.type: Easing.OutCubic
-        onStarted: LauncherState.open = true
-        onFinished: LauncherState.openProgress = 1.0
+        onFinished: {
+            LauncherState.openProgress = 1.0;
+            if (launcherWindow._rebuildAfterReveal) {
+                launcherWindow._rebuildAfterReveal = false;
+                filterDebounce.restart();
+            }
+        }
     }
 
     NumberAnimation {
         id: closeAnim
         target: launcherWindow
         property: "openProgress"
-        from: 1; to: 0
-        duration: 150
+        // No `from`: closing before the reveal has started must not snap the
+        // panel to full size just to animate it back down.
+        to: 0
+        duration: 200
         easing.type: Easing.InCubic
         onFinished: {
             launcherWindow.menuOpen = false;
+            launcherWindow._framePresented = false;
+            launcherWindow._rebuildAfterReveal = false;
             LauncherState.open = false;
             LauncherState.openProgress = 0.0;
+            LauncherState.screen = null;
+            // Prepare the default view while hidden so the next open does not
+            // rebuild the result model during its animation.
+            ctrl.clearStates();
+            if (contentLoader.item)
+                contentLoader.item.clearSearch();
+            launcherWindow.pinSelectionToBest = true;
+            filterDebounce.restart();
         }
     }
 
-    onOpenProgressChanged: LauncherState.openProgress = openProgress
+    onPanelExpandedChanged: syncBlurRegion()
+    onOpenProgressChanged: {
+        LauncherState.openProgress = openProgress;
+        syncBlurRegion();
+    }
 
     // Ensure the notification appears right after the launcher has closed.
     Timer {
@@ -335,14 +451,7 @@ PanelWindow {
         return null;
     }
 
-    function parseTorrentQuery(query) {
-        var q = query.trim();
-        if (q.startsWith("magnet:"))
-            return { mode: "add", magnet: q };
-        if (q.toLowerCase() === "torrent")
-            return { mode: "view" };
-        return null;
-    }
+
 
     function parseMusicQuery(query) {
         var q = query.trim().toLowerCase();
@@ -833,63 +942,51 @@ PanelWindow {
             }
         }
         var scored = [];
-        var appById = {};
 
-        for (var i = 0; i < allApps.length; i++) {
-            var entry = allApps[i];
-            if (entry.id)
-                appById[entry.id] = entry;
-
-            // Hide apps matching hiddenKeywords unless explicitly searched for
-            var nameLower = entry.name ? entry.name.toLowerCase() : "";
-            var isHiddenApp = false;
-            for (var hk = 0; hk < hiddenKeywords.length; hk++) {
-                if (nameLower.includes(hiddenKeywords[hk])) {
-                    isHiddenApp = true;
-                    break;
-                }
-            }
-
-            if (isHiddenApp && !isSearchingHidden) {
-                continue;
-            }
-
-            var best = scoreMatch(entry.name, queryLower, queryLen);
-
-            // Exact / prefix name hits don't need expensive secondary fields
-            if (best < 800) {
-                if (entry.genericName) {
-                    var s = scoreMatch(entry.genericName, queryLower, queryLen);
-                    if (s >= 200)
-                        best = Math.max(best, s - 50);
-                }
-
-                if (best < 800 && entry.comment) {
-                    var s = scoreMatch(entry.comment, queryLower, queryLen);
-                    if (s >= 200)
-                        best = Math.max(best, s - 100);
-                }
-
-                if (best < 800 && entry.keywords) {
-                    for (var j = 0; j < entry.keywords.length; j++) {
-                        var s = scoreMatch(entry.keywords[j], queryLower, queryLen);
-                        if (s >= 200)
-                            best = Math.max(best, s - 20);
-                        if (best >= 800)
+        var rustResults = ctrl.appSearchResults;
+        if (rustResults && rustResults.length > 0 && ctrl.appSearchQuery.toLowerCase() === queryLower) {
+            for (var ri = 0; ri < rustResults.length; ri++) {
+                var item = rustResults[ri];
+                var entry = ctrl.findDesktopEntry(item.id);
+                if (entry) {
+                    var nLower = entry.name ? entry.name.toLowerCase() : "";
+                    var isHidden = false;
+                    for (var hk = 0; hk < hiddenKeywords.length; hk++) {
+                        if (nLower.includes(hiddenKeywords[hk])) {
+                            isHidden = true;
                             break;
+                        }
+                    }
+                    if (isHidden && !isSearchingHidden) continue;
+                    scored.push({
+                        entry: entry,
+                        score: item.score
+                    });
+                }
+            }
+        } else {
+            for (var i = 0; i < allApps.length; i++) {
+                var entry = allApps[i];
+                var nameLower = entry.name ? entry.name.toLowerCase() : "";
+                var isHiddenApp = false;
+                for (var hk = 0; hk < hiddenKeywords.length; hk++) {
+                    if (nameLower.includes(hiddenKeywords[hk])) {
+                        isHiddenApp = true;
+                        break;
                     }
                 }
 
-                if (best < 180 && entry.execString && entry.execString.toLowerCase().includes(queryLower)) {
-                    best = Math.max(best, 180);
+                if (isHiddenApp && !isSearchingHidden) {
+                    continue;
                 }
-            }
 
-            if (best >= 0) {
-                scored.push({
-                    entry: entry,
-                    score: best
-                });
+                var best = scoreMatch(entry.name, queryLower, queryLen);
+                if (best >= 0) {
+                    scored.push({
+                        entry: entry,
+                        score: best
+                    });
+                }
             }
         }
 
@@ -925,7 +1022,7 @@ PanelWindow {
                 continue;
             }
 
-            var qkEntry = appById[qkId];
+            var qkEntry = ctrl.findDesktopEntry(qkId);
             if (!qkEntry) continue;
 
             quickkeyBoostedIds[qkId] = true;
@@ -1171,33 +1268,61 @@ PanelWindow {
             closeMenu();
             return;
         }
-        ctrl.clearStates();
+        if (KeepassState.open || KeepassState.openProgress > 0.001)
+            KeepassState.requestClose();
+        if (Screenshot.open || Screenshot.openProgress > 0.001)
+            Screenshot.requestClose();
         pinSelectionToBest = true;
         closeAnim.stop();
+        panelExpanded = false;
         // Ensure openProgress starts at 0 so the mask is fully closed
         // before the content appears.
         openProgress = 0;
+        // Claim the dock notch now. The dock holds its own chrome until this
+        // surface reports progress, so the handoff has no uncovered frame.
+        LauncherState.open = true;
+        LauncherState.screen = launcherWindow.screen;
+        _framePresented = false;
         menuOpen = true;
-        filterDebounce.restart();
-        // If the LazyLoader content is already loaded, start the animation
-        // immediately. Otherwise, set _pendingOpen so the animation starts
-        // once loading finishes (see contentLoader.onItemChanged).
-        if (contentLoader.item) {
-            openAnim.start();
-        } else {
-            _pendingOpen = true;
+        // Always start from an empty query. clearStates alone is not enough:
+        // the TextField keeps its own text, and a close interrupted mid-animation
+        // never reaches closeAnim.onFinished.
+        ctrl.clearStates();
+        // The result list is kept warm while closed, so there is normally
+        // nothing to rebuild. If one was still queued, flush it now: doing the
+        // work before the surface is even mapped hides it entirely, whereas
+        // letting the debounce fire would land it inside the reveal.
+        if (filterDebounce.running) {
+            filterDebounce.stop();
+            _debouncedResults = buildFilteredList();
         }
+        // Focus now, not at reveal time: the compositor hands this surface the
+        // keyboard as soon as it maps, so anything typed in between would
+        // otherwise miss the search field.
+        if (contentLoader.item) {
+            contentLoader.item.clearSearch();
+            contentLoader.item.focusSearch();
+        }
+
+        // Arm the reveal. It fires from _onFramePresented once the surface is
+        // actually up; if the content tree is still incubating, wait for that
+        // too (see contentLoader.onItemChanged).
+        _pendingOpen = !contentLoader.item;
+        _armRevealProbe();
     }
 
     function closeMenu() {
         _pendingOpen = false;
+        revealFallback.stop();
         shareModeActive = false;
         shareData = null;
         if (contentLoader.item)
             contentLoader.item.resetSpecialViewState();
         bluetoothConnectedNotifTimer.stop();
         openAnim.stop();
-        LauncherState.open = false;
+        panelExpanded = false;
+        // Keep LauncherState.open true until closeAnim finishes so the dock
+        // notch stays expanded while content fades out.
         closeAnim.start();
         ctrl.commitRecents();
     }
@@ -1205,14 +1330,32 @@ PanelWindow {
     LazyLoader {
         id: contentLoader
 
-        activeAsync: launcherWindow.menuOpen
+        // Warm once at shell startup and retain the component. Unloading this
+        // large tree on every close caused first-frame stalls on every opening.
+        activeAsync: true
 
-        // When activeAsync finishes loading and a pending open is waiting,
-        // kick off the reveal animation now that the mask layer is ready.
+        // When activeAsync finishes loading and a pending open is waiting, arm
+        // the reveal now that the mask layer is ready.
         onItemChanged: {
-            if (item && launcherWindow._pendingOpen) {
+            if (!item)
+                return;
+            launcherWindow.syncBlurRegion();
+            item.widthChanged.connect(launcherWindow.syncBlurRegion);
+            item.heightChanged.connect(launcherWindow.syncBlurRegion);
+            if (launcherWindow._pendingOpen) {
                 launcherWindow._pendingOpen = false;
-                openAnim.start();
+                // Someone opened the launcher before warm-up finished. Build
+                // the list now, while still off screen, rather than letting the
+                // debounce drop it into the reveal.
+                item.clearSearch();
+                launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
+                item.focusSearch();
+                // The surface may already have presented while this tree was
+                // still incubating, in which case no further frame is coming.
+                launcherWindow._maybeBeginReveal();
+            } else {
+                // Populate delegates during warm-up, not while opening.
+                filterDebounce.restart();
             }
         }
 
@@ -1221,10 +1364,45 @@ PanelWindow {
                 id: lazyContentRoot
 
                 parent: launcherWindow.contentItem
-                width: 752 + 48
-                height: 609
-                x: 0
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 0
+                clip: true
+
+                // Only this clip shell changes geometry. mainUi keeps a fixed
+                // layout, avoiding a full anchor/layout pass on every spring frame.
+                width: launcherWindow.panelExpanded
+                    ? LauncherState.targetWidth : LauncherState.dockWidth
+                height: launcherWindow.panelExpanded
+                    ? LauncherState.targetHeight : LauncherState.dockHeight
+
+                Behavior on width {
+                    SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+                }
+                Behavior on height {
+                    SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+                }
+
+                // Special views are incubated asynchronously so a 600-line view
+                // never builds inside a frame. Every crossfade against them is
+                // keyed on this, so nothing ever dissolves into an empty panel.
+                readonly property bool specialViewReady: {
+                    if (launcherWindow.weatherModeActive) return weatherLoader.status === Loader.Ready;
+                    if (launcherWindow.colorPickerModeActive) return colorPickerLoader.status === Loader.Ready;
+                    if (launcherWindow.btModeActive) return btLoader.status === Loader.Ready;
+                    if (launcherWindow.wifiModeActive) return wifiLoader.status === Loader.Ready;
+                    if (launcherWindow.musicModeActive) return musicLoader.status === Loader.Ready;
+                    if (launcherWindow.nightModeActive) return nightLightLoader.status === Loader.Ready;
+                    if (launcherWindow.clipModeActive) return clipboardLoader.status === Loader.Ready;
+                    return false;
+                }
+
+                function clearSearch() {
+                    searchField.clear();
+                }
+
+                function focusSearch() {
+                    searchField.forceActiveFocus();
+                }
 
                 function syncFilePreviewForCurrentItem() {
                     if (launcherWindow.specialViewActive)
@@ -1274,22 +1452,23 @@ PanelWindow {
 
                 function activeConnectivityView() {
                     if (launcherWindow.btModeActive)
-                        return btView;
+                        return btLoader.item;
                     if (launcherWindow.wifiModeActive)
-                        return wifiView;
+                        return wifiLoader.item;
                     return null;
                 }
 
                 function activeSpecialView() {
                     if (launcherWindow.clipModeActive)
-                        return clipboardView;
+                        return clipboardLoader.item;
                     if (launcherWindow.musicModeActive)
-                        return musicView;
+                        return musicLoader.item;
                     return activeConnectivityView();
                 }
 
                 function refreshClipboard() {
-                    clipboardView.refresh();
+                    if (clipboardLoader.item)
+                        clipboardLoader.item.refresh();
                 }
 
                 function cycleSpecialSelection(forward) {
@@ -1304,17 +1483,17 @@ PanelWindow {
                 }
 
                 function scrollSpecialToSelection() {
-                    if (launcherWindow.musicModeActive) {
+                    if (launcherWindow.musicModeActive && musicLoader.item) {
                         var maxY = Math.max(0, musicScroll.contentHeight - musicScroll.height);
-                        musicScroll.contentY = Math.max(0, Math.min(musicView.selectedScrollY - musicScroll.height * 0.25, maxY));
+                        musicScroll.contentY = Math.max(0, Math.min(musicLoader.item.selectedScrollY - musicScroll.height * 0.25, maxY));
                         return;
                     }
                     scrollConnectivityToSelection();
                 }
 
                 function activateSpecialSelection() {
-                    if (launcherWindow.clipModeActive)
-                        return clipboardView.activateSelected();
+                    if (launcherWindow.clipModeActive && clipboardLoader.item)
+                        return clipboardLoader.item.activateSelected();
                     if (launcherWindow.musicModeActive)
                         return activateMusicSelection();
                     return activateConnectivitySelection();
@@ -1328,9 +1507,11 @@ PanelWindow {
                         launcherWindow.executeMusicCommand(mq);
                         return true;
                     }
+                    if (!musicLoader.item)
+                        return false;
                     if (mq.filter !== "")
-                        return musicView.activateTopMatch();
-                    return musicView.activateSelected();
+                        return musicLoader.item.activateTopMatch();
+                    return musicLoader.item.activateSelected();
                 }
 
                 function cycleConnectivitySelection(forward) {
@@ -1363,8 +1544,8 @@ PanelWindow {
 
                 function resetSpecialViewState() {
                     connectivityCloseTimer.stop();
-                    btView.resetConnecting();
-                    wifiView.resetConnecting();
+                    if (btLoader.item) btLoader.item.resetConnecting();
+                    if (wifiLoader.item) wifiLoader.item.resetConnecting();
                 }
 
                 function resetConnectivityState() {
@@ -1378,28 +1559,28 @@ PanelWindow {
                 }
 
                 function handleSpecialNavigationKey(event) {
-                    if (launcherWindow.clipModeActive) {
+                    if (launcherWindow.clipModeActive && clipboardLoader.item) {
                         if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
                             var clipForward = !((event.modifiers & Qt.ShiftModifier) || event.key === Qt.Key_Backtab);
                             if (clipForward)
-                                clipboardView.incrementSelection();
+                                clipboardLoader.item.incrementSelection();
                             else
-                                clipboardView.decrementSelection();
+                                clipboardLoader.item.decrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Down) {
-                            clipboardView.incrementSelection();
+                            clipboardLoader.item.incrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Up) {
-                            clipboardView.decrementSelection();
+                            clipboardLoader.item.decrementSelection();
                             event.accepted = true;
                             return true;
                         }
                         if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                            clipboardView.activateSelected();
+                            clipboardLoader.item.activateSelected();
                             event.accepted = true;
                             return true;
                         }
@@ -1459,126 +1640,39 @@ PanelWindow {
                     return false;
                 }
 
-                Component.onCompleted: {
-                    searchField.forceActiveFocus();
-                }
-
-                // Shadow tracks the revealed area, offset past the dock so the
-                // launcher feels connected to the bar on the left edge.
-                Rectangle {
-                    id: shadowCaster
-                    x: 44
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.margins: 4
-                    width: Math.max(0, 800 * launcherWindow.openProgress - 44)
-                    radius: 26
-                    color: Theme.surface
-                    visible: false
-                }
-
-                MultiEffect {
-                    anchors.fill: shadowCaster
-                    source: shadowCaster
-                    shadowEnabled: true
-                    shadowBlur: 1.0
-                    shadowColor: "#40000000"
-                    shadowVerticalOffset: 8
-                    shadowHorizontalOffset: 4
-                    opacity: launcherWindow.openProgress
-                }
-
-                // Reveal mask: flat left edge, rounded right leading edge
-                Item {
-                    id: mainUiMask
-                    anchors.fill: mainUi
-                    visible: false
-                    layer.enabled: true
-                    layer.smooth: true
-
-                    // Rounded reveal area that grows from left
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        x: 44
-                        width: Math.max(0, parent.width * launcherWindow.openProgress - 44)
-                        radius: 28
-                        color: "black"
-                    }
-                    // Flat left edge filler (covers the left rounded corners)
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        x: 44
-                        width: Math.min(28, Math.max(0, parent.width * launcherWindow.openProgress - 44))
-                        color: "black"
-                    }
-                }
-
-                Rectangle {
+                ClippingRectangle {
                     id: mainUi
-                    width: 800
-
+                    property var launcherWindowRef: launcherWindow
+                    property var ctrlRef: ctrl
+                    width: LauncherState.targetWidth
+                    height: LauncherState.targetHeight
                     anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    color: Theme.surface
-                    radius: 28
+                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    // Square top edge meets the screen like the dock; rounded
+                    // bottom corners clip glass fill + children (plain
+                    // Rectangle.clip does not honor radius).
+                    color: Theme.glass_shell
+                    topLeftRadius: 0
+                    topRightRadius: 0
+                    bottomLeftRadius: LauncherState.targetRadius
+                    bottomRightRadius: LauncherState.targetRadius
                     border.width: 1
-                    border.color: Theme.surface_container_high
-                    // Keep mainUi hidden until the open animation has actually
-                    // started.  This prevents a single-frame flash where the
-                    // mask layer texture hasn't been rendered yet and the
-                    // unmasked rectangle (with rounded left corners) is visible.
-                    visible: launcherWindow.openProgress > 0
+                    border.color: Theme.glass_shell_border
+                    // Keep layout flush to the card edges; border paints on top.
+                    contentUnderBorder: true
+                    // Stays visible and is hidden by opacity alone. Gating
+                    // `visible` on openProgress deferred the ListView's first
+                    // polish until the reveal had already begun, so building
+                    // ~10 heavy delegates landed inside the animation.
+                    opacity: launcherWindow.openProgress
                     focus: true
 
                     // Swallow clicks on the card so it doesn't dismiss
                     MouseArea { anchors.fill: parent }
 
-                    layer.enabled: true
-                    layer.smooth: true
-                    layer.effect: MultiEffect {
-                        maskEnabled: true
-                        maskSource: mainUiMask
-                        maskThresholdMin: 0.5
-                        maskSpreadAtMin: 1.0
-                    }
-
                     LauncherWeatherData {
                         id: launcherWeatherData
-                    }
-
-                    LauncherBackgroundLayers {
-                        id: edgeBanner
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: 200
-
-                        weatherModeActive: launcherWindow.weatherModeActive
-                        colorPickerModeActive: launcherWindow.colorPickerModeActive
-                        nightModeActive: launcherWindow.nightModeActive
-                        menuOpen: launcherWindow.openProgress > 0
-
-                        weatherCode: launcherWeatherData.info.weatherCode || ""
-                        temperature: Number(launcherWeatherData.info.temp) || 0
-                        gradTop: launcherWeatherData.gradTop
-                        gradBottom: launcherWeatherData.gradBottom
-
-                        selectedColor: launcherWindow.colorPickerModeActive ? colorPickerView.selectedColor : "transparent"
-
-                        LauncherWeatherHeader {
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            anchors.leftMargin: 72
-                            anchors.bottomMargin: 76
-                            z: 2
-                            weather: launcherWeatherData
-                            headerReveal: edgeBanner.weatherBlend
-                            visible: edgeBanner.weatherBlend > 0.02
-                            enabled: false
-                        }
                     }
 
                     Keys.onPressed: event => {
@@ -1622,7 +1716,8 @@ PanelWindow {
                             lazyContentRoot.cycleListSelection(false);
                             event.accepted = true;
                         } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                            colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                            if (colorPickerLoader.item)
+                                colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                             event.accepted = true;
                         } else if (!launcherWindow.specialViewActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
                             if (listView.currentItem) {
@@ -1637,36 +1732,30 @@ PanelWindow {
                     Rectangle {
                         id: searchArea
                         z: 3
-                        height: 64
+                        height: 44
+                        anchors.top: parent.top
+                        anchors.topMargin: 22
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 48 + 32
-                        anchors.rightMargin: 32
-
-                        anchors.verticalCenter: edgeBanner.bottom
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
 
                         radius: height / 2
-                        color: Theme.surface_container_highest
-
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowBlur: 1.0
-                            shadowColor: "#40000000"
-                            shadowVerticalOffset: 4
-                        }
+                        color: Theme.glass_raised
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         TextField {
                             id: searchField
                             // Prevent `onAccepted` from firing when we handle Return in `Keys.onReturnPressed`.
                             property bool suppressAcceptedNext: false
                             anchors.fill: parent
-                            leftPadding: 60
-                            rightPadding: 24
+                            leftPadding: 44
+                            rightPadding: 16
 
                             font {
                                 family: "Google Sans"
-                                pixelSize: 22
+                                pixelSize: 16
                                 weight: Font.Medium
                             }
                             color: Theme.on_surface
@@ -1682,7 +1771,7 @@ PanelWindow {
                                     return;
                                 }
                                 if (launcherWindow.clipModeActive) {
-                                    clipboardView.activateSelected();
+                                    if (clipboardLoader.item) clipboardLoader.item.activateSelected();
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
                                 } else if (launcherWindow.dndModeActive && launcherWindow.dndQuery.command) {
@@ -1696,13 +1785,8 @@ PanelWindow {
                                 } else if (launcherWindow.connectivityModeActive) {
                                     lazyContentRoot.activateConnectivitySelection();
                                 } else if (launcherWindow.colorPickerModeActive) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
+                                    if (colorPickerLoader.item) colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
+
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem)
                                         listView.currentItem.activate(false);
@@ -1715,7 +1799,7 @@ PanelWindow {
                                 // Ensure we don't also run `onAccepted` for the same keypress.
                                 suppressAcceptedNext = true;
                                 if (launcherWindow.clipModeActive) {
-                                    clipboardView.activateSelected();
+                                    if (clipboardLoader.item) clipboardLoader.item.activateSelected();
                                     event.accepted = true;
                                 } else if (launcherWindow.nightModeActive) {
                                     launcherWindow.executeNightCommand();
@@ -1736,15 +1820,9 @@ PanelWindow {
                                     lazyContentRoot.activateConnectivitySelection();
                                     event.accepted = true;
                                 } else if (launcherWindow.colorPickerModeActive) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    if (colorPickerLoader.item) colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                                     event.accepted = true;
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add") {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
-                                    event.accepted = true;
+
                                 } else if (!launcherWindow.specialViewActive) {
                                     if (listView.currentItem) {
                                         if (listView.currentItem.hasActions && launcherWindow.appActionIndex >= 0) {
@@ -1762,10 +1840,10 @@ PanelWindow {
                             background: Item {
                                 MaterialIcon {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 20
+                                    anchors.leftMargin: 14
                                     anchors.verticalCenter: parent.verticalCenter
                                     icon: "search"
-                                    font.pixelSize: 28
+                                    font.pixelSize: 20
                                     color: searchField.activeFocus ? Theme.primary : Theme.on_surface_variant
                                     Behavior on color {
                                         ColorAnimation {
@@ -1888,15 +1966,10 @@ PanelWindow {
                                     }
                                     event.accepted = true;
                                 } else if (launcherWindow.colorPickerModeActive && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                                    colorPickerView.copyColor(colorPickerView.hexValue, "HEX");
+                                    if (colorPickerLoader.item)
+                                        colorPickerLoader.item.copyColor(colorPickerLoader.item.hexValue, "HEX");
                                     event.accepted = true;
-                                } else if (launcherWindow.torrentModeActive && launcherWindow.torrentQuery.mode === "add" && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return)) {
-                                    BackendDaemon.send({
-                                        "action": "torrent_add",
-                                        "magnet": launcherWindow.torrentQuery.magnet
-                                    });
-                                    torrentView.triggerSuccess();
-                                    event.accepted = true;
+
                                 } else if (!launcherWindow.specialViewActive && event.key === Qt.Key_Down) {
                                     lazyContentRoot.cycleListSelection(true);
                                     event.accepted = true;
@@ -1916,140 +1989,48 @@ PanelWindow {
                         onCopyRequested: ctrl.copyResult()
                         visible: ctrl.calcResult !== "" && !launcherWindow.colorPickerModeActive && !launcherWindow.connectivityModeActive && !launcherWindow.musicModeActive && !launcherWindow.sliderModeActive && !launcherWindow.nightModeActive && !launcherWindow.clipModeActive && !launcherWindow.captureModeActive && !launcherWindow.dndModeActive && !launcherWindow.pomModeActive && !launcherWindow.cocModeActive
                         anchors.top: searchArea.bottom
-                        anchors.topMargin: 12
+                        anchors.topMargin: 8
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        anchors.leftMargin: 48 + 32
-                        anchors.rightMargin: 32
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 16
                     }
 
                     Item {
                         id: belowSearchArea
                         anchors.top: calcCard.visible ? calcCard.bottom : searchArea.bottom
-                        anchors.topMargin: launcherWindow.specialViewActive ? 0 : 16
+                        anchors.topMargin: launcherWindow.specialViewActive ? 4 : 10
                         Behavior on anchors.topMargin { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                         anchors.left: parent.left
-                        anchors.leftMargin: 48
+                        anchors.leftMargin: 8
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
                         clip: true
 
                         Item {
                             id: launcherResultsLayer
                             anchors.fill: parent
-                            opacity: launcherWindow.specialViewActive ? 0 : 1
+                            // Hold the results until the incoming special view
+                            // is built, otherwise the panel is briefly empty.
+                            opacity: (launcherWindow.specialViewActive && lazyContentRoot.specialViewReady) ? 0 : 1
                             visible: opacity > 0.02
 
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            Column {
+                            LauncherWidgetArea {
                                 id: sliderWidgetArea
+                                // Named `launcher`/`backend` rather than matching the
+                                // outer ids: a property shadows the id of the same name,
+                                // so `launcherWindow: launcherWindow` binds to itself.
+                                launcher: launcherWindow
+                                backend: ctrl
                                 anchors.top: parent.top
                                 anchors.left: parent.left
                                 anchors.right: parent.right
-                                height: sliderWidgetArea.visible ? implicitHeight : 0
-                                visible: launcherWindow.sliderModeActive || launcherWindow.captureModeActive || launcherWindow.dndModeActive || launcherWindow.pomModeActive || launcherWindow.cocModeActive
-                                spacing: 8
-                                topPadding: 8
-                                bottomPadding: 4
-
-                                Behavior on height {
-                                    NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
-                                }
-
-                                LauncherSliderWidget {
-                                    id: volSliderWidget
-                                    width: parent.width
-                                    active: launcherWindow.volSliderActive
-                                    label: "Volume"
-                                    accent: Theme.primary
-                                    value: Math.min(1, launcherWindow.pipewireSink?.audio?.volume ?? 0)
-                                    icon: {
-                                        if (launcherWindow.pipewireSink?.audio?.muted ?? true)
-                                            return "volume_off";
-                                        if (value >= 0.6)
-                                            return "volume_up";
-                                        if (value >= 0.3)
-                                            return "volume_down";
-                                        return "volume_mute";
-                                    }
-                                    onMoved: v => {
-                                        if (launcherWindow.pipewireSink?.audio) {
-                                            launcherWindow.pipewireSink.audio.muted = false;
-                                            launcherWindow.pipewireSink.audio.volume = v;
-                                        }
-                                    }
-                                }
-
-                                LauncherSliderWidget {
-                                    id: blSliderWidget
-                                    width: parent.width
-                                    active: launcherWindow.blSliderActive
-                                    label: "Brightness"
-                                    accent: Theme.tertiary
-                                    value: Brightness.value
-                                    icon: {
-                                        if (value >= 0.7) return "light_mode";
-                                        if (value >= 0.3) return "brightness_5";
-                                        return "brightness_6";
-                                    }
-                                    onMoved: v => Brightness.setPercent(v * 100)
-                                }
-
-                                LauncherScreenshotWidget {
-                                    id: ssWidget
-                                    width: parent.width
-                                    active: launcherWindow.ssModeActive
-                                    onAction: id => {
-                                        if (id === "fullscreen")
-                                            ctrl.executeSystemCommand("ss_fullscreen");
-                                        else if (id === "area")
-                                            ctrl.executeSystemCommand("ss_area");
-                                        else if (id === "window")
-                                            ctrl.executeSystemCommand("ss_window");
-                                        else if (id === "menu")
-                                            ctrl.executeSystemCommand("ss_menu");
-                                    }
-                                }
-
-                                LauncherRecordWidget {
-                                    id: recWidget
-                                    width: parent.width
-                                    active: launcherWindow.recModeActive
-                                    onAction: id => {
-                                        if (id === "fullscreen")
-                                            ctrl.executeSystemCommand("rec_fullscreen");
-                                        else if (id === "area")
-                                            ctrl.executeSystemCommand("rec_area");
-                                        else if (id === "stop")
-                                            ctrl.executeSystemCommand("rec_stop");
-                                    }
-                                }
-
-                                LauncherDndWidget {
-                                    id: dndWidget
-                                    width: parent.width
-                                    active: launcherWindow.dndModeActive
-                                }
-
-                                LauncherCocaineWidget {
-                                    id: cocWidget
-                                    width: parent.width
-                                    active: launcherWindow.cocModeActive
-                                    caffeineEnabled: ctrl.cocaineEnabled
-                                    onToggled: enabled => {
-                                        ctrl.cocaineEnabled = enabled;
-                                        BackendDaemon.send({ action: enabled ? "cocaine_enable" : "cocaine_disable" });
-                                    }
-                                }
-
-                                LauncherPomodoroWidget {
-                                    id: pomWidget
-                                    width: parent.width
-                                    active: launcherWindow.pomModeActive
-                                }
                             }
 
                             Item {
@@ -2058,15 +2039,14 @@ PanelWindow {
                                 anchors.bottom: footer.top
                                 anchors.left: parent.left
                                 width: parent.width * (1 - 0.48 * launcherWindow.fileSplitBlend)
-                                Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
                                 clip: true
 
                                 ListView {
                                     id: listView
                                     anchors.fill: parent
-                                    topMargin: 12
-                                    bottomMargin: 24
-                                    spacing: 4
+                                    topMargin: 4
+                                    bottomMargin: 8
+                                    spacing: 2
                                     clip: true
 
                                     // Recycle heavy delegates across keystroke model swaps
@@ -2092,24 +2072,6 @@ PanelWindow {
                                     onCountChanged: Qt.callLater(syncFilePreviewForCurrentItem)
                                 }
 
-                                Rectangle {
-                                    anchors {
-                                        bottom: parent.bottom
-                                        left: parent.left
-                                        right: parent.right
-                                    }
-                                    height: 48
-                                    gradient: Gradient {
-                                        GradientStop {
-                                            position: 0.0
-                                            color: "transparent"
-                                        }
-                                        GradientStop {
-                                            position: 1.0
-                                            color: Theme.surface
-                                        }
-                                    }
-                                }
                             }
 
                             Text {
@@ -2120,7 +2082,7 @@ PanelWindow {
                                 color: Theme.on_surface_variant
                                 font {
                                     family: "Google Sans Medium"
-                                    pixelSize: 18
+                                    pixelSize: 14
                                 }
                             }
 
@@ -2131,75 +2093,56 @@ PanelWindow {
                                     left: parent.left
                                 }
                                 width: listContainer.width
-                                height: 32
+                                height: 16
                             }
                         }
 
-                        LauncherWeatherView {
-                            id: weatherView
+                        Loader {
+                            id: weatherLoader
                             z: launcherWindow.weatherModeActive ? 2 : 0
                             enabled: launcherWindow.weatherModeActive
-                            weather: launcherWeatherData
+                            active: launcherWindow.weatherModeActive
+                            asynchronous: true
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 20
-                            anchors.bottomMargin: 20
-                            revealProgress: launcherWindow.weatherModeActive ? 1 : 0
-                            visible: revealProgress > 0.02
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 8
+                            anchors.bottomMargin: 8
+                            visible: status === Loader.Ready
+                            sourceComponent: LauncherWeatherView {
+                                weather: launcherWeatherData
+                                revealProgress: launcherWindow.weatherModeActive ? 1 : 0
+                            }
                         }
 
-                        LauncherColorPickerView {
-                            id: colorPickerView
+                        Loader {
+                            id: colorPickerLoader
                             z: launcherWindow.colorPickerModeActive ? 2 : 0
                             enabled: launcherWindow.colorPickerModeActive
-                            searchQuery: ctrl.searchText
-                            defaultColor: Theme.primary
+                            active: launcherWindow.colorPickerModeActive
+                            asynchronous: true
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            revealProgress: launcherWindow.colorPickerModeActive ? 1 : 0
-                            visible: revealProgress > 0.02
-
-                            onCopyRequested: function(text, label) {
-                                ctrl.copyColorText(text);
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            visible: status === Loader.Ready
+                            sourceComponent: LauncherColorPickerView {
+                                searchQuery: ctrl.searchText
+                                defaultColor: Theme.primary
+                                revealProgress: launcherWindow.colorPickerModeActive ? 1 : 0
+                                onCopyRequested: function(text, label) {
+                                    ctrl.copyColorText(text);
+                                }
                             }
                         }
 
-                        LauncherTorrentView {
-                            id: torrentView
-                            z: launcherWindow.torrentModeActive ? 2 : 0
-                            enabled: launcherWindow.torrentModeActive
-                            isAddMode: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.mode === "add" : false
-                            magnetUrl: launcherWindow.torrentQuery ? launcherWindow.torrentQuery.magnet || "" : ""
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-
-                            onAddedAnimationFinished: {
-                                ctrl.setQuery("");
-                            }
-                            opacity: launcherWindow.torrentModeActive ? 1 : 0
-                            visible: opacity > 0.02
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
-                            }
-
-                        }
 
                         Item {
                             id: musicListContainer
@@ -2208,9 +2151,10 @@ PanelWindow {
                             anchors.top: parent.top
                             anchors.left: parent.left
                             anchors.bottom: parent.bottom
-                            width: parent.width * (1 - 0.48 * launcherWindow.musicSplitBlend)
+                            // Leave ~50% for the now-compact controls panel.
+                            width: parent.width * (1 - 0.50 * launcherWindow.musicSplitBlend)
                             clip: true
-                            opacity: launcherWindow.musicModeActive ? 1 : 0
+                            opacity: (launcherWindow.musicModeActive && musicLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on width {
@@ -2226,25 +2170,33 @@ PanelWindow {
                                 anchors.left: parent.left
                                 anchors.bottom: parent.bottom
                                 anchors.right: parent.right
-                                anchors.leftMargin: 32
-                                anchors.rightMargin: 16
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: 20
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                anchors.topMargin: 4
+                                anchors.bottomMargin: 8
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
                                 contentWidth: width
-                                contentHeight: musicView.height
+                                contentHeight: musicLoader.item ? musicLoader.item.height : 0
 
-                                LauncherMusicView {
-                                    id: musicView
+                                Loader {
+                                    id: musicLoader
                                     width: musicScroll.width
+                                    // The view's lists anchor to its edges and it has no
+                                    // implicit height, so it collapses without this.
                                     height: musicScroll.height
-                                    filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
-                                    revealProgress: launcherWindow.musicModeActive ? 1 : 0
+                                    active: launcherWindow.musicModeActive
+                                    asynchronous: true
+                                    visible: status === Loader.Ready
+                                    sourceComponent: LauncherMusicView {
+                                        width: musicScroll.width
+                                        filterQuery: launcherWindow.musicQuery ? launcherWindow.musicQuery.filter : ""
+                                        revealProgress: launcherWindow.musicModeActive ? 1 : 0
 
-                                    onSelectedIndexChanged: {
-                                        if (launcherWindow.musicModeActive)
-                                            lazyContentRoot.scrollSpecialToSelection();
+                                        onSelectedIndexChanged: {
+                                            if (launcherWindow.musicModeActive)
+                                                lazyContentRoot.scrollSpecialToSelection();
+                                        }
                                     }
                                 }
                             }
@@ -2258,39 +2210,49 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.connectivityModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.connectivityModeActive && lazyContentRoot.specialViewReady) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherBluetoothView {
-                                id: btView
+                            Loader {
+                                id: btLoader
                                 anchors.fill: parent
-                                visible: launcherWindow.btModeActive
-                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
-                                revealProgress: launcherWindow.btModeActive ? 1 : 0
-                                onConnectionSucceeded: function(deviceLabel) {
-                                    bluetoothConnectedDeviceLabel = deviceLabel;
-                                    launcherWindow.closeMenu();
-                                    bluetoothConnectedNotifTimer.restart();
+                                active: launcherWindow.btModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready && launcherWindow.btModeActive
+                                sourceComponent: LauncherBluetoothView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                    revealProgress: launcherWindow.btModeActive ? 1 : 0
+                                    onConnectionSucceeded: function(deviceLabel) {
+                                        bluetoothConnectedDeviceLabel = deviceLabel;
+                                        launcherWindow.closeMenu();
+                                        bluetoothConnectedNotifTimer.restart();
+                                    }
                                 }
                             }
 
-                            LauncherWifiView {
-                                id: wifiView
+                            Loader {
+                                id: wifiLoader
                                 anchors.fill: parent
-                                visible: launcherWindow.wifiModeActive
-                                filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
-                                revealProgress: launcherWindow.wifiModeActive ? 1 : 0
+                                active: launcherWindow.wifiModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready && launcherWindow.wifiModeActive
+                                sourceComponent: LauncherWifiView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.connectivityQuery ? launcherWindow.connectivityQuery.filter : ""
+                                    revealProgress: launcherWindow.wifiModeActive ? 1 : 0
 
-                                onRefocusSearchRequested: searchField.forceActiveFocus()
-                                onConnectionAttemptFailed: lazyContentRoot.resetConnectivityState()
+                                    onRefocusSearchRequested: searchField.forceActiveFocus()
+                                    onConnectionAttemptFailed: lazyContentRoot.resetConnectivityState()
+                                }
                             }
                         }
 
@@ -2302,21 +2264,27 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.nightModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.nightModeActive && nightLightLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherNightLightView {
-                                id: nightLightView
+                            Loader {
+                                id: nightLightLoader
                                 anchors.fill: parent
-                                revealProgress: launcherWindow.nightModeActive ? 1 : 0
+                                active: launcherWindow.nightModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready
+                                sourceComponent: LauncherNightLightView {
+                                    anchors.fill: parent
+                                    revealProgress: launcherWindow.nightModeActive ? 1 : 0
+                                }
                             }
                         }
 
@@ -2328,24 +2296,30 @@ PanelWindow {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.leftMargin: 32
-                            anchors.rightMargin: 32
-                            anchors.topMargin: 12
-                            anchors.bottomMargin: 20
-                            opacity: launcherWindow.clipModeActive ? 1 : 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 8
+                            opacity: (launcherWindow.clipModeActive && clipboardLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
 
-                            LauncherClipboardView {
-                                id: clipboardView
+                            Loader {
+                                id: clipboardLoader
                                 anchors.fill: parent
-                                filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
-                                revealProgress: launcherWindow.clipModeActive ? 1 : 0
+                                active: launcherWindow.clipModeActive
+                                asynchronous: true
+                                visible: status === Loader.Ready
+                                sourceComponent: LauncherClipboardView {
+                                    anchors.fill: parent
+                                    filterQuery: launcherWindow.clipQuery ? launcherWindow.clipQuery.filter : ""
+                                    revealProgress: launcherWindow.clipModeActive ? 1 : 0
 
-                                onCloseRequested: launcherWindow.closeMenu()
+                                    onCloseRequested: launcherWindow.closeMenu()
+                                }
                             }
                         }
 
@@ -2363,906 +2337,87 @@ PanelWindow {
                     }
                     // ──── Separator ────
                     Rectangle {
-                        x: 48 + (launcherWindow.musicModeActive ? musicListContainer.width : listContainer.width)
+                        x: 8 + (launcherWindow.musicModeActive ? musicListContainer.width : listContainer.width)
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 0
                         width: 1
                         opacity: launcherWindow.activeSplitBlend
-                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                        Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                        Behavior on opacity {
+                            enabled: launcherWindow.musicModeActive
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
+                        Behavior on x {
+                            enabled: launcherWindow.musicModeActive
+                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
+                        }
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "transparent" }
-                            GradientStop {
-                                position: 0.15
-                                color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
-                            }
-                            GradientStop {
-                                position: 0.85
-                                color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.1)
-                            }
+                            GradientStop { position: 0.15; color: Theme.glass_border }
+                            GradientStop { position: 0.85; color: Theme.glass_border }
                             GradientStop { position: 1.0; color: "transparent" }
                         }
                     }
 
                     // ──── Music Controls Panel (Split View) ────
-                    Item {
+                    // Loaded only while music mode has a player. Keeping
+                    // MultiEffect/Image layers mounted at shell warm-up (even
+                    // invisible) was crashing updatePixelRatioHelper on Asahi
+                    // when album art arrived during startup.
+                    Loader {
                         id: musicControlsPanel
-                        visible: launcherWindow.musicSplitBlend > 0.02
+                        active: launcherWindow.musicSplitBlend > 0.02
+                        asynchronous: true
+                        visible: status === Loader.Ready && launcherWindow.musicSplitBlend > 0.02
                         opacity: launcherWindow.musicSplitBlend
                         Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
-                        width: parent.width - 48 - musicListContainer.width
+                        anchors.bottomMargin: 0
+                        width: parent.width - 16 - musicListContainer.width
                         clip: true
 
-                        transform: [
-                            Translate {
-                                id: musicSlide
-                                x: (1 - launcherWindow.musicSplitBlend) * 18
-                                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            },
-                            Scale {
-                                id: musicScale
-                                origin.x: 0
-                                origin.y: 0
-                                xScale: 0.97 + 0.03 * launcherWindow.musicSplitBlend
-                                yScale: 0.98 + 0.02 * launcherWindow.musicSplitBlend
-                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            }
-                        ]
-
-                        LauncherMusicControls {
-                            anchors.fill: parent
-                        }
+                        sourceComponent: LauncherMusicControls {}
                     }
 
                     // ──── File Preview Panel (Split View) ────
-                    Item {
-                        id: previewPanel
-                        visible: launcherWindow.fileSplitBlend > 0.02
-                        opacity: launcherWindow.fileSplitBlend
-                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
+                    // Built on the first file selection and kept from then on.
+                    // It is the largest subtree in the launcher and plenty of
+                    // sessions never select a file, so it stays out of the
+                    // warm-up until it is actually wanted.
+                    Loader {
+                        id: previewLoader
+                        property bool needed: false
 
+                        active: needed
+                        asynchronous: true
+                        visible: status === Loader.Ready && launcherWindow.fileSplitBlend > 0
+                        opacity: launcherWindow.fileSplitBlend
                         anchors.right: parent.right
+                        anchors.rightMargin: 8
                         anchors.top: belowSearchArea.top
                         anchors.bottom: parent.bottom
-                        width: parent.width - 48 - listContainer.width
+                        anchors.bottomMargin: 0
+                        width: parent.width - 16 - listContainer.width
                         clip: true
 
-                        transform: [
-                            Translate {
-                                id: previewSlide
-                                x: (1 - launcherWindow.fileSplitBlend) * 18
-                                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            },
-                            Scale {
-                                id: previewScale
-                                origin.x: 0
-                                origin.y: 0
-                                xScale: 0.97 + 0.03 * launcherWindow.fileSplitBlend
-                                yScale: 0.98 + 0.02 * launcherWindow.fileSplitBlend
-                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            }
-                        ]
-
-                        Rectangle {
-                            anchors.fill: parent
-                            color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.03)
+                        sourceComponent: LauncherFilePreview {
+                            launcherWindow: mainUi.launcherWindowRef
+                            ctrl: mainUi.ctrlRef
                         }
 
-                    // ── WiFi share QR view (replaces preview when active) ──
-                    Item {
-                        id: shareView
-                        anchors.fill: parent
-                        opacity: launcherWindow.shareViewBlend
-                        visible: launcherWindow.shareViewBlend > 0.02
-                        z: 2
-                        property int qrSize: 170
-
-                        Behavior on opacity {
-                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-                        }
-
-                        transform: [
-                            Scale {
-                                origin.x: parent.width / 2
-                                origin.y: parent.height / 2
-                                xScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
-                                yScale: 0.94 + 0.06 * launcherWindow.shareViewBlend
-                                Behavior on xScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                                Behavior on yScale { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
-                            }
-                        ]
-
-                        Column {
-                            anchors.top: parent.top
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.topMargin: 8
-                            width: Math.min(parent.width - 48, 280)
-                            spacing: 10
-
-                            Row {
-                                width: parent.width
-                                spacing: 10
-
-                                Rectangle {
-                                    id: shareBackBtn
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 34
-                                    height: 34
-                                    radius: 17
-                                    color: shareBackMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    MaterialIcon {
-                                        anchors.centerIn: parent
-                                        icon: "arrow_back"
-                                        font.pixelSize: 17
-                                        color: Theme.on_surface
-                                    }
-
-                                    MouseArea {
-                                        id: shareBackMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            launcherWindow.shareModeActive = false;
-                                            launcherWindow.shareData = null;
-                                        }
-                                    }
-                                }
-
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - shareBackBtn.width - parent.spacing
-                                    text: "Share over WiFi"
-                                    color: Theme.on_surface
-                                    font { family: "Google Sans"; pixelSize: 16; weight: Font.DemiBold }
-                                }
-                            }
-
-                            Rectangle {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                width: shareView.qrSize + 20
-                                height: shareView.qrSize + 20
-                                radius: 18
-                                color: "#ffffff"
-
-                                layer.enabled: true
-                                layer.effect: MultiEffect {
-                                    shadowEnabled: true
-                                    shadowBlur: 0.6
-                                    shadowColor: "#20000000"
-                                    shadowVerticalOffset: 4
-                                }
-
-                                Image {
-                                    id: qrImage
-                                    anchors.centerIn: parent
-                                    width: shareView.qrSize
-                                    height: shareView.qrSize
-                                    source: launcherWindow.shareData && launcherWindow.shareData.qr_svg
-                                        ? "data:image/svg+xml;utf8," + encodeURIComponent(launcherWindow.shareData.qr_svg)
-                                        : ""
-                                    fillMode: Image.PreserveAspectFit
-                                    smooth: true
-                                    asynchronous: true
-                                    sourceSize: Qt.size(256, 256)
-                                }
-                            }
-
-                            Text {
-                                width: parent.width
-                                horizontalAlignment: Text.AlignHCenter
-                                text: launcherWindow.shareData ? launcherWindow.shareData.name : "Starting..."
-                                color: Theme.on_surface_variant
-                                elide: Text.ElideMiddle
-                                font { family: "Google Sans"; pixelSize: 12 }
-                            }
-
-                            // Copy-to-clipboard instead of showing the full URL.
-                            Rectangle {
-                                id: copyLinkBtn
-                                width: parent.width
-                                height: 40
-                                radius: 16
-                                color: copyLinkMouse.containsMouse ? Theme.primary : Theme.primary_container
-
-                                Behavior on color { ColorAnimation { duration: 100 } }
-
-                                Row {
-                                    anchors.centerIn: parent
-                                    spacing: 8
-
-                                    MaterialIcon {
-                                        icon: "link"
-                                        font.pixelSize: 14
-                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                    }
-                                    Text {
-                                        text: "Copy link"
-                                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                        color: copyLinkMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: copyLinkMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (launcherWindow.shareData && launcherWindow.shareData.url)
-                                            ctrl.copyText(launcherWindow.shareData.url);
-                                    }
-                                }
-                            }
-
-                            Text {
-                                width: parent.width
-                                horizontalAlignment: Text.AlignHCenter
-                                text: "Scan QR or open link on the same network"
-                                color: Theme.on_surface_variant
-                                opacity: 0.7
-                                font { family: "Google Sans"; pixelSize: 11 }
+                        Connections {
+                            target: launcherWindow
+                            function onHasFileSelectedChanged() {
+                                if (launcherWindow.hasFileSelected)
+                                    previewLoader.needed = true;
                             }
                         }
                     }
-
-                    // Normal preview (fades out when share view is active)
-                    Item {
-                        anchors.fill: parent
-                        opacity: 1 - launcherWindow.shareViewBlend
-                        visible: launcherWindow.shareViewBlend < 0.98
-
-                        Behavior on opacity {
-                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-                        }
-
-                    // Preview content area
-                    Item {
-                        id: previewContent
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: previewMeta.top
-                        clip: true
-
-                        // Image preview
-                        Image {
-                            id: imagePreview
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            visible: ctrl.filePreview && (ctrl.filePreview.preview_type === "image" || ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && !!ctrl.filePreview.preview_path))
-                            source: {
-                                if (!ctrl.filePreview) return "";
-                                if (ctrl.filePreview.preview_type === "image")
-                                    return "file://" + ctrl.filePreview.path;
-                                if ((ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video") && ctrl.filePreview.preview_path)
-                                    return "file://" + ctrl.filePreview.preview_path;
-                                return "";
-                            }
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: ctrl.filePreview && (ctrl.filePreview.preview_type === "pdf" || ctrl.filePreview.preview_type === "video")
-                            smooth: true
-                            mipmap: true
-                            sourceSize: Qt.size(400, 400)
-
-                            // Handle broken images
-                            onStatusChanged: {
-                                if (status === Image.Error) {
-                                    imagePreview.visible = false;
-                                    fallbackIcon.visible = true;
-                                }
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "transparent"
-                                border.color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-                                border.width: 1
-                                radius: 12
-                                visible: imagePreview.status === Image.Ready
-                            }
-                        }
-
-                        // Text preview
-                        Flickable {
-                            id: textFlickable
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "text"
-                            contentWidth: width
-                            contentHeight: textPreview.implicitHeight
-                            clip: true
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            Text {
-                                id: textPreview
-                                width: textFlickable.width
-                                text: (ctrl.filePreview && ctrl.filePreview.content) || ""
-                                // Mocha foreground for code so unstyled tokens match the theme;
-                                // markdown keeps the panel's surface contrast color.
-                                color: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md")
-                                    ? Theme.on_surface
-                                    : "#cdd6f4"
-                                wrapMode: Text.Wrap
-                                font {
-                                    family: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? "Inter" : "JetBrains Mono"
-                                    pixelSize: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? 13 : 11
-                                }
-                                lineHeight: 1.4
-                                textFormat: (launcherWindow.selectedFileData && launcherWindow.selectedFileData.ext === "md") ? Text.MarkdownText : Text.RichText
-                            }
-                        }
-
-                        // Truncation indicator for text
-                        Rectangle {
-                            visible: textFlickable.visible && ctrl.filePreview && ctrl.filePreview.line_count >= 60
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: 40
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "transparent" }
-                                GradientStop { position: 1.0; color: Theme.surface }
-                            }
-                        }
-
-                        // Archive listing preview (M3 tree + Theme-tinted RichText)
-                        Item {
-                            id: archivePreview
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            visible: ctrl.filePreview && ctrl.filePreview.preview_type === "archive"
-
-                            property var listing: {
-                                if (!ctrl.filePreview || ctrl.filePreview.preview_type !== "archive" || !ctrl.filePreview.content)
-                                    return null;
-                                try {
-                                    return JSON.parse(ctrl.filePreview.content);
-                                } catch (e) {
-                                    return null;
-                                }
-                            }
-
-                            // Build Qt RichText from Theme tokens (same pipeline as syntect HTML)
-                            property string treeHtml: {
-                                var L = archivePreview.listing;
-                                if (!L || !L.entries) return "";
-                                function esc(s) {
-                                    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                                }
-                                function sz(n) {
-                                    n = Number(n) || 0;
-                                    if (n < 1024) return n + " B";
-                                    var kb = n / 1024;
-                                    if (kb < 1024) return kb.toFixed(1) + " KB";
-                                    var mb = kb / 1024;
-                                    if (mb < 1024) return mb.toFixed(1) + " MB";
-                                    return (mb / 1024).toFixed(2) + " GB";
-                                }
-                                function hex(c) {
-                                    // Theme tokens are hex strings; color objects need packing.
-                                    if (typeof c === "string") return c;
-                                    var r = Math.round(c.r * 255);
-                                    var g = Math.round(c.g * 255);
-                                    var b = Math.round(c.b * 255);
-                                    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-                                }
-                                function icon(cat, isDir) {
-                                    if (isDir) return "󰉋";
-                                    if (cat === "image") return "󰋩";
-                                    if (cat === "video") return "󰕧";
-                                    if (cat === "audio") return "󰝚";
-                                    if (cat === "pdf") return "󰈦";
-                                    if (cat === "archive") return "󰀼";
-                                    if (cat === "document") return "󱎒";
-                                    if (cat === "text") return "󰈙";
-                                    return "󰈔";
-                                }
-                                function iconColor(cat, isDir) {
-                                    if (isDir) return hex(Theme.primary);
-                                    if (cat === "image" || cat === "video" || cat === "audio") return hex(Theme.tertiary);
-                                    if (cat === "pdf") return hex(Theme.critical);
-                                    return hex(Theme.secondary);
-                                }
-                                var guide = hex(Theme.surface_container_highest);
-                                var onSurf = hex(Theme.on_surface);
-                                var onVar = hex(Theme.on_surface_variant);
-                                var outline = hex(Theme.outline);
-                                var tertiary = hex(Theme.tertiary);
-                                var html = "<pre style=\"margin:0;white-space:pre;line-height:1.55;\">";
-                                for (var i = 0; i < L.entries.length; i++) {
-                                    var e = L.entries[i];
-                                    for (var d = 0; d < (e.depth || 0); d++)
-                                        html += "<span style=\"color:" + guide + ";\">│  </span>";
-                                    html += "<span style=\"color:" + iconColor(e.mime_cat, e.is_dir) + ";\">" + icon(e.mime_cat, e.is_dir) + "</span> ";
-                                    if (e.is_dir) {
-                                        html += "<span style=\"color:" + onSurf + ";\">" + esc(e.name) + "</span>";
-                                        html += "<span style=\"color:" + outline + ";\">/</span>";
-                                    } else {
-                                        html += "<span style=\"color:" + onVar + ";\">" + esc(e.name) + "</span>";
-                                        if (e.size > 0)
-                                            html += "  <span style=\"color:" + outline + ";\">" + esc(sz(e.size)) + "</span>";
-                                    }
-                                    html += "\n";
-                                }
-                                if (L.truncated) {
-                                    var rem = Math.max(1, (L.total_entries || 0) - (L.entries.length || 0));
-                                    html += "<span style=\"color:" + tertiary + ";\">󰇘  " + rem + " more entries</span>\n";
-                                }
-                                html += "</pre>";
-                                return html;
-                            }
-
-                            Column {
-                                anchors.fill: parent
-                                spacing: 10
-
-                                // Summary chips
-                                Flow {
-                                    id: archiveChips
-                                    width: parent.width
-                                    spacing: 6
-
-                                    Rectangle {
-                                        visible: !!(archivePreview.listing && archivePreview.listing.format)
-                                        height: 24
-                                        width: formatChipText.implicitWidth + 16
-                                        radius: 12
-                                        color: Theme.primary_container
-
-                                        Text {
-                                            id: formatChipText
-                                            anchors.centerIn: parent
-                                            text: (archivePreview.listing && archivePreview.listing.format) || ""
-                                            color: Theme.on_primary_container
-                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        visible: !!(archivePreview.listing)
-                                        height: 24
-                                        width: filesChipText.implicitWidth + 16
-                                        radius: 12
-                                        color: Theme.secondary_container
-
-                                        Text {
-                                            id: filesChipText
-                                            anchors.centerIn: parent
-                                            text: {
-                                                var L = archivePreview.listing;
-                                                if (!L) return "";
-                                                var t = L.file_count + (L.file_count === 1 ? " file" : " files");
-                                                if (L.dir_count > 0)
-                                                    t += " · " + L.dir_count + (L.dir_count === 1 ? " folder" : " folders");
-                                                return t;
-                                            }
-                                            color: Theme.on_secondary_container
-                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        visible: !!(archivePreview.listing && archivePreview.listing.uncompressed_size > 0)
-                                        height: 24
-                                        width: sizeChipText.implicitWidth + 16
-                                        radius: 12
-                                        color: Theme.surface_container_highest
-
-                                        Text {
-                                            id: sizeChipText
-                                            anchors.centerIn: parent
-                                            text: {
-                                                var L = archivePreview.listing;
-                                                if (!L) return "";
-                                                return ctrl.formatFileSize(L.uncompressed_size) + " unpacked";
-                                            }
-                                            color: Theme.on_surface_variant
-                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        visible: !!(archivePreview.listing && archivePreview.listing.truncated)
-                                        height: 24
-                                        width: truncChipText.implicitWidth + 16
-                                        radius: 12
-                                        color: Theme.tertiary_container
-
-                                        Text {
-                                            id: truncChipText
-                                            anchors.centerIn: parent
-                                            text: "truncated"
-                                            color: Theme.on_tertiary_container
-                                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                        }
-                                    }
-                                }
-
-                                Flickable {
-                                    id: archiveFlickable
-                                    width: parent.width
-                                    height: parent.height - archiveChips.height - 10
-                                    contentWidth: width
-                                    contentHeight: archiveTree.implicitHeight
-                                    clip: true
-                                    boundsBehavior: Flickable.StopAtBounds
-                                    opacity: archivePreview.listing ? 1 : 0
-
-                                    Text {
-                                        id: archiveTree
-                                        width: archiveFlickable.width
-                                        text: archivePreview.treeHtml
-                                        textFormat: Text.RichText
-                                        color: Theme.on_surface
-                                        wrapMode: Text.NoWrap
-                                        font {
-                                            family: "Monospace"
-                                            pixelSize: 11
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Fade when truncated / scrollable
-                            Rectangle {
-                                visible: archivePreview.visible && archivePreview.listing && archivePreview.listing.truncated
-                                anchors.bottom: parent.bottom
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                height: 36
-                                gradient: Gradient {
-                                    GradientStop { position: 0.0; color: "transparent" }
-                                    GradientStop { position: 1.0; color: Theme.surface }
-                                }
-                            }
-                        }
-
-                        // Fallback icon for non-previewable files
-                        Item {
-                            id: fallbackIcon
-                            anchors.centerIn: parent
-                            visible: {
-                                if (!ctrl.filePreview) return true;
-                                var pt = ctrl.filePreview.preview_type;
-                                if ((pt === "pdf" || pt === "video") && ctrl.filePreview.preview_path) return false;
-                                return pt !== "image" && pt !== "text" && pt !== "archive";
-                            }
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 12
-
-                                MaterialIcon {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    icon: launcherWindow.selectedFileData ? ctrl.mimeIcon(launcherWindow.selectedFileData.mime_cat) : ""
-                                    color: Theme.primary
-                                    opacity: 0.6
-                                    font.pixelSize: 72
-                                }
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: {
-                                        if (!ctrl.filePreview) return "Loading...";
-                                        if (ctrl.filePreview.preview_type === "text_too_large") return "File too large to preview";
-                                        if (ctrl.filePreview.preview_type === "binary") return "Binary file";
-                                        if (ctrl.filePreview.preview_type === "pdf") return "PDF preview unavailable";
-                                        if (ctrl.filePreview.preview_type === "video") return "Video preview unavailable";
-                                        if (ctrl.filePreview.preview_type === "archive_unavailable") return "Couldn't list archive";
-                                        return "No preview available";
-                                    }
-                                    color: Theme.on_surface_variant
-                                    font {
-                                        family: "Google Sans"
-                                        pixelSize: 13
-                                    }
-                                }
-                            }
-                        }
-
-                        // Loading spinner
-                        Text {
-                            anchors.centerIn: parent
-                            visible: !ctrl.filePreview && launcherWindow.hasFileSelected
-                            text: "Loading..."
-                            color: Theme.on_surface_variant
-                            opacity: 0.6
-                            font {
-                                family: "Google Sans"
-                                pixelSize: 14
-                            }
-                        }
-                    }
-
-                    // ── File metadata + action buttons ──
-                    Rectangle {
-                        id: previewMeta
-                        anchors.bottom: parent.bottom
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: metaColumn.implicitHeight + 32
-                        color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.04)
-                        radius: 28
-
-                        // Only round bottom corners
-                        Rectangle {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: 28
-                            color: parent.color
-                        }
-
-                        Column {
-                            id: metaColumn
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.margins: 20
-                            anchors.bottomMargin: 16
-                            spacing: 6
-
-                            Text {
-                                width: parent.width
-                                text: launcherWindow.selectedFileData ? launcherWindow.selectedFileData.name : ""
-                                color: Theme.on_surface
-                                elide: Text.ElideMiddle
-                                font {
-                                    family: "Google Sans"
-                                    pixelSize: 15
-                                    weight: Font.DemiBold
-                                }
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: launcherWindow.selectedFileData ? launcherWindow.selectedFileData.dir : ""
-                                color: Theme.on_surface_variant
-                                elide: Text.ElideMiddle
-                                font {
-                                    family: "Google Sans"
-                                    pixelSize: 12
-                                }
-                            }
-
-                            Text {
-                                text: {
-                                    if (!launcherWindow.selectedFileData) return "";
-                                    var f = launcherWindow.selectedFileData;
-                                    var parts = [ctrl.formatFileSize(f.size)];
-                                    if (f.ext) parts.push(f.ext.toUpperCase());
-                                    return parts.join("  •  ");
-                                }
-                                color: Theme.on_surface_variant
-                                opacity: 0.7
-                                font {
-                                    family: "Google Sans"
-                                    pixelSize: 11
-                                }
-                            }
-
-                            Item { width: 1; height: 6 }
-
-                            // Action buttons row
-                            Row {
-                                spacing: 8
-
-                                Rectangle {
-                                    width: copyFileRow.width + 20
-                                    height: 32
-                                    radius: 16
-                                    color: copyFileMouse.containsMouse ? Theme.primary : Theme.primary_container
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    Row {
-                                        id: copyFileRow
-                                        anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "content_copy"
-                                            font.pixelSize: 14
-                                            color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "Copy"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: copyFileMouse.containsMouse ? Theme.on_primary : Theme.on_primary_container
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: copyFileMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (launcherWindow.selectedFileData)
-                                                ctrl.copyFile(launcherWindow.selectedFileData.path);
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    width: copyPathRow.width + 20
-                                    height: 32
-                                    radius: 16
-                                    color: copyPathMouse.containsMouse ? Theme.secondary : Theme.secondary_container
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    Row {
-                                        id: copyPathRow
-                                        anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "content_copy"
-                                            font.pixelSize: 14
-                                            color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "Path"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: copyPathMouse.containsMouse ? Theme.on_secondary : Theme.on_secondary_container
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: copyPathMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (launcherWindow.selectedFileData)
-                                                ctrl.copyFilePath(launcherWindow.selectedFileData.path);
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    id: stashFileBtn
-                                    // FileStash.count keeps this reactive when Drag Queen mutates
-                                    readonly property bool alreadyStashed: FileStash.count >= 0
-                                        && !!launcherWindow.selectedFileData
-                                        && FileStash.indexOfPath(launcherWindow.selectedFileData.path) !== -1
-                                    // Soft M3-weight pride tones
-                                    readonly property color prideRed: "#E57373"
-                                    readonly property color prideOrange: "#FFB74D"
-                                    readonly property color prideYellow: "#FFF176"
-                                    readonly property color prideGreen: "#81C784"
-                                    readonly property color prideBlue: "#64B5F6"
-                                    readonly property color prideViolet: "#BA68C8"
-
-                                    width: stashFileRow.width + 20
-                                    height: 32
-                                    radius: 16
-                                    color: Theme.surface_container_high
-
-                                    // Soft pride wash — denser on hover / when already queued
-                                    // Same radius as parent so corners stay round (clip ignores radius)
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: parent.radius
-                                        opacity: stashFileMouse.containsMouse
-                                            ? 0.42
-                                            : (stashFileBtn.alreadyStashed ? 0.28 : 0.18)
-                                        Behavior on opacity { NumberAnimation { duration: 100 } }
-                                        gradient: Gradient {
-                                            orientation: Gradient.Horizontal
-                                            GradientStop { position: 0.00; color: stashFileBtn.prideRed }
-                                            GradientStop { position: 0.20; color: stashFileBtn.prideOrange }
-                                            GradientStop { position: 0.40; color: stashFileBtn.prideYellow }
-                                            GradientStop { position: 0.60; color: stashFileBtn.prideGreen }
-                                            GradientStop { position: 0.80; color: stashFileBtn.prideBlue }
-                                            GradientStop { position: 1.00; color: stashFileBtn.prideViolet }
-                                        }
-                                    }
-
-                                    Row {
-                                        id: stashFileRow
-                                        anchors.centerIn: parent
-                                        spacing: 6
-
-                                        MaterialIcon {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            icon: "draft"
-                                            font.pixelSize: 14
-                                            color: Theme.on_surface
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: stashFileBtn.alreadyStashed ? "Dragged" : "Drag Queen"
-                                            font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                            color: Theme.on_surface
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: stashFileMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (!launcherWindow.selectedFileData)
-                                                return;
-                                            const path = launcherWindow.selectedFileData.path;
-                                            if (FileStash.indexOfPath(path) !== -1)
-                                                FileStash.removePath(path);
-                                            else
-                                                FileStash.addPath(path);
-                                            launcherWindow.closeMenu();
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    id: shareFileBtn
-                                    width: 32
-                                    height: 32
-                                    radius: 16
-                                    color: shareFileMouse.containsMouse ? Theme.tertiary : Theme.tertiary_container
-
-                                    Behavior on color { ColorAnimation { duration: 100 } }
-
-                                    MaterialIcon {
-                                        anchors.centerIn: parent
-                                        icon: "share"
-                                        font.pixelSize: 16
-                                        color: shareFileMouse.containsMouse ? Theme.on_tertiary : Theme.on_tertiary_container
-                                    }
-
-                                    MouseArea {
-                                        id: shareFileMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (!launcherWindow.selectedFileData)
-                                                return;
-                                            // Optimistic UI: show the QR/share panel immediately
-                                            // so the button never feels dead.
-                                            BackendDaemon.fileShareError = "";
-                                            launcherWindow.shareModeActive = true;
-                                            launcherWindow.shareData = null;
-                                            FileShare.startShare(launcherWindow.selectedFileData.path);
-                                        }
-                                    }
-                                }
-                            }
-
-                            // If the backend rejects the share request, the QR button
-                            // would otherwise look "dead" (no animation/no view).
-                            Text {
-                                width: parent.width
-                                visible: BackendDaemon.fileShareError !== "" && !launcherWindow.shareModeActive
-                                text: BackendDaemon.fileShareError
-                                color: Theme.critical
-                                elide: Text.ElideRight
-                                font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                opacity: 0.95
-                            }
-                        }
-                    }
-                    } // End normal preview wrapper
-                } // End of previewPanel
                 } // End of mainUi
             }
         }

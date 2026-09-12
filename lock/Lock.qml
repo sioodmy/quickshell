@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pam
+import qs.services
 
 /**
  * Session lock controller.
@@ -43,6 +44,7 @@ Scope {
     }
 
     onLockedChanged: {
+        SessionState.locked = locked;
         if (locked) {
             root.unlocking = false;
             unlockAnimTimer.stop();
@@ -61,7 +63,9 @@ Scope {
     // Wayland session lock is released.
     Timer {
         id: unlockAnimTimer
-        interval: 520
+        // Keep the Wayland session lock owned until the reverse dock morph and
+        // background exit have completed on every output.
+        interval: 720
         onTriggered: root.finishUnlock()
     }
 
@@ -106,17 +110,6 @@ Scope {
 
         function lock(): void {
             root.locked = true;
-        }
-
-        function unlock(): void {
-            root.finishUnlock();
-        }
-
-        function toggle(): void {
-            if (root.locked)
-                root.finishUnlock();
-            else
-                root.locked = true;
         }
     }
 

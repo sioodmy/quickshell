@@ -126,18 +126,37 @@ Singleton {
         return Object.values(root._runningWindowsMap);
     }
 
-    function findDesktopEntry(appId) {
-        if (!appId) return null;
+    property var _appMap: ({})
+
+    function _rebuildAppMap() {
+        var map = {};
         var allApps = DesktopEntries.applications.values;
         for (var i = 0; i < allApps.length; i++) {
             var entry = allApps[i];
-            if (entry.id === appId) return entry;
+            if (entry.id) {
+                map[entry.id] = entry;
+                map[entry.id.toLowerCase()] = entry;
+                if (entry.id.endsWith(".desktop")) {
+                    var stem = entry.id.substring(0, entry.id.length - 8);
+                    map[stem] = entry;
+                    map[stem.toLowerCase()] = entry;
+                }
+            }
         }
+        root._appMap = map;
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() { root._rebuildAppMap(); }
+    }
+    Component.onCompleted: root._rebuildAppMap()
+
+    function findDesktopEntry(appId) {
+        if (!appId) return null;
+        if (root._appMap[appId]) return root._appMap[appId];
         var lower = appId.toLowerCase();
-        for (var i = 0; i < allApps.length; i++) {
-            var entry = allApps[i];
-            if (entry.id && entry.id.toLowerCase() === lower) return entry;
-        }
+        if (root._appMap[lower]) return root._appMap[lower];
         return null;
     }
 
@@ -223,9 +242,9 @@ Singleton {
 
     Timer {
         id: rebuildTimer
-        interval: 500
+        interval: 5000
         repeat: true
-        running: true
+        running: !SessionState.locked
         onTriggered: root.rebuildModel()
     }
 

@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell.Widgets
 import "../../theme"
 import qs.services
@@ -18,11 +17,11 @@ Item {
     property bool hasExpanded: (isWolfram && ctrl.backendqsSvg !== "") || (isDictionary && ctrl.dictStatus === "ok") || isExpandedWithActions
     
     height: {
-        if (!hasExpanded) return 72;
-        if (isWolfram) return 180;
-        if (isDictionary) return 72 + dictContent.height + 16;
-        if (isExpandedWithActions) return 120;
-        return 72;
+        if (!hasExpanded) return 52;
+        if (isWolfram) return 160;
+        if (isDictionary) return 52 + dictContent.height + 12;
+        if (isExpandedWithActions) return 100;
+        return 52;
     }
     
     function activateAction(index) {
@@ -133,11 +132,11 @@ Item {
     Rectangle {
         id: itemBox
         anchors.centerIn: parent
-        width: parent.width - 32
-        height: parent.height - 4
-        radius: 16
+        width: parent.width - 8
+        height: parent.height - 2
+        radius: 12
 
-        scale: itemMouseArea.pressed ? 0.98 : (delegateRoot.isSelected || delegateRoot.isHovered ? 1.015 : 1.0)
+        scale: itemMouseArea.pressed ? 0.98 : (delegateRoot.isSelected || delegateRoot.isHovered ? 1.01 : 1.0)
         Behavior on scale {
             enabled: !isWolfram
             NumberAnimation {
@@ -146,7 +145,13 @@ Item {
             }
         }
 
-        color: (delegateRoot.isSelected || isWolfram) ? Theme.secondary_container : (delegateRoot.isHovered ? Qt.lighter(Theme.surface_container_low, 1.08) : "transparent")
+        // Selection reads as brighter glass rather than a filled block, so it
+        // does not punch a dark rectangle into the blurred backdrop.
+        color: (delegateRoot.isSelected || isWolfram)
+            ? Theme.glass_selected
+            : (delegateRoot.isHovered ? Theme.glass_hover : "transparent")
+        border.width: delegateRoot.isSelected ? 1 : 0
+        border.color: Theme.glass_border
         Behavior on color {
             enabled: !isWolfram
             ColorAnimation {
@@ -192,16 +197,16 @@ Item {
         Item {
             id: topRow
             width: parent.width
-            height: 72
+            height: 52
             anchors.top: parent.top
 
             // --- Icon area ---
             Item {
                 id: iconContainer
-                width: 42
-                height: 42
+                width: 32
+                height: 32
                 anchors.left: parent.left
-                anchors.leftMargin: 20
+                anchors.leftMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
 
                 // App icon (desktop entry icon)
@@ -234,7 +239,8 @@ Item {
                     anchors.fill: parent
                     radius: 8
                     visible: itemType === "music_album" || itemType === "music_track"
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
+                    clip: true
                     
                     Image {
                         id: launcherAlbumCover
@@ -244,19 +250,7 @@ Item {
                                 : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        sourceSize: Qt.size(128, 128)
-                        
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskSource: ShaderEffectSource {
-                                sourceItem: Rectangle {
-                                    width: launcherAlbumCover.width
-                                    height: launcherAlbumCover.height
-                                    radius: 8
-                                }
-                            }
-                        }
+                        visible: (itemType === "music_album" || itemType === "music_track") && status === Image.Ready
                     }
                     
                     MaterialIcon {
@@ -275,7 +269,7 @@ Item {
                     text: delegateRoot.itemType === "emoji" ? modelData.emoji : ""
                     font {
                         family: "Noto Color Emoji"
-                        pixelSize: 36
+                        pixelSize: 28
                     }
                     renderType: Text.NativeRendering
                 }
@@ -285,7 +279,7 @@ Item {
                     anchors.centerIn: parent
                     visible: delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__"
                     icon: (delegateRoot.itemType === "action" && modelData.iconFamily !== "__icon_theme__") ? modelData.icon : ""
-                    font.pixelSize: 26
+                    font.pixelSize: 20
                     color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                 }
 
@@ -313,7 +307,7 @@ Item {
                     anchors.centerIn: parent
                     visible: delegateRoot.itemType === "system_command"
                     icon: delegateRoot.itemType === "system_command" ? modelData.icon : ""
-                    font.pixelSize: 26
+                    font.pixelSize: 20
                     color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                 }
 
@@ -322,12 +316,12 @@ Item {
                     anchors.fill: parent
                     radius: 10
                     visible: delegateRoot.itemType === "file"
-                    color: Theme.surface_container_highest
+                    color: Theme.glass_raised
 
                     MaterialIcon {
                         anchors.centerIn: parent
                         icon: delegateRoot.itemType === "file" && modelData.file ? ctrl.mimeIcon(modelData.file.mime_cat) : ""
-                        font.pixelSize: 22
+                        font.pixelSize: 18
                         color: delegateRoot.isSelected ? Theme.on_secondary_container : Theme.on_surface_variant
                     }
 
@@ -341,7 +335,9 @@ Item {
                         width: extLabel.implicitWidth + 6
                         height: 14
                         radius: 4
-                        color: Theme.tertiary_container
+                        color: Theme.glass_tertiary_soft
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         Text {
                             id: extLabel
@@ -352,7 +348,7 @@ Item {
                                 pixelSize: 8
                                 weight: Font.Bold
                             }
-                            color: Theme.on_tertiary_container
+                            color: Theme.tertiary
                         }
                     }
                 }
@@ -380,7 +376,7 @@ Item {
                         width: 24
                         height: 24
                         radius: 12
-                        color: Theme.surface_container_low
+                        color: Theme.glass_raised
 
                         Image {
                             id: faviconImage
@@ -409,9 +405,9 @@ Item {
                 anchors.left: iconContainer.right
                 anchors.right: actionPill.left
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                spacing: 2
+                anchors.leftMargin: 12
+                anchors.rightMargin: 10
+                spacing: 1
 
                 Text {
                     width: parent.width
@@ -420,7 +416,7 @@ Item {
                     elide: Text.ElideRight
                     font {
                         family: "Google Sans"
-                        pixelSize: 16
+                        pixelSize: 14
                         weight: Font.DemiBold
                     }
                     renderType: Text.QtRendering
@@ -435,7 +431,7 @@ Item {
                     elide: Text.ElideRight
                     font {
                         family: "Google Sans"
-                        pixelSize: 13
+                        pixelSize: 11
                     }
                 }
             }
@@ -443,26 +439,31 @@ Item {
             Rectangle {
                 id: actionPill
                 anchors.right: parent.right
-                anchors.rightMargin: 16
+                anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                width: pillRow.width + 24
-                height: 32
-                radius: 16
+                width: pillRow.width + 18
+                height: 26
+                radius: height / 2
                 color: {
                     if (delegateRoot.itemType === "emoji")
-                        return Theme.tertiary;
+                        return Theme.bubble_tertiary;
                     if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
-                        return Theme.secondary;
+                        return Theme.bubble_secondary;
                     if (delegateRoot.itemType === "focus")
-                        return Theme.tertiary;
+                        return Theme.bubble_tertiary;
                     if (delegateRoot.itemType === "file")
-                        return Theme.secondary;
+                        return Theme.bubble_secondary;
                     if (delegateRoot.itemType === "bookmark")
-                        return Theme.secondary;
-                    return Theme.primary;
+                        return Theme.bubble_secondary;
+                    return Theme.bubble_accent;
                 }
+                border.width: 1
+                border.color: Theme.bubble_border
                 opacity: delegateRoot.isSelected ? 1.0 : 0.0
                 scale: delegateRoot.isSelected ? 1.0 : 0.8
+                clip: true
+
+                BubbleSheen {}
 
                 Behavior on opacity {
                     NumberAnimation {
@@ -480,6 +481,7 @@ Item {
                     id: pillRow
                     anchors.centerIn: parent
                     spacing: 6
+                    z: 1
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
@@ -508,16 +510,16 @@ Item {
                         }
                         color: {
                             if (delegateRoot.itemType === "emoji")
-                                return Theme.on_tertiary;
+                                return Theme.tertiary;
                             if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
-                                return Theme.on_secondary;
+                                return Theme.secondary;
                             if (delegateRoot.itemType === "focus")
-                                return Theme.on_tertiary;
+                                return Theme.tertiary;
                             if (delegateRoot.itemType === "file")
-                                return Theme.on_secondary;
+                                return Theme.secondary;
                             if (delegateRoot.itemType === "bookmark")
-                                return Theme.on_secondary;
-                            return Theme.on_primary;
+                                return Theme.secondary;
+                            return Theme.primary;
                         }
                         font {
                             family: "Google Sans Medium"
@@ -549,16 +551,16 @@ Item {
                         }
                         color: {
                             if (delegateRoot.itemType === "emoji")
-                                return Theme.on_tertiary;
+                                return Theme.tertiary;
                             if (delegateRoot.itemType === "action" || delegateRoot.itemType === "system_command")
-                                return Theme.on_secondary;
+                                return Theme.secondary;
                             if (delegateRoot.itemType === "focus")
-                                return Theme.on_tertiary;
+                                return Theme.tertiary;
                             if (delegateRoot.itemType === "file")
-                                return Theme.on_secondary;
+                                return Theme.secondary;
                             if (delegateRoot.itemType === "bookmark")
-                                return Theme.on_secondary;
-                            return Theme.on_primary;
+                                return Theme.secondary;
+                            return Theme.primary;
                         }
                         font.pixelSize: 16
                     }
@@ -593,30 +595,31 @@ Item {
 
                     property bool isPrimaryAction: index === 0
                     property bool isActionSelected: delegateRoot.isSelected && launcherWindow.appActionIndex === index
-                    // State-layer on secondary_container selection (tonal containers would blend)
-                    property color restFill: Qt.rgba(Theme.on_secondary_container.r, Theme.on_secondary_container.g, Theme.on_secondary_container.b, 0.16)
-                    property color restLabel: Theme.on_secondary_container
 
                     width: actionText.implicitWidth + 20
                     height: 32
                     anchors.verticalCenter: parent.verticalCenter
-                    radius: 16
+                    radius: height / 2
                     color: isActionSelected
-                        ? (isPrimaryAction ? Theme.primary : Theme.secondary)
-                        : restFill
-                    border.width: isActionSelected ? 0 : 1
-                    border.color: Qt.rgba(Theme.on_secondary_container.r, Theme.on_secondary_container.g, Theme.on_secondary_container.b, 0.28)
+                        ? (isPrimaryAction ? Theme.bubble_accent : Theme.bubble_secondary)
+                        : Theme.bubble
+                    border.width: 1
+                    border.color: isActionSelected ? Theme.bubble_border : Theme.bubble_border_soft
+                    clip: true
 
                     Behavior on color { ColorAnimation { duration: 100 } }
+
+                    BubbleSheen {}
 
                     Text {
                         id: actionText
                         anchors.centerIn: parent
+                        z: 1
                         text: modelData.name || ""
                         font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                         color: isActionSelected
-                            ? (isPrimaryAction ? Theme.on_primary : Theme.on_secondary)
-                            : restLabel
+                            ? (isPrimaryAction ? Theme.primary : Theme.secondary)
+                            : Theme.on_surface
 
                         Behavior on color { ColorAnimation { duration: 100 } }
                     }
@@ -677,7 +680,7 @@ Item {
                         }
                     }
 
-                    property real targetScale: 0.35
+                    property real targetScale: 0.7
                     property real constrainedScale: {
                         if (mathImg.implicitWidth === 0 || mathImg.implicitHeight === 0) return targetScale;
                         var maxW = width;
@@ -716,7 +719,6 @@ Item {
                     anchors.fill: parent
                     visible: ctrl.backendqsSvg === "" && (ctrl.backendqsStatus === "loading" || ctrl.backendqsStatus === "error")
                     opacity: visible ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 200 } }
 
                     Row {
                         anchors.centerIn: parent
@@ -786,7 +788,6 @@ Item {
                 color: Qt.rgba(0,0,0,0.1)
                 visible: delegateRoot.itemType === "action" && modelData.actionId === "dictionary"
                 opacity: ctrl.dictStatus === "ok" ? 1.0 : 0.0
-                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 
                 Column {
                     id: dictColumn

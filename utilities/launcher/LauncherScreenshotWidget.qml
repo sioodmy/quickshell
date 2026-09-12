@@ -21,7 +21,9 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
         clip: true
 
         Column {
@@ -72,30 +74,35 @@ Item {
                     delegate: Rectangle {
                         width: (parent.width - 24) / 4
                         height: 64
-                        radius: 14
-                        color: btnMouse.containsMouse
-                            ? Theme.primary_container
-                            : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                        radius: 18
+                        color: btnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble
+                        border.width: 1
+                        border.color: btnMouse.containsMouse ? Theme.bubble_border : Theme.bubble_border_soft
+                        clip: true
 
                         Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
                         scale: btnMouse.pressed ? 0.94 : 1
                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                        BubbleSheen {}
 
                         Column {
                             anchors.centerIn: parent
                             spacing: 4
+                            z: 1
 
                             MaterialIcon {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 icon: modelData.icon
                                 font.pixelSize: 18
-                                color: btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface
+                                color: btnMouse.containsMouse ? Theme.primary : Theme.on_surface
                             }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: modelData.label
                                 font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
-                                color: btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface_variant
+                                color: btnMouse.containsMouse ? Theme.primary : Theme.on_surface
                             }
                         }
 

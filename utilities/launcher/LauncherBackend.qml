@@ -18,6 +18,15 @@ Item {
         onTriggered: backend.closeMenuRequested()
     }
 
+    Timer {
+        id: lockAfterClose
+        // Wait for the launcher PanelWindow (and any residual layered
+        // effects) to fully unmap before creating a WlSessionLockSurface.
+        // Mapping both at once crashes updatePixelRatioHelper on Asahi.
+        interval: 700
+        onTriggered: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] })
+    }
+
     property string searchText: ""
     property string calcExpression: backend.searchText.trim()
 
@@ -47,6 +56,8 @@ Item {
     // Frecency is now fully managed by the Rust backend.
     property var frecencyScores: BackendDaemon.frecencyScores
     property var appFrequencies: frecencyScores.apps || ({})
+    property var appSearchResults: BackendDaemon.appSearchResults
+    property string appSearchQuery: BackendDaemon.appSearchQuery
     property string selectionBuffer: ""
 
     // File search (delegated to Rust backend)
@@ -278,16 +289,37 @@ Item {
         return results;
     }
 
-    function findDesktopEntry(appId) {
-        if (!appId) return null;
+    property var _appMap: ({})
+
+    function _rebuildAppMap() {
+        var map = {};
         var allApps = DesktopEntries.applications.values;
         for (var i = 0; i < allApps.length; i++) {
-            if (allApps[i].id === appId) return allApps[i];
+            var entry = allApps[i];
+            if (entry.id) {
+                map[entry.id] = entry;
+                map[entry.id.toLowerCase()] = entry;
+                if (entry.id.endsWith(".desktop")) {
+                    var stem = entry.id.substring(0, entry.id.length - 8);
+                    map[stem] = entry;
+                    map[stem.toLowerCase()] = entry;
+                }
+            }
         }
+        backend._appMap = map;
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() { backend._rebuildAppMap(); }
+    }
+    Component.onCompleted: backend._rebuildAppMap()
+
+    function findDesktopEntry(appId) {
+        if (!appId) return null;
+        if (backend._appMap[appId]) return backend._appMap[appId];
         var lower = appId.toLowerCase();
-        for (var i = 0; i < allApps.length; i++) {
-            if (allApps[i].id && allApps[i].id.toLowerCase() === lower) return allApps[i];
-        }
+        if (backend._appMap[lower]) return backend._appMap[lower];
         return null;
     }
 
@@ -416,6 +448,7 @@ Item {
         dictDebounce.restart();
         fileSearchDebounce.restart();
         bookmarkSearchDebounce.restart();
+        appSearchDebounce.restart();
     }
 
     Timer {
@@ -588,6 +621,20 @@ Item {
         }
     }
 
+    Timer {
+        id: appSearchDebounce
+        interval: 40
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length > 0) {
+                BackendDaemon.appSearchQuery = query;
+                BackendDaemon.send({"action": "app_search", "query": query});
+            } else {
+                BackendDaemon.appSearchResults = [];
+            }
+        }
+    }
+
     function openFile(path) {
         BackendDaemon.send({"action": "file_open", "path": path});
         BackendDaemon.send({
@@ -684,7 +731,10 @@ Item {
         } else if (actionId === "sleep") {
             Quickshell.execDetached({ command: ["systemctl", "suspend"] });
         } else if (actionId === "lock") {
-            Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] });
+            // Wait for the launcher PanelWindow to fully unmap before creating
+            // a WlSessionLockSurface. Concurrent map of both surfaces crashes
+            // updatePixelRatioHelper on Asahi.
+            lockAfterClose.restart();
         } else if (actionId === "audio_out_hdmi") {
             Quickshell.execDetached({ command: ["bash", "-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"] });
         } else if (actionId === "bt_connect") {

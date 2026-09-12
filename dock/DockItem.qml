@@ -61,7 +61,7 @@ Item {
             fillMode: Image.PreserveAspectFit
             mipmap: true
             asynchronous: true
-            sourceSize: Qt.size(64, 64)
+            sourceSize: Qt.size(48, 48)
 
             property var tryIcons: {
                 var icon = root.appIcon;

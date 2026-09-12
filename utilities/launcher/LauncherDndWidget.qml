@@ -24,10 +24,10 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
         border.color: DoNotDisturb.enabled
-            ? Qt.rgba(accent.r, accent.g, accent.b, 0.35)
-            : Theme.outline_variant
+            ? Qt.alpha(accent, 0.35)
+            : Theme.glass_border
         border.width: 1
         clip: true
 
@@ -44,8 +44,8 @@ Item {
                 radius: 22
                 anchors.verticalCenter: parent.verticalCenter
                 color: DoNotDisturb.enabled
-                    ? Qt.rgba(accent.r, accent.g, accent.b, 0.22)
-                    : Theme.surface_variant
+                    ? Qt.alpha(accent, 0.22)
+                    : Theme.glass_raised
 
                 Behavior on color { ColorAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
@@ -94,7 +94,7 @@ Item {
                 width: 52
                 height: 32
                 radius: 16
-                color: DoNotDisturb.enabled ? accent : Theme.surface_container_highest
+                color: DoNotDisturb.enabled ? Qt.alpha(accent, 0.7) : Theme.glass_raised
                 border.color: DoNotDisturb.enabled ? accent : Theme.outline
                 border.width: 2
 

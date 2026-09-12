@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.theme
 import qs.services
 import qs.components
@@ -34,12 +33,12 @@ Item {
         let res = [];
         for (let i = 0; i < library.length; i++) {
             let album = library[i];
-            if (album.title.toLowerCase().includes(q) || album.artist.toLowerCase().includes(q)) {
+            if ((album.title || "").toLowerCase().includes(q) || (album.artist || "").toLowerCase().includes(q)) {
                 res.push(album);
                 continue;
             }
             for (let j = 0; j < album.tracks.length; j++) {
-                if (album.tracks[j].title.toLowerCase().includes(q)) {
+                if ((album.tracks[j].title || "").toLowerCase().includes(q)) {
                     res.push(album);
                     break;
                 }
@@ -195,8 +194,10 @@ Item {
             radius: 14
             property bool isSelected: index === root.selectedIndex
             color: isSelected
-                ? Theme.secondary_container
-                : (albumMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06) : "transparent")
+                ? Theme.glass_selected
+                : (albumMouse.containsMouse ? Theme.glass_hover : "transparent")
+            border.width: isSelected ? 1 : 0
+            border.color: Theme.glass_border
             Behavior on color { ColorAnimation { duration: 120 } }
 
             Rectangle {
@@ -223,7 +224,7 @@ Item {
                     width: 52
                     height: 52
                     radius: 10
-                    color: Theme.surface_variant
+                    color: Theme.glass_raised
                     clip: true
                     anchors.verticalCenter: parent.verticalCenter
 
@@ -234,13 +235,7 @@ Item {
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         sourceSize: Qt.size(104, 104)
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskSource: ShaderEffectSource {
-                                sourceItem: Rectangle { width: coverImg.width; height: coverImg.height; radius: 10 }
-                            }
-                        }
+                        visible: !!source && status === Image.Ready
                     }
 
                     MaterialIcon {
@@ -307,7 +302,7 @@ Item {
                     width: trackCountText.implicitWidth + 14
                     height: 22
                     radius: 11
-                    color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08)
+                    color: Qt.alpha(Theme.on_surface, 0.08)
 
                     Text {
                         id: trackCountText
@@ -371,7 +366,7 @@ Item {
                             width: 36; height: 36
                             radius: 18
                             anchors.verticalCenter: parent.verticalCenter
-                            color: backBtnMouse.containsMouse ? Theme.surface_variant : "transparent"
+                            color: backBtnMouse.containsMouse ? Theme.glass_hover : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
 
                             MaterialIcon {
@@ -393,7 +388,7 @@ Item {
                         Rectangle {
                             width: 56; height: 56
                             radius: 12
-                            color: Theme.surface_variant
+                            color: Theme.glass_raised
                             anchors.verticalCenter: parent.verticalCenter
                             clip: true
 
@@ -404,13 +399,7 @@ Item {
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                                 sourceSize: Qt.size(160, 160)
-                                layer.enabled: true
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskSource: ShaderEffectSource {
-                                        sourceItem: Rectangle { width: headerCoverImg.width; height: headerCoverImg.height; radius: 12 }
-                                    }
-                                }
+                                visible: !!source && status === Image.Ready
                             }
                         }
 
@@ -441,17 +430,23 @@ Item {
                             id: playAllBtn
                             width: 36; height: 36
                             radius: 18
-                            color: Theme.primary
+                            color: Theme.bubble_accent
+                            border.width: 1
+                            border.color: Theme.bubble_border
                             anchors.verticalCenter: parent.verticalCenter
+                            clip: true
                             scale: playAllMouse.containsMouse ? 1.08 : 1.0
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                            BubbleSheen {}
 
                             MaterialIcon {
                                 anchors.centerIn: parent
                                 anchors.horizontalCenterOffset: 1
+                                z: 1
                                 icon: "play_arrow"
                                 font.pixelSize: 18
-                                color: Theme.on_primary
+                                color: Theme.primary
                             }
 
                             MouseArea {
@@ -469,7 +464,7 @@ Item {
                     width: parent.width - 24
                     height: 1
                     anchors.horizontalCenter: parent.horizontalCenter
-                    color: Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08)
+                    color: Qt.alpha(Theme.on_surface, 0.08)
                 }
 
                 Item { width: 1; height: 8 }
@@ -484,8 +479,10 @@ Item {
                 property bool isSelected: index === root.selectedTrackIndex
 
                 color: isSelected
-                    ? Theme.secondary_container
-                    : (trackMouse.containsMouse ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.05) : "transparent")
+                    ? Theme.glass_selected
+                    : (trackMouse.containsMouse ? Theme.glass_hover : "transparent")
+                border.width: isSelected ? 1 : 0
+                border.color: Theme.glass_border
                 Behavior on color { ColorAnimation { duration: 100 } }
 
                 Rectangle {

@@ -7,6 +7,7 @@ import Quickshell.Io
 Singleton {
     id: root
 
+    property bool available: false
     property var agendaItems: null
     property var weatherData: null
     property string dictStatus: ""
@@ -24,6 +25,8 @@ Singleton {
     property var musicLibrary: null
     property string musicLibraryStatus: ""
     property var frecencyScores: ({ apps: {}, quickkeys: {} })
+    property var appSearchResults: []
+    property string appSearchQuery: ""
     property var fileSearchResults: []
     property string fileSearchQuery: ""
     property var bookmarkSearchResults: []
@@ -38,7 +41,7 @@ Singleton {
     property string musicRemoteUrl: ""
     property string musicRemoteQrSvg: ""
     property bool musicRemoteConnected: false
-    property var activeTorrents: []
+
 
     // Emitted when a new share is ready with QR data for the launcher.
     signal fileShareReady(var data)
@@ -50,6 +53,9 @@ Singleton {
     signal polkitShowAuth(string action_id, string message, string icon_name, string cookie, string user_name, string prompt)
     signal polkitResult(string cookie, bool success)
     signal polkitDismiss(string cookie)
+    signal eventReceived(var event)
+    signal backendStarted()
+    signal backendStopped()
 
     property var musicState: {
         "playing": false,
@@ -61,16 +67,31 @@ Singleton {
         "position": 0,
         "volume": 1.0,
         "loopAlbum": false,
-        "hasPlayer": false
+        "hasPlayer": false,
+        "palette": {
+            "primary": "#ff7ec0",
+            "secondary": "#8b74ff",
+            "accent": "#e08cff",
+            "bg": "#24143a",
+            "fg": "#ffffff"
+        }
     }
 
     Process {
         id: daemon
-        command: ["sh", "-c", "exec backendqs daemon"]
+        command: ["backendqs", "daemon"]
         running: true
         stdinEnabled: true
+        onStarted: {
+            root.available = true;
+            root.backendStarted();
+        }
         // Survive crashes / binary rebuilds without requiring a full shell restart.
-        onExited: restartDaemon.restart()
+        onExited: {
+            root.available = false;
+            root.backendStopped();
+            restartDaemon.restart();
+        }
         stdout: SplitParser {
             onRead: data => {
                 var trimmed = data.trim();
@@ -130,22 +151,55 @@ Singleton {
                         }
                         root.musicLibraryStatus = parsed.status;
                     } else if (type === "music_state_update") {
-                        let rawUrl = parsed.state.art_url;
-                        let finalUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http")) ? rawUrl : (rawUrl !== "" ? "file://" + rawUrl : "");
-                        root.musicState = {
-                            "playing": parsed.state.playing,
-                            "title": parsed.state.title,
-                            "artist": parsed.state.artist,
-                            "album": parsed.state.album,
+                        // art_url can be missing/null if the backend DTO is
+                        // partial; never call startsWith on a non-string.
+                        let rawUrl = parsed.state && parsed.state.art_url != null
+                            ? ("" + parsed.state.art_url) : "";
+                        let finalUrl = (rawUrl.startsWith("file://") || rawUrl.startsWith("http"))
+                            ? rawUrl
+                            : (rawUrl !== "" ? "file://" + rawUrl : "");
+                        let next = {
+                            "playing": !!(parsed.state && parsed.state.playing),
+                            "title": (parsed.state && parsed.state.title) ? ("" + parsed.state.title) : "",
+                            "artist": (parsed.state && parsed.state.artist) ? ("" + parsed.state.artist) : "",
+                            "album": (parsed.state && parsed.state.album) ? ("" + parsed.state.album) : "",
                             "artUrl": finalUrl,
-                            "duration": parsed.state.duration_us / 1000000.0,
-                            "position": parsed.state.position_us / 1000000.0,
-                            "volume": parsed.state.volume,
-                            "loopAlbum": parsed.state.loop_album,
-                            "hasPlayer": parsed.state.has_player
+                            "duration": parsed.state ? (parsed.state.duration_us / 1000000.0) : 0,
+                            "position": parsed.state ? (parsed.state.position_us / 1000000.0) : 0,
+                            "volume": parsed.state && parsed.state.volume != null ? parsed.state.volume : 1.0,
+                            "loopAlbum": !!(parsed.state && parsed.state.loop_album),
+                            "hasPlayer": !!(parsed.state && parsed.state.has_player),
+                            "palette": (parsed.state && parsed.state.palette) ? parsed.state.palette : {
+                                "primary": "#ff7ec0",
+                                "secondary": "#8b74ff",
+                                "accent": "#e08cff",
+                                "bg": "#24143a",
+                                "fg": "#ffffff"
+                            }
                         };
+                        // Skip no-op updates so bindings (and any layered
+                        // Image/MultiEffect consumers) are not churned at 2Hz.
+                        let prev = root.musicState;
+                        if (!prev
+                            || prev.playing !== next.playing
+                            || prev.title !== next.title
+                            || prev.artist !== next.artist
+                            || prev.album !== next.album
+                            || prev.artUrl !== next.artUrl
+                            || (prev.palette && next.palette && prev.palette.primary !== next.palette.primary)
+                            || prev.loopAlbum !== next.loopAlbum
+                            || prev.hasPlayer !== next.hasPlayer
+                            || prev.volume !== next.volume
+                            || Math.abs((prev.duration || 0) - next.duration) > 0.05
+                            || Math.abs((prev.position || 0) - next.position) > 0.2) {
+                            root.musicState = next;
+                        }
                     } else if (type === "frecency_update") {
                         root.frecencyScores = parsed.scores || { apps: {}, quickkeys: {} };
+                    } else if (type === "app_search_result") {
+                        if (parsed.query === root.appSearchQuery) {
+                            root.appSearchResults = parsed.results || [];
+                        }
                     } else if (type === "file_search_result") {
                         root.fileSearchQuery = parsed.query || "";
                         root.fileSearchResults = parsed.results || [];
@@ -223,19 +277,21 @@ Singleton {
                         root.musicRemoteUrl = "";
                         root.musicRemoteQrSvg = "";
                         root.musicRemoteConnected = false;
-                    } else if (type === "torrent_progress") {
-                        root.activeTorrents = parsed.torrents || [];
+
                     } else if (type === "music_remote_connected") {
                         root.musicRemoteConnected = true;
                     } else if (type === "polkit_show_auth") {
                         root.polkitShowAuth(parsed.action_id, parsed.message, parsed.icon_name, parsed.cookie, parsed.user_name, parsed.prompt);
                     } else if (type === "polkit_result") {
                         root.polkitResult(parsed.cookie, parsed.success);
-                    } else if (type === "polkit_dismiss") {
+                                        } else if (type === "polkit_dismiss") {
                         root.polkitDismiss(parsed.cookie);
+                    } else {
+                        root.eventReceived(parsed);
                     }
+
                 } catch(e) {
-                    console.error("BackendDaemon JSON error:", e, trimmed);
+                    console.error("BackendDaemon: failed to process event:", e);
                 }
             }
         }
@@ -266,8 +322,17 @@ Singleton {
         interval: 100
         repeat: false
         onTriggered: {
-            root.send({action: "music_library"});
+            // Defer library scan so launcher LazyLoader warm-up is not
+            // competing with a large JSON parse on the GUI thread at boot.
             root.send({action: "frecency_load"});
+            libraryDefer.restart();
         }
+    }
+
+    Timer {
+        id: libraryDefer
+        interval: 800
+        repeat: false
+        onTriggered: root.send({action: "music_library"})
     }
 }

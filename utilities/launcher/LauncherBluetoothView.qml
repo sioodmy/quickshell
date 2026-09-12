@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
+import "../../services"
 import qs.components
 
 Item {
@@ -141,6 +142,14 @@ Item {
             adapter.discovering = true;
     }
 
+    Timer {
+        id: batteryUpdateTimer
+        interval: 15000
+        repeat: true
+        running: root.visible
+        onTriggered: BackendDaemon.send({action: "sysctl_list", kind: "bluetooth"})
+    }
+
     onVisibleChanged: {
         if (!visible) {
             resetConnecting();
@@ -148,6 +157,7 @@ Item {
         }
         if (adapter && adapter.enabled)
             adapter.discovering = true;
+        BackendDaemon.send({action: "sysctl_list", kind: "bluetooth"});
     }
 
     Timer {
@@ -212,7 +222,9 @@ Item {
         width: parent.width
         height: 72
         radius: 16
-        color: statusMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
+        color: statusMouse.containsMouse ? Theme.glass_raised : Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
 
         Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -233,8 +245,8 @@ Item {
                 radius: 24
                 anchors.verticalCenter: parent.verticalCenter
                 color: (root.adapter && root.adapter.enabled)
-                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
-                    : Theme.surface_variant
+                    ? Qt.alpha(Theme.primary, 0.2)
+                    : Theme.glass_raised
 
                 Behavior on color { ColorAnimation { duration: 200 } }
 
@@ -279,7 +291,7 @@ Item {
                 width: 48
                 height: 28
                 radius: 14
-                color: (root.adapter && root.adapter.enabled) ? Theme.primary : Theme.surface_container_highest
+                color: (root.adapter && root.adapter.enabled) ? Theme.bubble_accent : Theme.bubble
                 border.color: (root.adapter && root.adapter.enabled) ? Theme.primary : Theme.outline
                 border.width: 2
 
@@ -343,14 +355,16 @@ Item {
             height: 56
             radius: 14
             color: isConnecting
-                ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.16)
+                ? Qt.alpha(Theme.primary, 0.16)
                 : (isSelected
-                    ? Theme.secondary_container
+                    ? Theme.glass_selected
                     : (modelData.connected
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+                        ? Qt.alpha(Theme.primary, 0.12)
                         : (devMouse.containsMouse
-                            ? Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                            ? Theme.glass_hover
                             : "transparent")))
+            border.width: isSelected ? 1 : 0
+            border.color: Theme.glass_border
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -406,8 +420,8 @@ Item {
                     radius: 18
                     anchors.verticalCenter: parent.verticalCenter
                     color: devDelegate.modelData.connected
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18)
-                        : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
+                        ? Qt.alpha(Theme.primary, 0.18)
+                        : Theme.glass_raised
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -441,10 +455,19 @@ Item {
                     Text {
                         text: {
                             if (devDelegate.isConnecting) return "Connecting…";
-                            if (devDelegate.modelData.connected)
-                                return devDelegate.modelData.batteryAvailable
-                                    ? "Connected · " + Math.round(devDelegate.modelData.battery * 100) + "%"
-                                    : "Connected";
+                            if (devDelegate.modelData.connected) {
+                                var backendDev = BackendDaemon.bluetoothDevices.find(d => d.id === devDelegate.modelData.address);
+                                var batStr = "";
+                                if (backendDev !== undefined && backendDev.battery !== undefined && backendDev.battery !== null) {
+                                    batStr = " · " + Math.round(backendDev.battery * 100) + "%";
+                                    if (backendDev.charging) {
+                                        batStr += " ⚡";
+                                    }
+                                } else if (devDelegate.modelData.batteryAvailable) {
+                                    batStr = " · " + Math.round(devDelegate.modelData.battery * 100) + "%";
+                                }
+                                return "Connected" + batStr;
+                            }
                             if (devDelegate.modelData.pairing) return "Pairing…";
                             if (devDelegate.modelData.paired) return "Paired";
                             return "Available";
@@ -469,14 +492,16 @@ Item {
                         width: devConnLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devConnMouse.containsMouse ? Theme.primary : Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18)
+                        color: devConnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
+                        border.width: 1
+                        border.color: Theme.glass_border
                         Behavior on color { ColorAnimation { duration: 100 } }
 
                         Text {
                             id: devConnLabel
                             anchors.centerIn: parent
                             text: "Connect"
-                            color: devConnMouse.containsMouse ? Theme.on_primary : Theme.primary
+                            color: Theme.primary
                             font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
                         }
 
@@ -497,9 +522,9 @@ Item {
                         width: devDisconnLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devDisconnMouse.containsMouse
-                            ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.2)
-                            : Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.1)
+                        color: devDisconnMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         Text {
                             id: devDisconnLabel
@@ -523,9 +548,9 @@ Item {
                         width: devCancelLabel.implicitWidth + 20
                         height: 28
                         radius: 14
-                        color: devCancelMouse.containsMouse
-                            ? Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.2)
-                            : Qt.rgba(Theme.on_surface_variant.r, Theme.on_surface_variant.g, Theme.on_surface_variant.b, 0.1)
+                        color: devCancelMouse.containsMouse ? Theme.bubble_accent : Theme.bubble_accent_soft
+                        border.width: 1
+                        border.color: Theme.glass_border
 
                         Text {
                             id: devCancelLabel
@@ -550,12 +575,18 @@ Item {
                         height: 28
                         radius: 14
                         color: devForgetMouse.containsMouse
-                            ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.2)
-                            : Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.1)
+                            ? Theme.bubble_critical
+                            : Theme.bubble_critical_soft
+                        border.width: 1
+                        border.color: Theme.bubble_border_soft
+                        clip: true
+
+                        BubbleSheen {}
 
                         Text {
                             id: devForgetLabel
                             anchors.centerIn: parent
+                            z: 1
                             text: "Forget"
                             color: Theme.critical
                             font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }

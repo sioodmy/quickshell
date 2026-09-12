@@ -84,6 +84,71 @@ Singleton {
         return "draft";
     }
 
+    function typeCategory(name) {
+        const ext = extensionOf(name);
+        if (isImageName(name)) return "image";
+        if (["mp4", "mkv", "webm", "mov", "avi", "m4v"].indexOf(ext) !== -1) return "video";
+        if (["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus"].indexOf(ext) !== -1) return "audio";
+        if (["pdf", "doc", "docx", "odt", "rtf", "pages", "txt", "md", "csv"].indexOf(ext) !== -1) return "document";
+        if (["zip", "tar", "gz", "xz", "7z", "rar", "bz2"].indexOf(ext) !== -1) return "archive";
+        if (["js", "ts", "qml", "py", "rs", "cpp", "c", "h", "sh", "json", "html", "css", "nix"].indexOf(ext) !== -1) return "code";
+        return "file";
+    }
+
+    function accentColor(name) {
+        const cat = typeCategory(name);
+        switch (cat) {
+            case "image": return "#F59E0B";
+            case "video": return "#EC4899";
+            case "audio": return "#10B981";
+            case "document": return "#3B82F6";
+            case "archive": return "#8B5CF6";
+            case "code": return "#06B6D4";
+            default: return "#A855F7";
+        }
+    }
+
+    function categoryTag(name) {
+        const ext = extensionOf(name);
+        if (ext) return ext.toUpperCase().slice(0, 4);
+        return typeCategory(name).toUpperCase().slice(0, 4);
+    }
+
+    function openFile(pathOrUrl) {
+        const p = toLocalPath(pathOrUrl);
+        if (p) {
+            Quickshell.execDetached({ command: ["xdg-open", p] });
+        }
+    }
+
+    function copyPath(pathOrUrl) {
+        const p = toLocalPath(pathOrUrl);
+        if (p) {
+            Quickshell.execDetached({ command: ["bash", "-c", "printf '%s' " + JSON.stringify(p) + " | wl-copy"] });
+        }
+    }
+
+    function copyAllPaths() {
+        if (stashModel.count === 0) return false;
+        const paths = [];
+        for (let i = 0; i < stashModel.count; i++) {
+            paths.push(stashModel.get(i).path);
+        }
+        const text = paths.join("\n");
+        Quickshell.execDetached({ command: ["bash", "-c", "printf '%s' " + JSON.stringify(text) + " | wl-copy"] });
+        return true;
+    }
+
+    function openFolder(pathOrUrl) {
+        const p = toLocalPath(pathOrUrl);
+        if (p) {
+            const dir = p.substring(0, p.lastIndexOf("/"));
+            if (dir) {
+                Quickshell.execDetached({ command: ["xdg-open", dir] });
+            }
+        }
+    }
+
     function addPath(pathOrUrl) {
         const path = toLocalPath(pathOrUrl);
         if (!path)
@@ -97,7 +162,10 @@ Singleton {
             url: toFileUrl(path),
             name: name,
             glyph: mimeGlyph(name),
-            isImage: isImageName(name)
+            isImage: isImageName(name),
+            category: typeCategory(name),
+            accentColor: accentColor(name),
+            tag: categoryTag(name)
         });
         return true;
     }

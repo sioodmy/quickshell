@@ -69,11 +69,7 @@ fn render_thumbnail(source: &str, out: &PathBuf) -> bool {
     // Try ffmpegthumbnailer first (blazingly fast, grabs frame at 10%)
     let status = Command::new("ffmpegthumbnailer")
         .args([
-            "-i", source,
-            "-o", &out_str,
-            "-s", &scale,
-            "-c", "jpeg",
-            "-q", "7",
+            "-i", source, "-o", &out_str, "-s", &scale, "-c", "jpeg", "-q", "7",
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -92,12 +88,18 @@ fn render_thumbnail(source: &str, out: &PathBuf) -> bool {
         .args([
             "-y",
             "-hide_banner",
-            "-loglevel", "error",
-            "-ss", "00:00:02.000",
-            "-i", source,
-            "-vframes", "1",
-            "-vf", &format!("scale=-1:{scale}"),
-            "-q:v", "6",
+            "-loglevel",
+            "error",
+            "-ss",
+            "00:00:02.000",
+            "-i",
+            source,
+            "-vframes",
+            "1",
+            "-vf",
+            &format!("scale=-1:{scale}"),
+            "-q:v",
+            "6",
             &out_str,
         ])
         .stdout(Stdio::null())
@@ -117,12 +119,18 @@ fn render_thumbnail(source: &str, out: &PathBuf) -> bool {
         .args([
             "-y",
             "-hide_banner",
-            "-loglevel", "error",
-            "-ss", "00:00:00.000",
-            "-i", source,
-            "-vframes", "1",
-            "-vf", &format!("scale=-1:{scale}"),
-            "-q:v", "6",
+            "-loglevel",
+            "error",
+            "-ss",
+            "00:00:00.000",
+            "-i",
+            source,
+            "-vframes",
+            "1",
+            "-vf",
+            &format!("scale=-1:{scale}"),
+            "-q:v",
+            "6",
             &out_str,
         ])
         .stdout(Stdio::null())

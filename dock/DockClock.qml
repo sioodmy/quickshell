@@ -2,39 +2,29 @@ import QtQuick
 import Quickshell
 import qs.theme
 import qs.services
-import "../popups/calendar"
+import qs.components
 
 Item {
     id: root
 
-    implicitWidth: 28
-    implicitHeight: timeCol.implicitHeight + 24
+    property bool osdActive: false
+    property string osdIcon: "volume_up"
+
+    implicitWidth: timeRow.implicitWidth + 12
+    implicitHeight: 22
 
     SystemClock {
         id: clock
         precision: SystemClock.Minutes
     }
 
-    readonly property bool calendarOpen: CalendarState.open || CalendarState.openProgress > 0.01
-
-    function captureSource() {
-        const g = timeCol.mapToGlobal(0, 0);
-        CalendarState.sourceX = g.x;
-        CalendarState.sourceY = g.y;
-        CalendarState.sourceW = timeCol.width;
-        CalendarState.sourceH = timeCol.height;
-        CalendarState.hoursText = Qt.formatDateTime(clock.date, "HH");
-        CalendarState.minutesText = Qt.formatDateTime(clock.date, "mm");
-    }
+    readonly property bool calendarOpen: typeof dynamicIsland !== "undefined" && dynamicIsland.activeMode === "calendar"
 
     function toggleCalendar() {
-        if (calendarWidget.animating)
-            return;
-        if (CalendarState.open || calendarWidget.visible) {
-            calendarWidget.closeAnimated();
+        if (dynamicIsland.activeMode === "calendar") {
+            dynamicIsland.activeMode = "dock";
         } else {
-            captureSource();
-            calendarWidget.openAnimated();
+            dynamicIsland.activeMode = "calendar";
         }
     }
 
@@ -42,54 +32,61 @@ Item {
         id: visualPill
         anchors.centerIn: parent
 
-        implicitWidth: 28
-        implicitHeight: root.implicitHeight
-        radius: width / 2
+        implicitWidth: root.implicitWidth
+        implicitHeight: 22
+        radius: height / 2
 
         color: {
+            if (root.osdActive)
+                return "transparent";
             if (root.calendarOpen)
-                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.12);
+                return Qt.rgba(1, 1, 1, 0.15);
             if (pillMouse.containsMouse)
-                return Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.08);
+                return Qt.rgba(1, 1, 1, 0.1);
             return "transparent";
         }
 
-        scale: pillMouse.pressed && !root.calendarOpen ? 0.95 : 1.0
+        scale: pillMouse.pressed && !root.calendarOpen && !root.osdActive ? 0.95 : 1.0
 
         Behavior on color { ColorAnimation { duration: 150 } }
         Behavior on scale { NumberAnimation { duration: 150 } }
 
-        Column {
-            id: timeCol
+        Item {
+            id: swapHost
             anchors.centerIn: parent
-            spacing: 0
-            // Dock digits hand off to the flying morph as soon as open begins
-            opacity: {
-                if (CalendarState.open && CalendarState.openProgress < 0.02)
-                    return 0;
-                return Math.max(0, 1.0 - CalendarState.openProgress * 2.8);
-            }
+            width: timeRow.implicitWidth
+            height: timeRow.implicitHeight
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(clock.date, "HH")
-                color: Theme.on_surface
-                font {
-                    family: "Google Sans"
-                    pixelSize: 17
-                    weight: Font.Bold
+            Row {
+                id: timeRow
+                anchors.centerIn: parent
+                spacing: 2
+                opacity: root.calendarOpen ? 0.5 : 1.0
+                scale: 1
+                transformOrigin: Item.Center
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Qt.formatDateTime(clock.date, "HH:mm")
+                    color: "#ffffff"
+                    font {
+                        family: "Google Sans"
+                        pixelSize: 12
+                        weight: Font.Bold
+                    }
                 }
             }
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(clock.date, "mm")
-                color: Theme.on_surface
-                font {
-                    family: "Google Sans"
-                    pixelSize: 17
-                    weight: Font.Bold
-                }
+            MaterialIcon {
+                id: osdGlyph
+                anchors.centerIn: parent
+                icon: root.osdIcon
+                fill: 1
+                font.pixelSize: 16
+                color: "#ffffff"
+                opacity: 0
+                scale: 0.35
+                transformOrigin: Item.Center
             }
         }
 
@@ -97,13 +94,54 @@ Item {
             id: pillMouse
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            enabled: !root.osdActive
+            cursorShape: root.osdActive ? Qt.ArrowCursor : Qt.PointingHandCursor
             onClicked: root.toggleCalendar()
         }
     }
 
-    CalendarWidget {
-        id: calendarWidget
-        visible: false
+    states: State {
+        name: "osd"
+        when: root.osdActive
+        PropertyChanges { target: timeRow; opacity: 0; scale: 0.35 }
+        PropertyChanges { target: osdGlyph; opacity: 1; scale: 1 }
+    }
+
+    transitions: [
+        Transition {
+            to: "osd"
+            ParallelAnimation {
+                NumberAnimation { target: timeRow; property: "opacity"; duration: 80; easing.type: Easing.OutCubic }
+                NumberAnimation { target: timeRow; property: "scale"; duration: 80; easing.type: Easing.InCubic }
+                NumberAnimation { target: osdGlyph; property: "opacity"; duration: 80; easing.type: Easing.OutCubic }
+                NumberAnimation { target: osdGlyph; property: "scale"; duration: 180; easing.type: Easing.OutBack }
+            }
+        },
+        Transition {
+            from: "osd"
+            ParallelAnimation {
+                NumberAnimation { target: osdGlyph; property: "opacity"; duration: 80; easing.type: Easing.OutCubic }
+                NumberAnimation { target: osdGlyph; property: "scale"; duration: 80; easing.type: Easing.InCubic }
+                NumberAnimation { target: timeRow; property: "opacity"; duration: 80; easing.type: Easing.OutCubic }
+                NumberAnimation { target: timeRow; property: "scale"; duration: 180; easing.type: Easing.OutBack }
+            }
+        }
+    ]
+
+    SequentialAnimation {
+        id: iconPop
+        NumberAnimation { target: osdGlyph; property: "scale"; to: 0.6; duration: 50; easing.type: Easing.InCubic }
+        NumberAnimation { target: osdGlyph; property: "scale"; to: 1.0; duration: 140; easing.type: Easing.OutBack }
+    }
+
+    onOsdActiveChanged: {
+        if (!root.osdActive)
+            iconPop.stop();
+    }
+
+    onOsdIconChanged: {
+        // Don't fight the enter transition; only pop once the glyph is on screen.
+        if (root.osdActive && osdGlyph.opacity > 0.9)
+            iconPop.restart();
     }
 }

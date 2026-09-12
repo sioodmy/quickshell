@@ -79,8 +79,6 @@ pub struct FileShareHandle {
 }
 
 impl FileShareHandle {
-
-
     fn make_url(&self, share_id: &str) -> String {
         format!(
             "http://{}:{}/s/{}/{}",
@@ -99,9 +97,14 @@ impl FileShareHandle {
             .to_string();
 
         {
-            let shares = self.shares.read().await;
+            let mut shares = self.shares.write().await;
             if shares.len() >= MAX_SHARES {
-                return Err(anyhow!("too many active shares (max {MAX_SHARES})"));
+                // Single-file mode: replace whatever is already being shared.
+                for (_, entry) in shares.iter_mut() {
+                    entry.cancelled.store(true, Ordering::Relaxed);
+                    entry.status = ShareStatus::Cancelled;
+                }
+                shares.clear();
             }
         }
 
@@ -119,10 +122,7 @@ impl FileShareHandle {
             completed_at: None,
         };
 
-        self.shares
-            .write()
-            .await
-            .insert(share_id.clone(), entry);
+        self.shares.write().await.insert(share_id.clone(), entry);
 
         let qr_svg = generate_qr_svg(&url)?;
 
@@ -178,8 +178,6 @@ impl FileShareHandle {
             })
             .collect()
     }
-
-
 }
 
 pub async fn start_server() -> Result<FileShareHandle> {
@@ -232,7 +230,9 @@ pub async fn start_server() -> Result<FileShareHandle> {
                         return now.duration_since(entry.created_at) < Duration::from_secs(3600);
                     }
                     match entry.status {
-                        ShareStatus::Waiting => now.duration_since(entry.created_at) < STALE_WAIT_TIMEOUT,
+                        ShareStatus::Waiting => {
+                            now.duration_since(entry.created_at) < STALE_WAIT_TIMEOUT
+                        }
                         ShareStatus::Complete => entry
                             .completed_at
                             .map(|t| now.duration_since(t) < COMPLETE_RETENTION)
@@ -412,7 +412,11 @@ async fn share_page(
     let download_url = format!("/s/{}/{}/dl", token, id);
     if entry.name.ends_with(".org") {
         if let Ok(content) = tokio::fs::read_to_string(&entry.path).await {
-            return Html(crate::org_renderer::render_org_share_page(&entry.name, &content)).into_response();
+            return Html(crate::org_renderer::render_org_share_page(
+                &entry.name,
+                &content,
+            ))
+            .into_response();
         }
     }
     let qr_svg = generate_qr_svg(&download_url).unwrap_or_default();
@@ -475,9 +479,12 @@ async fn share_download(
     );
     headers.insert(
         header::CONTENT_DISPOSITION,
-        format!("attachment; filename=\"{}\"", sanitize_filename(&entry.name))
-            .parse()
-            .unwrap(),
+        format!(
+            "attachment; filename=\"{}\"",
+            sanitize_filename(&entry.name)
+        )
+        .parse()
+        .unwrap(),
     );
     if total > 0 {
         headers.insert(header::CONTENT_LENGTH, total.to_string().parse().unwrap());

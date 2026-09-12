@@ -28,8 +28,17 @@ async fn authenticate<'a>(
     mut identifiers: Vec<Identity<'a>>,
 ) -> Result<(), Error> {
     use std::io::Write;
-    let mut file = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/polkit.log").unwrap();
-    writeln!(file, "authenticate called with action_id: {}, msg: {}, identities: {:?}", action_id, msg, identifiers).unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/polkit.log")
+        .unwrap();
+    writeln!(
+        file,
+        "authenticate called with action_id: {}, msg: {}, identities: {:?}",
+        action_id, msg, identifiers
+    )
+    .unwrap();
 
     if identifiers.is_empty() {
         writeln!(file, "Identifiers is empty").unwrap();
@@ -62,14 +71,17 @@ async fn authenticate<'a>(
             let message = session.async_dispatch().await?;
             match message {
                 Message::Request { prompt, .. } => {
-                    let _ = state.tx_event.send(crate::api::DaemonEvent::PolkitShowAuth {
-                        action_id: action_id.to_string(),
-                        message: msg.to_string(),
-                        icon_name: icon_name.to_string(),
-                        cookie: cookie.to_string(),
-                        user_name: session.user_name().to_string(),
-                        prompt: prompt.clone(),
-                    }).await;
+                    let _ = state
+                        .tx_event
+                        .send(crate::api::DaemonEvent::PolkitShowAuth {
+                            action_id: action_id.to_string(),
+                            message: msg.to_string(),
+                            icon_name: icon_name.to_string(),
+                            cookie: cookie.to_string(),
+                            user_name: session.user_name().to_string(),
+                            prompt: prompt.clone(),
+                        })
+                        .await;
 
                     if let Some(password) = rx.recv().await {
                         session.response(Response {
@@ -77,9 +89,12 @@ async fn authenticate<'a>(
                         })?;
                     } else {
                         POLKIT_CHANNELS.lock().await.remove(cookie);
-                        let _ = state.tx_event.send(crate::api::DaemonEvent::PolkitDismiss {
-                            cookie: cookie.to_string(),
-                        }).await;
+                        let _ = state
+                            .tx_event
+                            .send(crate::api::DaemonEvent::PolkitDismiss {
+                                cookie: cookie.to_string(),
+                            })
+                            .await;
                         return Err(Error::Cancelled);
                     }
                 }
@@ -104,10 +119,13 @@ async fn authenticate<'a>(
     }
 
     POLKIT_CHANNELS.lock().await.remove(cookie);
-    let _ = state.tx_event.send(crate::api::DaemonEvent::PolkitResult {
-        cookie: cookie.to_string(),
-        success,
-    }).await;
+    let _ = state
+        .tx_event
+        .send(crate::api::DaemonEvent::PolkitResult {
+            cookie: cookie.to_string(),
+            success,
+        })
+        .await;
 
     if !success {
         return Err(Error::Failed);
@@ -120,9 +138,12 @@ async fn cancel_authentication<'a>(
     cookie: &'a str,
 ) -> Result<(), Error> {
     if let Some(_tx) = POLKIT_CHANNELS.lock().await.remove(cookie) {
-        let _ = state.tx_event.send(crate::api::DaemonEvent::PolkitDismiss {
-            cookie: cookie.to_string(),
-        }).await;
+        let _ = state
+            .tx_event
+            .send(crate::api::DaemonEvent::PolkitDismiss {
+                cookie: cookie.to_string(),
+            })
+            .await;
     }
     Ok(())
 }
@@ -143,8 +164,17 @@ pub async fn start_agent(tx_event: mpsc::Sender<crate::api::DaemonEvent>) {
         {
             Ok(_conn) => {
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/polkit.log") {
-                    writeln!(f, "[backendqs] Polkit agent registered successfully on {}", object_path).unwrap();
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("/tmp/polkit.log")
+                {
+                    writeln!(
+                        f,
+                        "[backendqs] Polkit agent registered successfully on {}",
+                        object_path
+                    )
+                    .unwrap();
                 }
                 eprintln!("[backendqs] Polkit agent registered successfully.");
                 // Keep the connection alive indefinitely
@@ -153,7 +183,11 @@ pub async fn start_agent(tx_event: mpsc::Sender<crate::api::DaemonEvent>) {
             }
             Err(e) => {
                 use std::io::Write;
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/polkit.log") {
+                if let Ok(mut f) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open("/tmp/polkit.log")
+                {
                     writeln!(f, "[backendqs] Failed to register polkit agent: {}", e).unwrap();
                 }
                 eprintln!("[backendqs] Failed to register polkit agent: {}", e);
@@ -162,7 +196,11 @@ pub async fn start_agent(tx_event: mpsc::Sender<crate::api::DaemonEvent>) {
         }
     }
     use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/polkit.log") {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/polkit.log")
+    {
         writeln!(f, "[backendqs] Polkit agent: gave up after 5 retries.").unwrap();
     }
     eprintln!("[backendqs] Polkit agent: gave up after 5 retries.");

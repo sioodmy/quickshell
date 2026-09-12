@@ -1,9 +1,7 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Services.UPower
 
 import qs.theme
 import qs.services
@@ -11,49 +9,105 @@ import qs.components
 import "../history.js" as History
 
 /**
- * Lock surface — pink launcher-style ambient background with a Material 3
- * auth card that matches the dock bar. Entrance morphs the dock launcher
- * pill into the fullscreen pink field and the dock clock into the lock clock.
+ * Apple-inspired session lock.
+ *
+ * A single glass object begins at the live dock footprint, travels down the
+ * screen, and becomes the authentication card. The same object reverses on
+ * successful authentication, so entrance and exit never read as unrelated
+ * panels crossfading.
  */
 WlSessionLockSurface {
     id: surface
 
     property var controller
 
-    // Dark base so the pink field can morph outward from the dock launcher pill.
-    color: Theme.surface
+    color: Theme.background
 
     readonly property bool authenticating: controller ? controller.authenticating : false
     readonly property string statusMessage: controller ? controller.statusMessage : ""
     readonly property bool statusIsError: controller ? controller.statusIsError : false
     readonly property bool unlocking: controller ? controller.unlocking : false
+    readonly property bool mediaActive: Playerctl.hasPlayer && Playerctl.title.length > 0
 
-    // 0 → 1 lock entrance; 0 → 1 unlock exit (reverse morph).
+    property bool entranceStarted: false
     property real reveal: 0
     property real unlockProgress: 0
+    property real morph: 0
+    property real mediaFactor: mediaActive ? 1 : 0
 
-    // Combined progress: settled lock = 1, unlocking reverses toward 0.
-    readonly property real progress: {
-        if (unlockProgress > 0)
-            return Math.max(0, 1 - unlockProgress);
-        return reveal;
-    }
-    readonly property real eased: {
-        const t = progress;
-        return 1 - Math.pow(1 - t, 3);
+    property string historyTitle: ""
+    property string historyBody: ""
+    property string historyDateKey: ""
+
+    readonly property real phase: Math.max(0, Math.min(1, reveal - unlockProgress))
+    readonly property real contentProgress: Math.max(0, Math.min(1, (phase - 0.2) / 0.8))
+    readonly property real morphValue: Math.max(0, Math.min(1, morph))
+
+    function lerp(from, to, amount) {
+        return from + (to - from) * amount;
     }
 
-    function lerp(a, b, t) {
-        return a + (b - a) * t;
+    function beginEntrance() {
+        if (entranceStarted)
+            return;
+        entranceStarted = true;
+        frameFallback.stop();
+        reveal = 1;
+        morph = 1;
+        Qt.callLater(function() {
+            passwordInput.forceActiveFocus();
+        });
+    }
+
+    function refreshHistory() {
+        const now = new Date();
+        const key = now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate();
+        if (key === historyDateKey)
+            return;
+        historyDateKey = key;
+        const event = History.getTodayEvent();
+        historyTitle = event[0];
+        historyBody = event[1];
     }
 
     onUnlockingChanged: {
         if (unlocking) {
             unlockProgress = 1;
+            exitMorph.restart();
             passwordInput.clear();
-        } else {
-            unlockProgress = 0;
         }
+    }
+
+    onMediaActiveChanged: mediaFactor = mediaActive ? 1 : 0
+
+    Behavior on reveal {
+        NumberAnimation { duration: 430; easing.type: Easing.OutCubic }
+    }
+
+    Behavior on unlockProgress {
+        NumberAnimation { duration: 620; easing.type: Easing.InOutCubic }
+    }
+
+    Behavior on morph {
+        enabled: !surface.unlocking
+        SpringAnimation {
+            spring: 6
+            damping: 0.58
+            epsilon: 0.003
+        }
+    }
+
+    NumberAnimation {
+        id: exitMorph
+        target: surface
+        property: "morph"
+        to: 0
+        duration: 620
+        easing.type: Easing.InOutCubic
+    }
+
+    Behavior on mediaFactor {
+        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
     }
 
     SystemClock {
@@ -61,1091 +115,625 @@ WlSessionLockSurface {
         precision: SystemClock.Seconds
     }
 
-    // Approximate dock launcher / clock origins (dock contentColumn is 680px,
-    // vertically centered; launcher is 34² at top + 12).
-    readonly property real dockNotchTop: (height - 680) / 2
-    readonly property real launcherFromX: 5
-    readonly property real launcherFromY: dockNotchTop + 12
-    readonly property real launcherFromSize: 34
-    readonly property real clockFromX: (44 - 28) / 2
-    readonly property real clockFromY: launcherFromY + 34 + 10
-    readonly property real clockFromW: 28
-    readonly property real clockFromH: 58
+    // Never grabToImage on a WlSessionLockSurface — that path hits
+    // updatePixelRatioHelper and SIGSEGVs on Asahi. A short timer is enough
+    // for the surface to map before the entrance morph starts.
+    Timer {
+        id: frameFallback
+        interval: 48
+        onTriggered: surface.beginEntrance()
+    }
 
-    readonly property bool mediaActive: Playerctl.hasPlayer && Playerctl.title.length > 0
-
-    Item {
-        id: lockMask
-        anchors.fill: parent
-        visible: false
-        layer.enabled: true
-        layer.smooth: true
-
-        // Rounded reveal area that grows from left
-        Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            x: 0
-            width: Math.max(0, parent.width * surface.eased)
-            radius: 28
-            color: "black"
-        }
-        // Flat left edge filler (covers the left rounded corners)
-        Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            x: 0
-            width: Math.min(48, Math.max(0, parent.width * surface.eased))
-            color: "black"
-        }
+    Timer {
+        interval: 60000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: surface.refreshHistory()
     }
 
     Item {
-        id: lockContent
+        id: lockStage
         anchors.fill: parent
 
-        layer.enabled: true
-        layer.smooth: true
-        layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: lockMask
-            maskThresholdMin: 0.5
-            maskSpreadAtMin: 1.0
+        LockBackground {
+            progress: surface.phase
+            alive: surface.phase > 0.05 && !surface.unlocking
+            scale: 1.015 - surface.phase * 0.015
         }
 
-    // ========================================================================
-    //  Pink ambient background (launcher pinkLayer, fullscreen)
-    // ========================================================================
-    Item {
-        id: pinkBg
-        anchors.fill: parent
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0, 0, 0, 0.22 * (1 - surface.phase))
+        }
 
         Item {
-            id: pinkMorph
-            anchors.fill: parent
+            id: clockBlock
 
-            Rectangle {
-                id: pinkBase
-                anchors.fill: parent
-                radius: 0
-                color: "#f5bde6"
-                clip: true
+            readonly property real show: Math.max(0, Math.min(1, (surface.phase - 0.06) / 0.62))
 
-                // Soft white orb
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.55
-                    height: width
-                    radius: width / 2
-                    color: "#ffffff"
-                    opacity: 0.40
-                    x: parent.width * -0.05
-                    y: parent.height * -0.08
-                    transformOrigin: Item.Center
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.35; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * -0.08; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * -0.05; duration: 15000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * -0.12; duration: 17000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.18; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.08; duration: 16000; easing.type: Easing.InOutSine }
-                    }
-                    NumberAnimation on rotation {
-                        from: 0; to: 360; duration: 30000; loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                    }
-                }
-
-                // Soft lavender orb
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.5
-                    height: width
-                    radius: width / 2
-                    color: "#c6a0f6"
-                    opacity: 0.55
-                    x: parent.width * 0.55
-                    y: parent.height * -0.05
-                    transformOrigin: Item.Center
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.7; duration: 19000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.55; duration: 17000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * 0.25; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.1; duration: 18000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * -0.05; duration: 16000; easing.type: Easing.InOutSine }
-                    }
-                    NumberAnimation on rotation {
-                        from: 360; to: 0; duration: 35000; loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                    }
-                }
-
-                // Tertiary warm orb for depth
-                Rectangle {
-                    width: Math.max(parent.width, parent.height) * 0.35
-                    height: width
-                    radius: width / 2
-                    color: "#f5c2e7"
-                    opacity: 0.35
-                    x: parent.width * 0.15
-                    y: parent.height * 0.55
-                    visible: true
-
-                    SequentialAnimation on x {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.width * 0.4; duration: 20000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.05; duration: 17000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.width * 0.15; duration: 18000; easing.type: Easing.InOutSine }
-                    }
-                    SequentialAnimation on y {
-                        loops: Animation.Infinite
-                        running: surface.progress > 0.5 && surface.unlockProgress < 0.5
-                        NumberAnimation { to: surface.height * 0.35; duration: 19000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.7; duration: 16000; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: surface.height * 0.55; duration: 17000; easing.type: Easing.InOutSine }
-                    }
-                }
-            }
-        }
-    }
-
-    // Soft legibility scrim over pink for the auth card / clock
-    Rectangle {
-        anchors.fill: parent
-        opacity: Math.max(0, (surface.eased - 0.35) / 0.65)
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(0.07, 0.07, 0.09, 0.18) }
-            GradientStop { position: 0.45; color: Qt.rgba(0.07, 0.07, 0.09, 0.06) }
-            GradientStop { position: 1.0; color: Qt.rgba(0.07, 0.07, 0.09, 0.28) }
-        }
-    }
-
-    // ========================================================================
-    //  Morphing clock (dock stacked HH/mm → lockscreen HH:mm)
-    // ========================================================================
-    Item {
-        id: morphClock
-        z: 50
-
-        readonly property real p: 1.0
-        readonly property string hours: Qt.formatDateTime(clock.date, "HH")
-        readonly property string mins: Qt.formatDateTime(clock.date, "mm")
-        readonly property real fontPx: Math.round(surface.height * 0.14)
-        readonly property real colonGap: 2
-        readonly property real colonOpacity: 1
-        readonly property real rowW: hoursMetrics.width + colonMetrics.width * colonOpacity + minsMetrics.width + colonGap * 2
-        readonly property real rowH: fontPx * 1.15
-
-        // Settled clock target: top-center
-        readonly property real toX: (surface.width - width) / 2
-        readonly property real toY: surface.height * 0.12
-
-        width: Math.max(rowW, dateMetrics.width)
-        height: rowH + dateBlock.height + 8
-
-        x: toX
-        y: toY
-
-        TextMetrics {
-            id: hoursMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: morphClock.hours
-        }
-        TextMetrics {
-            id: minsMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: morphClock.mins
-        }
-        TextMetrics {
-            id: colonMetrics
-            font.family: "Google Sans"
-            font.pixelSize: morphClock.fontPx
-            font.weight: Font.Bold
-            font.letterSpacing: -2
-            text: ":"
-        }
-        TextMetrics {
-            id: dateMetrics
-            font.family: "Google Sans"
-            font.pixelSize: Math.round(surface.height * 0.022)
-            font.weight: Font.Medium
-            text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
-        }
-
-        readonly property color fromColor: Theme.on_surface
-        readonly property color toColor: Qt.rgba(0.19, 0.1, 0.25, 1)
-        readonly property color textColor: Qt.rgba(
-            surface.lerp(fromColor.r, toColor.r, p),
-            surface.lerp(fromColor.g, toColor.g, p),
-            surface.lerp(fromColor.b, toColor.b, p),
-            1
-        )
-
-        Text {
-            id: hoursText
-            text: morphClock.hours
-            color: morphClock.textColor
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
-                letterSpacing: morphClock.p > 0.5 ? -2 : 0
-            }
-            x: surface.lerp((morphClock.width - hoursText.width) / 2, (morphClock.width - morphClock.rowW) / 2, morphClock.p)
-            y: surface.lerp(0, 0, morphClock.p)
-        }
-
-        Text {
-            id: colonText
-            text: ":"
-            color: morphClock.textColor
-            opacity: morphClock.colonOpacity
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: Font.Bold
-                letterSpacing: -2
-            }
-            x: hoursText.x + hoursText.width + morphClock.colonGap
-            y: hoursText.y
-        }
-
-        Text {
-            id: minsText
-            text: morphClock.mins
-            color: morphClock.textColor
-            font {
-                family: "Google Sans"
-                pixelSize: morphClock.fontPx
-                weight: morphClock.p > 0.45 ? Font.Bold : Font.ExtraBold
-                letterSpacing: morphClock.p > 0.5 ? -2 : 0
-            }
-            x: surface.lerp(
-                (morphClock.width - minsText.width) / 2,
-                hoursText.x + hoursText.width + morphClock.colonGap + colonText.width * morphClock.colonOpacity + morphClock.colonGap,
-                morphClock.p
-            )
-            y: surface.lerp(hoursText.height, hoursText.y, morphClock.p)
-        }
-
-        Column {
-            id: dateBlock
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: morphClock.rowH + 4
-            spacing: 0
-            opacity: Math.max(0, Math.min(1, (morphClock.p - 0.55) / 0.3))
+            y: surface.height * 0.075 - (1 - show) * 22
+            width: timeText.width
+            height: timeText.height + dateText.height + 8
+            opacity: show
+            scale: 0.975 + show * 0.025
 
             Text {
+                id: timeText
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
-                color: Qt.rgba(0.19, 0.1, 0.25, 0.72)
+                text: Qt.formatDateTime(clock.date, "HH:mm")
+                color: Qt.rgba(1, 1, 1, 0.88)
                 font {
                     family: "Google Sans"
-                    pixelSize: Math.round(surface.height * 0.022)
-                    weight: Font.Medium
-                    letterSpacing: 0.8
+                    pixelSize: Math.max(82, Math.min(surface.width * 0.13, surface.height * 0.155))
+                    weight: Font.Black
+                    letterSpacing: -5
+                }
+            }
+
+            Text {
+                id: dateText
+                anchors.top: timeText.bottom
+                anchors.topMargin: -3
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Qt.formatDateTime(clock.date, "dddd, MMMM d")
+                color: Qt.rgba(1, 1, 1, 0.62)
+                font {
+                    family: "Google Sans"
+                    pixelSize: Math.max(15, Math.min(21, surface.height * 0.021))
+                    weight: Font.DemiBold
+                    letterSpacing: 0.25
                 }
             }
         }
-    }
-
-    // ========================================================================
-    //  Auth card — Material 3 surface matching the dock bar
-    // ========================================================================
-    Rectangle {
-        id: authCard
-        width: 420
-        height: authColumn.implicitHeight + 48
-        radius: 28
-        color: Theme.surface
-        border.width: 1
-        border.color: Theme.surface_container_high
-
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.verticalCenterOffset: surface.height * 0.06
-
-        // Panel reveal like calendar/launcher — fades in after pink has expanded.
-        transformOrigin: Item.Center
-        transform: Translate {
-            x: authCard.shakeX
-        }
-
-        property real shakeX: 0
-
-        SequentialAnimation {
-            id: shakeAnim
-            NumberAnimation { target: authCard; property: "shakeX"; to: -12; duration: 50 }
-            NumberAnimation { target: authCard; property: "shakeX"; to: 10; duration: 50 }
-            NumberAnimation { target: authCard; property: "shakeX"; to: -7; duration: 50 }
-            NumberAnimation { target: authCard; property: "shakeX"; to: 5; duration: 50 }
-            NumberAnimation { target: authCard; property: "shakeX"; to: 0; duration: 50 }
-        }
-
-        // Soft shadow matching launcher/calendar
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowBlur: 0.9
-            shadowColor: "#50000000"
-            shadowVerticalOffset: 10
-            shadowHorizontalOffset: 0
-        }
 
         Column {
-            id: authColumn
-            anchors.centerIn: parent
-            width: parent.width - 48
-            spacing: 16
+            id: historyCard
 
-            // Profile and Greeting Row
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 16
+            readonly property bool wideLayout: surface.width >= 1060
+            readonly property real show: Math.max(0, Math.min(1, (surface.phase - 0.42) / 0.5))
 
-                Rectangle {
-                    width: 64
-                    height: 64
-                    radius: width / 2
-                    color: Theme.surface_container_highest
-                    anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(300, surface.width - 40)
+            x: wideLayout ? surface.width - width - 42 : 20
+            y: wideLayout
+                ? surface.height - height - 42
+                : Math.min(surface.height * 0.37, shell.targetY - height - 28)
+            spacing: 4
+            opacity: show * 0.55
+            visible: surface.historyTitle.length > 0
+            transform: Translate { y: (1 - historyCard.show) * 12 }
 
-                    Image {
-                        id: avatarImg
-                        anchors.fill: parent
-                        source: "../based.png"
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        sourceSize: Qt.size(128, 128)
-                        layer.enabled: true
-                        layer.smooth: true
-                        layer.mipmap: true
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskThresholdMin: 0.5
-                            maskSpreadAtMin: 1.0
-                            maskSource: ShaderEffectSource {
-                                hideSource: true
-                                sourceItem: Rectangle { 
-                                    width: avatarImg.width
-                                    height: avatarImg.height
-                                    radius: width / 2
-                                    color: "black"
-                                    antialiasing: true
-                                }
+            Text {
+                width: parent.width
+                text: surface.historyTitle
+                color: Qt.rgba(1, 1, 1, 0.85)
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideRight
+                font {
+                    family: "Google Sans"
+                    pixelSize: 13
+                    weight: Font.DemiBold
+                    letterSpacing: 0.15
+                }
+            }
+
+            Text {
+                width: parent.width
+                text: surface.historyBody
+                color: Qt.rgba(1, 1, 1, 0.5)
+                horizontalAlignment: Text.AlignRight
+                wrapMode: Text.WordWrap
+                font {
+                    family: "Google Sans"
+                    pixelSize: 12
+                    weight: Font.Normal
+                }
+            }
+        }
+
+        Rectangle {
+            id: shell
+
+            readonly property real initialWidth: Math.max(238,
+                Math.min(LauncherState.dockWidth, surface.width - 24))
+            readonly property real initialHeight: Math.max(40,
+                Math.min(LauncherState.dockHeight, 52))
+            readonly property real initialRadius: Math.max(12, LauncherState.dockRadius)
+            readonly property real targetWidth: Math.min(440, surface.width - 32)
+            readonly property real targetHeight: Math.min(surface.height - 92,
+                228 + 88 * surface.mediaFactor)
+            readonly property real bottomGap: Math.max(42, Math.min(96, surface.height * 0.09))
+            readonly property real targetY: surface.height - targetHeight - bottomGap
+
+            x: (surface.width - width) / 2
+            y: surface.lerp(-14, targetY, surface.morphValue)
+            width: surface.lerp(initialWidth, targetWidth, surface.morphValue)
+            height: surface.lerp(initialHeight, targetHeight, surface.morphValue)
+            radius: surface.lerp(initialRadius, 34, surface.morphValue)
+            color: Qt.rgba(0.035, 0.04, 0.065,
+                surface.lerp(0.52, 0.64, surface.morphValue))
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1,
+                surface.lerp(0.22, 0.3, surface.morphValue))
+            clip: true
+
+            Behavior on color { ColorAnimation { duration: 300 } }
+            Behavior on border.color { ColorAnimation { duration: 300 } }
+
+            // Inner luminous wash. Clipping it inside the persistent shell
+            // creates the refractive edge without a separate shader surface.
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                gradient: Gradient {
+                    GradientStop { position: 0; color: Qt.rgba(1, 1, 1, 0.16) }
+                    GradientStop { position: 0.34; color: Qt.rgba(1, 1, 1, 0.055) }
+                    GradientStop { position: 0.72; color: Qt.rgba(1, 1, 1, 0.018) }
+                    GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0.12) }
+                }
+            }
+
+            BubbleSheen {}
+
+            Item {
+                id: authContent
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    top: parent.top
+                    leftMargin: 22
+                    rightMargin: 22
+                    topMargin: 16
+                }
+                height: mediaCard.y + mediaCard.height
+                opacity: surface.contentProgress
+                transform: Translate { y: (1 - surface.contentProgress) * 14 }
+
+                Item {
+                    id: welcomeHeader
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: parent.top
+                    }
+                    height: 38
+
+                    Rectangle {
+                        id: userGlyph
+                        width: 34
+                        height: 34
+                        radius: width / 2
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Qt.alpha(Theme.primary, 0.16)
+                        border.width: 1
+                        border.color: Qt.alpha(Theme.primary, 0.32)
+
+                        MaterialIcon {
+                            anchors.centerIn: parent
+                            icon: "person"
+                            fill: 0
+                            grade: -25
+                            weight: 300
+                            font.pixelSize: 18
+                            color: Theme.primary
+                        }
+                    }
+
+                    Column {
+                        anchors {
+                            left: userGlyph.right
+                            leftMargin: 10
+                            verticalCenter: parent.verticalCenter
+                        }
+                        spacing: 0
+
+                        Text {
+                            text: "Welcome back"
+                            color: Qt.rgba(1, 1, 1, 0.56)
+                            font {
+                                family: "Google Sans"
+                                pixelSize: 10
+                                weight: Font.Medium
+                                letterSpacing: 0.3
+                            }
+                        }
+
+                        Text {
+                            text: {
+                                const user = Quickshell.env("USER") || "user";
+                                return user.charAt(0).toUpperCase() + user.slice(1);
+                            }
+                            color: Qt.rgba(1, 1, 1, 0.96)
+                            font {
+                                family: "Google Sans"
+                                pixelSize: 17
+                                weight: Font.DemiBold
                             }
                         }
                     }
 
-                    // Material 3 style subtle avatar border overlay
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: "transparent"
-                        border.color: Theme.outline_variant
-                        border.width: 1
-                        antialiasing: true
-                    }
-                }
-
-                Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 2
-
                     Text {
-                        text: "Welcome back"
-                        color: Theme.on_surface_variant
-                        font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium; letterSpacing: 0.4 }
-                    }
-                    Text {
-                        text: {
-                            const u = Quickshell.env("USER") || "user";
-                            const capitalized = u.charAt(0).toUpperCase() + u.slice(1);
-                            return capitalized.split('').join(' ');
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: Qt.formatDateTime(clock.date, "h:mm AP")
+                        color: Qt.rgba(1, 1, 1, 0.38)
+                        font {
+                            family: "Google Sans"
+                            pixelSize: 11
+                            weight: Font.Medium
                         }
-                        color: Theme.on_surface
-                        font { family: "Noto Serif"; pixelSize: 24; italic: true; weight: Font.Medium; letterSpacing: 4.0 }
                     }
                 }
-            }
 
-            // Password field — M3 filled tonal, bar-matching grays
-            Rectangle {
-                id: pwField
-                width: parent.width
-                height: 56
-                radius: 16
-                color: passwordInput.activeFocus
-                    ? Theme.surface_container_high
-                    : Theme.surface_container
-                border.width: passwordInput.activeFocus ? 2 : 1
-                border.color: passwordInput.activeFocus ? Theme.primary : Theme.outline_variant
+                Rectangle {
+                    id: passwordField
 
-                Behavior on color { ColorAnimation { duration: 150 } }
-                Behavior on border.color { ColorAnimation { duration: 150 } }
+                    property real shakeX: 0
+                    property real errorPulse: 0
 
-                MaterialIcon {
-                    id: lockGlyph
-                    anchors.left: parent.left
-                    anchors.leftMargin: 16
-                    anchors.verticalCenter: parent.verticalCenter
-                    icon: "lock"
-                    font.pixelSize: 16
-                    color: passwordInput.activeFocus ? Theme.primary : Theme.on_surface_variant
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                }
-
-                Item {
-                    id: pwInputArea
-                    anchors.left: lockGlyph.right
-                    anchors.leftMargin: 12
-                    anchors.right: revealBtn.left
-                    anchors.rightMargin: 6
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: parent.height
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: welcomeHeader.bottom
+                        topMargin: 10
+                    }
+                    height: 42
+                    radius: height / 2
+                    color: passwordInput.activeFocus
+                        ? Qt.rgba(1, 1, 1, 0.14)
+                        : Qt.rgba(1, 1, 1, 0.09)
+                    border.width: 1
+                    border.color: errorPulse > 0
+                        ? Qt.alpha(Theme.critical, 0.55 + errorPulse * 0.35)
+                        : (passwordInput.activeFocus
+                            ? Qt.alpha(Theme.primary, 0.55)
+                            : Qt.rgba(1, 1, 1, 0.18))
+                    transform: Translate { x: passwordField.shakeX }
                     clip: true
+
+                    Behavior on color { ColorAnimation { duration: 140 } }
+                    Behavior on border.color { ColorAnimation { duration: 100 } }
+
+                    Rectangle {
+                        width: parent.width * passwordField.errorPulse
+                        height: parent.height
+                        radius: parent.radius
+                        color: Qt.alpha(Theme.critical, 0.08)
+                    }
+
+                    MaterialIcon {
+                        id: lockIcon
+                        anchors.left: parent.left
+                        anchors.leftMargin: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        icon: surface.authenticating ? "lock_clock" : "lock"
+                        fill: 0
+                        grade: -25
+                        weight: 300
+                        font.pixelSize: 15
+                        color: passwordInput.activeFocus
+                            ? Theme.primary
+                            : Qt.rgba(1, 1, 1, 0.55)
+
+                        Behavior on color { ColorAnimation { duration: 140 } }
+                    }
 
                     TextInput {
                         id: passwordInput
-                        anchors.fill: parent
+                        anchors {
+                            left: lockIcon.right
+                            leftMargin: 9
+                            right: revealButton.left
+                            rightMargin: 4
+                            top: parent.top
+                            bottom: parent.bottom
+                        }
                         verticalAlignment: TextInput.AlignVCenter
-                        color: revealBtn.revealed ? Theme.on_surface : "transparent"
-                        font { family: "Google Sans"; pixelSize: 17; weight: Font.Medium }
-                        echoMode: TextInput.Normal
+                        color: Qt.rgba(1, 1, 1, 0.94)
+                        selectionColor: Qt.alpha(Theme.primary, 0.42)
+                        selectedTextColor: "white"
+                        echoMode: revealButton.revealed ? TextInput.Normal : TextInput.Password
+                        passwordCharacter: "•"
+                        passwordMaskDelay: 0
                         cursorVisible: activeFocus
-                        clip: true
                         enabled: !surface.authenticating && !surface.unlocking
                         focus: true
-                        selectByMouse: revealBtn.revealed
-                        selectionColor: Theme.primary
-
-                        // Hide the native caret while masked — shapes row draws its own.
-                        // When revealed, this delegate is the only caret.
-                        cursorDelegate: Rectangle {
-                            width: revealBtn.revealed ? 2 : 0
-                            height: 16
-                            radius: 1
-                            color: Theme.primary
-                            visible: revealBtn.revealed
+                        clip: true
+                        font {
+                            family: "Google Sans"
+                            pixelSize: 14
+                            weight: Font.Medium
+                            letterSpacing: echoMode === TextInput.Password ? 2.2 : 0
                         }
 
                         onAccepted: {
-                            if (!surface.unlocking)
+                            if (surface.controller && text.length > 0 && !surface.unlocking)
                                 surface.controller.submit(text);
                         }
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.left: parent.left
                             visible: passwordInput.text.length === 0
                             text: "Enter password"
-                            color: Theme.on_surface_variant
-                            opacity: 0.7
+                            color: Qt.rgba(1, 1, 1, 0.38)
                             font: passwordInput.font
                         }
                     }
 
-                    // Shape glyphs instead of password dots (hidden when revealed)
-                    Row {
-                        id: pwShapes
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 7
-                        visible: !revealBtn.revealed
+                    Item {
+                        id: revealButton
+                        property bool revealed: false
 
-                        Repeater {
-                            model: passwordInput.text.length
+                        width: 26
+                        height: 26
+                        anchors {
+                            right: submitButton.left
+                            rightMargin: 2
+                            verticalCenter: parent.verticalCenter
+                        }
+                        visible: passwordInput.text.length > 0
+                        opacity: visible ? 1 : 0
 
-                            Item {
-                                id: shapeSlot
-                                width: 11
-                                height: 11
-                                // 0 = circle, 1 = square, 2 = triangle
-                                readonly property int kind: index % 3
-
-                                // Circle
-                                Rectangle {
-                                    visible: shapeSlot.kind === 0
-                                    anchors.centerIn: parent
-                                    width: 10
-                                    height: 10
-                                    radius: width / 2
-                                    color: Theme.on_surface
-                                }
-
-                                // Square
-                                Rectangle {
-                                    visible: shapeSlot.kind === 1
-                                    anchors.centerIn: parent
-                                    width: 9
-                                    height: 9
-                                    radius: 1.5
-                                    color: Theme.on_surface
-                                }
-
-                                // Triangle
-                                Shape {
-                                    visible: shapeSlot.kind === 2
-                                    anchors.centerIn: parent
-                                    width: 11
-                                    height: 10
-                                    layer.enabled: true
-                                    layer.samples: 4
-
-                                    ShapePath {
-                                        fillColor: Theme.on_surface
-                                        strokeWidth: 0
-                                        startX: 5.5; startY: 0.5
-                                        PathLine { x: 10.5; y: 9.5 }
-                                        PathLine { x: 0.5; y: 9.5 }
-                                        PathLine { x: 5.5; y: 0.5 }
-                                    }
-                                }
-                            }
+                        MaterialIcon {
+                            anchors.centerIn: parent
+                            icon: revealButton.revealed ? "visibility_off" : "visibility"
+                            fill: 0
+                            grade: -25
+                            weight: 300
+                            font.pixelSize: 14
+                            color: revealMouse.containsMouse
+                                ? Qt.rgba(1, 1, 1, 0.9)
+                                : Qt.rgba(1, 1, 1, 0.5)
                         }
 
-                        // Caret after the last shape
-                        Rectangle {
-                            id: pwCaret
-                            width: 2
-                            height: 16
-                            radius: 1
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.primary
-                            visible: passwordInput.activeFocus
-                            opacity: 1
-
-                            SequentialAnimation on opacity {
-                                running: pwCaret.visible
-                                loops: Animation.Infinite
-                                PauseAnimation { duration: 530 }
-                                PropertyAction { value: 0 }
-                                PauseAnimation { duration: 530 }
-                                PropertyAction { value: 1 }
+                        MouseArea {
+                            id: revealMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                revealButton.revealed = !revealButton.revealed;
+                                passwordInput.forceActiveFocus();
                             }
                         }
                     }
-                }
-
-                Item {
-                    id: revealBtn
-                    property bool revealed: false
-                    width: 30
-                    height: 30
-                    anchors.right: submitBtn.left
-                    anchors.rightMargin: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: passwordInput.text.length > 0
-                    opacity: visible ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 140 } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: revealBtn.revealed ? "visibility_off" : "visibility"
-                        font.pixelSize: 15
-                        color: revealMouse.containsMouse ? Theme.on_surface : Theme.on_surface_variant
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                    }
-                    MouseArea {
-                        id: revealMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: revealBtn.revealed = !revealBtn.revealed
-                    }
-                }
-
-                Rectangle {
-                    id: submitBtn
-                    width: 40
-                    height: 40
-                    radius: 12
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: Theme.primary
-                    opacity: (passwordInput.text.length > 0 && !surface.authenticating) ? 1 : 0
-                    scale: submitMouse.pressed ? 0.9 : ((passwordInput.text.length > 0) ? 1 : 0.7)
-                    visible: opacity > 0.01
-
-                    Behavior on opacity { NumberAnimation { duration: 160 } }
-                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
-
-                    MaterialIcon {
-                        anchors.centerIn: parent
-                        icon: "arrow_forward"
-                        font.pixelSize: 15
-                        color: Theme.on_primary
-                    }
-                    MouseArea {
-                        id: submitMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: surface.controller.submit(passwordInput.text)
-                    }
-                }
-            }
-
-            // Status
-            Item {
-                width: parent.width
-                height: statusRow.visible ? 20 : 0
-                Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-
-                Row {
-                    id: statusRow
-                    anchors.centerIn: parent
-                    spacing: 8
-                    visible: surface.authenticating || surface.unlocking || surface.statusMessage.length > 0
-                    opacity: visible ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 160 } }
-
-                    Shape {
-                        width: 14
-                        height: 14
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: surface.authenticating
-                        layer.enabled: true
-                        layer.samples: 4
-
-                        ShapePath {
-                            strokeWidth: 2
-                            strokeColor: Theme.primary
-                            fillColor: "transparent"
-                            capStyle: ShapePath.RoundCap
-                            PathAngleArc {
-                                centerX: 7; centerY: 7
-                                radiusX: 5; radiusY: 5
-                                startAngle: 0; sweepAngle: 270
-                                moveToStart: true
-                            }
-                        }
-
-                        RotationAnimation on rotation {
-                            from: 0; to: 360
-                            duration: 800
-                            loops: Animation.Infinite
-                            running: surface.authenticating
-                        }
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: surface.unlocking
-                            ? "Unlocked"
-                            : (surface.authenticating
-                                ? "Authenticating…"
-                                : surface.statusMessage)
-                        visible: text.length > 0
-                        color: surface.unlocking
-                            ? Theme.primary
-                            : (surface.statusIsError ? Theme.critical : Theme.on_surface_variant)
-                        font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
-                    }
-                }
-            }
-
-            // ----------------------------------------------------------------
-            //  Now playing — expands seamlessly inside the auth card
-            // ----------------------------------------------------------------
-            Rectangle {
-                id: mediaRow
-                width: parent.width
-                height: surface.mediaActive ? 72 : 0
-                radius: 16
-                color: Theme.surface_container
-                clip: true
-                visible: height > 0.5
-                opacity: surface.mediaActive ? 1 : 0
-
-                Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
-
-                Row {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 12
-                    opacity: surface.mediaActive ? 1 : 0
 
                     Rectangle {
-                        width: 52
-                        height: 52
-                        radius: 12
-                        color: Theme.surface_container_highest
+                        id: submitButton
+
+                        readonly property bool ready: passwordInput.text.length > 0
+                            && !surface.authenticating && !surface.unlocking
+
+                        width: 30
+                        height: 30
+                        radius: width / 2
+                        anchors {
+                            right: parent.right
+                            rightMargin: 6
+                            verticalCenter: parent.verticalCenter
+                        }
+                        color: ready
+                            ? Qt.alpha(Theme.primary, submitMouse.containsMouse ? 0.72 : 0.52)
+                            : Qt.rgba(1, 1, 1, 0.08)
+                        border.width: 1
+                        border.color: ready
+                            ? Qt.alpha(Theme.primary, 0.72)
+                            : Qt.rgba(1, 1, 1, 0.12)
+                        scale: submitMouse.pressed ? 0.9 : 1
                         clip: true
-                        anchors.verticalCenter: parent.verticalCenter
 
-                        Image {
-                            id: artImg
-                            anchors.fill: parent
-                            source: Playerctl.artUrl
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            cache: true
-                            sourceSize: Qt.size(104, 104)
-                            visible: status === Image.Ready
-
-                            layer.enabled: true
-                            layer.effect: MultiEffect {
-                                maskEnabled: true
-                                maskSource: ShaderEffectSource {
-                                    hideSource: true
-                                    sourceItem: Rectangle {
-                                        width: artImg.width
-                                        height: artImg.height
-                                        radius: 12
-                                        color: "black"
-                                        visible: false
-                                    }
-                                }
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1.0
-                            }
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
+                        Behavior on scale {
+                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                         }
 
                         MaterialIcon {
                             anchors.centerIn: parent
-                            visible: artImg.status !== Image.Ready
-                            icon: "music_note"
-                            font.pixelSize: 20
-                            color: Theme.on_surface_variant
-                        }
-                    }
-
-                    Column {
-                        width: parent.width - 52 - 12 - transport.width - 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            text: Playerctl.title
-                            elide: Text.ElideRight
-                            color: Theme.on_surface
-                            font { family: "Google Sans"; pixelSize: 14; weight: Font.DemiBold }
-                        }
-                        Text {
-                            width: parent.width
-                            text: Playerctl.artist
-                            elide: Text.ElideRight
-                            color: Theme.on_surface_variant
-                            font { family: "Google Sans"; pixelSize: 12 }
-                            visible: text.length > 0
+                            visible: !surface.authenticating
+                            icon: "arrow_forward"
+                            fill: 0
+                            grade: -25
+                            weight: 300
+                            font.pixelSize: 15
+                            color: submitButton.ready
+                                ? Qt.rgba(1, 1, 1, 0.96)
+                                : Qt.rgba(1, 1, 1, 0.3)
                         }
 
-                        Item {
-                            width: parent.width
-                            height: 7
-                            visible: Playerctl.length > 0
+                        Shape {
+                            width: 18
+                            height: 18
+                            anchors.centerIn: parent
+                            visible: surface.authenticating
+                            preferredRendererType: Shape.CurveRenderer
 
-                            Rectangle {
-                                anchors.bottom: parent.bottom
-                                width: parent.width
-                                height: 3
-                                radius: 1.5
-                                color: Theme.surface_container_highest
-
-                                Rectangle {
-                                    height: parent.height
-                                    radius: parent.radius
-                                    width: parent.width * (Playerctl.length > 0
-                                        ? Math.min(1, Playerctl.position / Playerctl.length) : 0)
-                                    color: Theme.primary
-                                    Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+                            ShapePath {
+                                strokeWidth: 2
+                                strokeColor: Theme.primary
+                                fillColor: "transparent"
+                                capStyle: ShapePath.RoundCap
+                                PathAngleArc {
+                                    centerX: 9
+                                    centerY: 9
+                                    radiusX: 6
+                                    radiusY: 6
+                                    startAngle: 0
+                                    sweepAngle: 285
+                                    moveToStart: true
                                 }
                             }
-                        }
-                    }
 
-                    Row {
-                        id: transport
-                        spacing: 4
-                        anchors.verticalCenter: parent.verticalCenter
-
-                        component MediaBtn: Rectangle {
-                            property string icon
-                            property bool accent: false
-                            signal triggered
-
-                            width: 36
-                            height: 36
-                            radius: 10
-                            color: {
-                                if (accent)
-                                    return Theme.primary;
-                                return btnMouse.containsMouse
-                                    ? Theme.surface_container_highest
-                                    : "transparent";
-                            }
-                            Behavior on color { ColorAnimation { duration: 120 } }
-
-                            MaterialIcon {
-                                anchors.centerIn: parent
-                                icon: parent.icon
-                                font.pixelSize: 15
-                                color: parent.accent ? Theme.on_primary : Theme.on_surface
-                            }
-                            MouseArea {
-                                id: btnMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: parent.triggered()
+                            RotationAnimation on rotation {
+                                from: 0
+                                to: 360
+                                duration: 760
+                                loops: Animation.Infinite
+                                running: surface.authenticating
                             }
                         }
 
-                        MediaBtn {
-                            icon: "skip_previous"
-                            onTriggered: Playerctl.previous()
-                        }
-                        MediaBtn {
-                            icon: Playerctl.isPlaying ? "pause" : "play_arrow"
-                            accent: true
-                            onTriggered: Playerctl.playPause()
-                        }
-                        MediaBtn {
-                            icon: "skip_next"
-                            onTriggered: Playerctl.next()
+                        MouseArea {
+                            id: submitMouse
+                            anchors.fill: parent
+                            enabled: submitButton.ready
+                            hoverEnabled: true
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: surface.controller.submit(passwordInput.text)
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // ========================================================================
-    //  Bottom session chrome — bar-matching pills
-    // ========================================================================
-    Rectangle {
-        id: bottomChromeBar
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: -22
-        width: bottomChrome.implicitWidth + 32
-        height: bottomChrome.implicitHeight + 24 + 22
-        radius: 22
-        color: Theme.surface
-
-        Row {
-            id: bottomChrome
-            anchors.centerIn: parent
-            anchors.verticalCenterOffset: -11
-            spacing: 12
-
-            // Battery
-            Rectangle {
-                id: battPill
-                height: 40
-                width: battRow.implicitWidth + 28
-                radius: 14
-                color: "transparent"
-                visible: UPower.displayDevice?.isPresent ?? false
-                anchors.verticalCenter: parent.verticalCenter
-
-            Row {
-                id: battRow
-                anchors.centerIn: parent
-                spacing: 8
-
-                readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
-                readonly property bool charging: !UPower.onBattery
 
                 Item {
-                    width: 28
-                    height: 14
-                    anchors.verticalCenter: parent.verticalCenter
+                    id: statusArea
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: passwordField.bottom
+                        topMargin: 2
+                    }
+                    height: 18
 
-                    Rectangle {
-                        id: battBody
-                        anchors {
-                            left: parent.left; top: parent.top; bottom: parent.bottom
-                            right: parent.right; rightMargin: 3
+                    Text {
+                        anchors.centerIn: parent
+                        text: {
+                            if (surface.unlocking)
+                                return "Unlocked";
+                            if (surface.authenticating)
+                                return "Authenticating…";
+                            return surface.statusMessage;
                         }
-                        radius: 3
-                        color: "transparent"
-                        border.width: 1.5
-                        border.color: {
-                            if (battRow.capacity <= 20 && !battRow.charging)
-                                return Theme.critical;
-                            if (battRow.charging)
-                                return "#7ee787";
-                            return Theme.on_surface;
+                        color: surface.statusIsError
+                            ? Theme.critical
+                            : (surface.unlocking ? Theme.primary : Qt.rgba(1, 1, 1, 0.5))
+                        opacity: text.length > 0 ? 1 : 0
+                        font {
+                            family: "Google Sans"
+                            pixelSize: 11
+                            weight: Font.Medium
                         }
-                    }
-                    Rectangle {
-                        width: 2.5; height: 5
-                        anchors { left: battBody.right; verticalCenter: parent.verticalCenter }
-                        radius: 1
-                        color: battBody.border.color
-                    }
-                    Rectangle {
-                        anchors {
-                            left: battBody.left; top: battBody.top; bottom: battBody.bottom
-                            margins: 2.5
-                        }
-                        radius: 1
-                        width: Math.max(0, (battBody.width - 5) * (battRow.capacity / 100))
-                        color: battBody.border.color
-                        opacity: 0.85
-                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on opacity { NumberAnimation { duration: 140 } }
                     }
                 }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Math.round(battRow.capacity) + "%"
-                    color: Theme.on_surface
-                    font { family: "Google Sans"; pixelSize: 13; weight: Font.Medium }
+                LockMediaCard {
+                    id: mediaCard
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: statusArea.bottom
+                        topMargin: 6
+                    }
+                    height: implicitHeight
+                    mediaActive: surface.mediaActive
+                    presentationProgress: Math.max(0,
+                        Math.min(1, (surface.contentProgress - 0.3) / 0.7))
                 }
             }
-        }
 
-        // Session controls
-        Row {
-            spacing: 8
-            anchors.verticalCenter: parent.verticalCenter
-
-            component SessionBtn: Rectangle {
-                property string icon
-                property color accent: Theme.on_surface
-                signal triggered
-
-                width: 40
+            LockSessionBar {
+                id: sessionBar
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    bottom: parent.bottom
+                    leftMargin: 12 + surface.morphValue * 4
+                    rightMargin: 12 + surface.morphValue * 4
+                    bottomMargin: -1 + surface.morphValue * 12
+                }
                 height: 40
-                radius: 14
-                scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.04 : 1.0)
-                color: {
-                    if (btnArea.pressed)
-                        return Theme.surface_container_high;
-                    if (btnArea.containsMouse)
-                        return Theme.surface_container;
-                    return "transparent";
-                }
-
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
-                Behavior on color { ColorAnimation { duration: 120 } }
-
-                MaterialIcon {
-                    anchors.centerIn: parent
-                    icon: parent.icon
-                    font.pixelSize: 16
-                    color: parent.accent
-                    opacity: btnArea.containsMouse ? 1 : 0.85
-                }
-
-                MouseArea {
-                    id: btnArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: parent.triggered()
-                }
+                presentationProgress: surface.contentProgress
+                opacity: 0.28 + surface.contentProgress * 0.72
+                scale: 0.96 + surface.contentProgress * 0.04
             }
-
-            SessionBtn {
-                icon: "bedtime"
-                onTriggered: Quickshell.execDetached(["systemctl", "suspend"])
-            }
-            SessionBtn {
-                icon: "restart_alt"
-                onTriggered: Quickshell.execDetached(["systemctl", "reboot"])
-            }
-            SessionBtn {
-                icon: "power_settings_new"
-                accent: Theme.critical
-                onTriggered: Quickshell.execDetached(["systemctl", "poweroff"])
-            }
-        }
         }
     }
 
-    // Historical event text
-    Column {
-        id: historyBox
-        anchors.bottom: parent.bottom
-        anchors.right: parent.right
-        anchors.margins: 48
-        spacing: 4
-        visible: text1.text !== ""
-        opacity: 0.55
-        
-        Text {
-            id: text1
-            font { family: "Google Sans"; pixelSize: 18; weight: Font.Bold }
-            color: Theme.on_surface
-            text: ""
-            horizontalAlignment: Text.AlignRight
-            anchors.right: parent.right
+    SequentialAnimation {
+        id: passwordShake
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: -18
+            duration: 42
+            easing.type: Easing.OutQuad
         }
-        Text {
-            id: text2
-            font { family: "Google Sans"; pixelSize: 16 }
-            color: Theme.on_surface_variant
-            text: ""
-            horizontalAlignment: Text.AlignRight
-            anchors.right: parent.right
-            width: Math.min(implicitWidth, 600)
-            wrapMode: Text.WordWrap
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: 16
+            duration: 48
+            easing.type: Easing.InOutQuad
         }
-
-        Component.onCompleted: {
-            const ev = History.getTodayEvent();
-            text1.text = ev[0];
-            text2.text = ev[1];
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: -12
+            duration: 46
+            easing.type: Easing.InOutQuad
+        }
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: 8
+            duration: 44
+            easing.type: Easing.InOutQuad
+        }
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: -4
+            duration: 40
+            easing.type: Easing.InOutQuad
+        }
+        NumberAnimation {
+            target: passwordField
+            property: "shakeX"
+            to: 0
+            duration: 52
+            easing.type: Easing.OutCubic
         }
     }
 
-    } // end lockContent
+    SequentialAnimation {
+        id: errorFlash
+        NumberAnimation {
+            target: passwordField
+            property: "errorPulse"
+            from: 0
+            to: 1
+            duration: 90
+            easing.type: Easing.OutCubic
+        }
+        PauseAnimation { duration: 170 }
+        NumberAnimation {
+            target: passwordField
+            property: "errorPulse"
+            to: 0
+            duration: 240
+            easing.type: Easing.OutCubic
+        }
+    }
 
-
-    // ========================================================================
-    //  Behaviour glue
-    // ========================================================================
     Connections {
         target: surface.controller
+
         function onStatusIsErrorChanged() {
-            if (surface.controller.statusIsError && !surface.unlocking) {
-                shakeAnim.restart();
-                passwordInput.clear();
-                passwordInput.forceActiveFocus();
-            }
+            if (!surface.controller || !surface.controller.statusIsError || surface.unlocking)
+                return;
+            passwordShake.restart();
+            errorFlash.restart();
+            passwordInput.clear();
+            passwordInput.forceActiveFocus();
         }
-    }
-
-    Behavior on reveal {
-        NumberAnimation { duration: 520; easing.type: Easing.OutCubic }
-    }
-
-    Behavior on unlockProgress {
-        NumberAnimation { duration: 480; easing.type: Easing.InCubic }
     }
 
     Component.onCompleted: {
-        passwordInput.forceActiveFocus();
-        reveal = 1;
+        refreshHistory();
+        frameFallback.start();
     }
 }

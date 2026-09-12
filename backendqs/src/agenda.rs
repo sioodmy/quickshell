@@ -27,10 +27,16 @@ pub fn parse_directory(dir: &Path) -> Result<Vec<AgendaItem>> {
     let re_state = Regex::new(r"^(TODO|DONE|WAITING|CANCELLED|NEXT|HOLD)\s+(.*)").unwrap();
     let re_priority = Regex::new(r"^\[#([A-C])\]\s+(.*)").unwrap();
     let re_tags = Regex::new(r"^(.*?)\s+(:[a-zA-Z0-9_:]+:)\s*$").unwrap();
-    
-    let re_deadline = Regex::new(r"DEADLINE:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?").unwrap();
-    let re_scheduled = Regex::new(r"SCHEDULED:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?").unwrap();
-    let re_closed = Regex::new(r"CLOSED:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?").unwrap();
+
+    let re_deadline =
+        Regex::new(r"DEADLINE:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?")
+            .unwrap();
+    let re_scheduled =
+        Regex::new(r"SCHEDULED:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?")
+            .unwrap();
+    let re_closed =
+        Regex::new(r"CLOSED:\s*[<\[](\d{4}-\d{2}-\d{2})(?:\s+[A-Za-z]+)?(?:\s+(\d{2}:\d{2}))?")
+            .unwrap();
 
     if !dir.exists() || !dir.is_dir() {
         return Ok(items);
@@ -81,7 +87,11 @@ pub fn parse_directory(dir: &Path) -> Result<Vec<AgendaItem>> {
                     if let Some(tcap) = re_tags.captures(&rest) {
                         new_rest = tcap[1].trim_end().to_string();
                         let tags_str = tcap[2].to_string();
-                        tags = tags_str.split(':').filter(|s| !s.is_empty()).map(|s| s.to_string()).collect();
+                        tags = tags_str
+                            .split(':')
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string())
+                            .collect();
                     } else {
                         new_rest = rest.trim_end().to_string();
                     }
@@ -126,8 +136,15 @@ pub fn parse_directory(dir: &Path) -> Result<Vec<AgendaItem>> {
                     }
 
                     let stripped = line.trim_start();
-                    if !stripped.is_empty() && !stripped.starts_with(':') && !stripped.starts_with("DEADLINE:") && !stripped.starts_with("SCHEDULED:") && !stripped.starts_with("CLOSED:") && body_lines_count < 3 {
-                        let is_timestamp_only = stripped.starts_with('[') || stripped.starts_with('<');
+                    if !stripped.is_empty()
+                        && !stripped.starts_with(':')
+                        && !stripped.starts_with("DEADLINE:")
+                        && !stripped.starts_with("SCHEDULED:")
+                        && !stripped.starts_with("CLOSED:")
+                        && body_lines_count < 3
+                    {
+                        let is_timestamp_only =
+                            stripped.starts_with('[') || stripped.starts_with('<');
                         if !is_timestamp_only {
                             if !item.body.is_empty() {
                                 item.body.push('\n');
@@ -198,19 +215,19 @@ pub fn toggle_todo(dir: &Path, file: &str, title: &str) -> Result<()> {
         if let Some(cap) = re_heading.captures(line) {
             let stars = cap[1].to_string();
             let mut rest = cap[2].to_string();
-            
+
             let mut state = String::new();
             if let Some(scap) = re_state.captures(&rest) {
                 state = scap[1].to_string();
                 rest = scap[2].to_string();
             }
-            
+
             let mut priority = String::new();
             if let Some(pcap) = re_priority.captures(&rest) {
                 priority = format!("[#{}]", &pcap[1]);
                 rest = pcap[2].to_string();
             }
-            
+
             let new_rest;
             let mut tags = String::new();
             if let Some(tcap) = re_tags.captures(&rest) {
@@ -226,7 +243,7 @@ pub fn toggle_todo(dir: &Path, file: &str, title: &str) -> Result<()> {
                     "DONE" | "CANCELLED" => "TODO",
                     _ => "TODO",
                 };
-                
+
                 let mut new_line = format!("{} {}", stars, new_state);
                 if !priority.is_empty() {
                     new_line.push_str(&format!(" {}", priority));
@@ -251,6 +268,6 @@ pub fn toggle_todo(dir: &Path, file: &str, title: &str) -> Result<()> {
         }
         fs::write(&path, out)?;
     }
-    
+
     Ok(())
 }

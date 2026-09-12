@@ -6,7 +6,7 @@ Item {
     required property var weather
     property real revealProgress: 1.0
 
-    readonly property real celestialSize: 16
+    readonly property real celestialSize: 14
 
     function windParts(raw) {
         var parts = (raw || "").trim().split(/\s+/);
@@ -26,10 +26,10 @@ Item {
     }
 
     readonly property var statTiles: [
-        { icon: "💧", label: "Humidity", value: weather.info.humidity || "—", detail: "" },
-        { icon: "☀️", label: "UV Index", value: weather.info.uv || "—", detail: "" },
-        { icon: "💨", label: "Wind", value: windParts(weather.info.wind).speed, detail: windParts(weather.info.wind).dir },
-        { icon: "🌀", label: "Pressure", value: pressureParts(weather.info.pressure).value, detail: pressureParts(weather.info.pressure).unit }
+        { icon: "💧", label: "Humidity", value: weather.info.humidity || "—" },
+        { icon: "☀️", label: "UV", value: weather.info.uv || "—" },
+        { icon: "💨", label: "Wind", value: windParts(weather.info.wind).speed },
+        { icon: "🌀", label: "Pressure", value: pressureParts(weather.info.pressure).value }
     ]
 
     opacity: revealProgress
@@ -42,18 +42,18 @@ Item {
     Rectangle {
         id: weatherSurface
         anchors.fill: parent
-        radius: 20
+        radius: 16
         clip: true
 
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: weather.gradBottom
+                color: Qt.alpha(weather.gradBottom, 0.5)
                 Behavior on color { ColorAnimation { duration: 700; easing.type: Easing.InOutCubic } }
             }
             GradientStop {
                 position: 1.0
-                color: weather.gradTop
+                color: Qt.alpha(weather.gradTop, 0.45)
                 Behavior on color { ColorAnimation { duration: 700; easing.type: Easing.InOutCubic } }
             }
         }
@@ -63,86 +63,114 @@ Item {
 
         Column {
             anchors.fill: parent
-            anchors.margins: 20
-            spacing: 12
+            anchors.margins: 14
+            spacing: 10
 
-            Column {
+            // Hero — replaces the old pink banner header
+            Row {
                 width: parent.width
-                spacing: 8
+                height: 56
+                spacing: 12
 
                 Text {
-                    text: "HOURLY"
-                    color: Qt.rgba(1, 1, 1, 0.38)
-                    font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.4 }
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: weather.info.emoji || "🌤"
+                    font.pixelSize: 40
+                    opacity: 0.92
                 }
 
-                Flickable {
-                    width: parent.width
-                    height: 68
-                    contentWidth: hourlyRow.width
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 1
+                    width: parent.width - 52 - 12
 
                     Row {
-                        id: hourlyRow
-                        spacing: 6
+                        spacing: 8
+                        Text {
+                            text: weather.info.valid ? weather.info.temp : "—"
+                            color: "#ffffff"
+                            font { family: "Google Sans"; pixelSize: 28; weight: Font.Light }
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: weather.info.condition || (weather.info.valid ? "" : "Loading…")
+                            color: Qt.rgba(1, 1, 1, 0.72)
+                            font { family: "Google Sans"; pixelSize: 13 }
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            width: Math.min(implicitWidth, 180)
+                        }
+                    }
 
-                        Repeater {
-                            model: {
-                                var hours = weather.info.hourlyForecast || [];
-                                return hours.slice(0, Math.min(12, hours.length));
-                            }
+                    Row {
+                        spacing: 8
+                        Text {
+                            text: weather.info.location || "Weather"
+                            color: Qt.rgba(1, 1, 1, 0.48)
+                            font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
+                        }
+                        Text {
+                            text: weather.info.valid ? ("H " + weather.info.maxTemp + "  L " + weather.info.minTemp) : ""
+                            color: Qt.rgba(1, 1, 1, 0.42)
+                            font { family: "Google Sans"; pixelSize: 11 }
+                            visible: text !== ""
+                        }
+                    }
+                }
+            }
 
-                            delegate: Rectangle {
-                                required property var modelData
-                                required property int index
+            Flickable {
+                width: parent.width
+                height: 58
+                contentWidth: hourlyRow.width
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
 
-                                opacity: root.revealProgress
-                                scale: 0.94 + 0.06 * root.revealProgress
+                Row {
+                    id: hourlyRow
+                    spacing: 5
 
-                                Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-                                Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 0.6 } }
+                    Repeater {
+                        model: {
+                            var hours = weather.info.hourlyForecast || [];
+                            return hours.slice(0, Math.min(12, hours.length));
+                        }
 
-                                width: 48
-                                height: 66
-                                radius: 14
-                                color: index === 0
-                                       ? Qt.rgba(1, 1, 1, 0.16)
-                                       : Qt.rgba(1, 1, 1, 0.07)
-                                border.color: index === 0 ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
-                                border.width: 1
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
 
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 3
+                            width: 42
+                            height: 56
+                            radius: 12
+                            color: index === 0
+                                   ? Qt.rgba(1, 1, 1, 0.16)
+                                   : Qt.rgba(1, 1, 1, 0.07)
+                            border.color: index === 0 ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.08)
+                            border.width: 1
 
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: index === 0 ? "Now" : (modelData.hour + ":00")
-                                        color: Qt.rgba(1, 1, 1, index === 0 ? 0.92 : 0.58)
-                                        font { family: "Google Sans"; pixelSize: 9; weight: index === 0 ? Font.Bold : Font.Normal }
-                                    }
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 2
 
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modelData.emoji || ""
-                                        font.pixelSize: 18
-                                    }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: index === 0 ? "Now" : (modelData.hour + ":00")
+                                    color: Qt.rgba(1, 1, 1, index === 0 ? 0.92 : 0.55)
+                                    font { family: "Google Sans"; pixelSize: 9; weight: index === 0 ? Font.Bold : Font.Normal }
+                                }
 
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: (modelData.temp || "—") + "°"
-                                        color: "#ffffff"
-                                        font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                    }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: modelData.emoji || ""
+                                    font.pixelSize: 15
+                                }
 
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: parseInt(modelData.chanceOfRain || "0") > 20 ? modelData.chanceOfRain + "%" : ""
-                                        color: "#9ec5ff"
-                                        font { family: "Google Sans"; pixelSize: 8 }
-                                        visible: text !== ""
-                                    }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: (modelData.temp || "—") + "°"
+                                    color: "#ffffff"
+                                    font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                 }
                             }
                         }
@@ -150,11 +178,10 @@ Item {
                 }
             }
 
-            // M3-style detail tiles
             Row {
                 id: statsRow
                 width: parent.width
-                spacing: 8
+                spacing: 6
 
                 Repeater {
                     model: root.statTiles
@@ -165,32 +192,32 @@ Item {
                         required property int index
 
                         width: (statsRow.width - statsRow.spacing * 3) / 4
-                        height: 52
-                        radius: 14
-                        color: Qt.rgba(1, 1, 1, 0.04)
+                        height: 40
+                        radius: 12
+                        color: Qt.rgba(1, 1, 1, 0.05)
 
                         Row {
                             anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 8
-                            spacing: 8
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 6
+                            spacing: 6
 
                             Text {
                                 text: modelData.icon
-                                font.pixelSize: 15
+                                font.pixelSize: 13
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
                             Column {
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: statTile.width - 34
-                                spacing: 1
+                                width: statTile.width - 30
+                                spacing: 0
 
                                 Text {
                                     width: parent.width
                                     text: modelData.label
                                     color: Qt.rgba(1, 1, 1, 0.4)
-                                    font { family: "Google Sans"; pixelSize: 9 }
+                                    font { family: "Google Sans"; pixelSize: 8 }
                                     elide: Text.ElideRight
                                 }
 
@@ -198,16 +225,7 @@ Item {
                                     width: parent.width
                                     text: modelData.value
                                     color: Qt.rgba(1, 1, 1, 0.88)
-                                    font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
-                                    elide: Text.ElideRight
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    text: modelData.detail || ""
-                                    visible: text !== ""
-                                    color: Qt.rgba(1, 1, 1, 0.45)
-                                    font { family: "Google Sans"; pixelSize: 9 }
+                                    font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                     elide: Text.ElideRight
                                 }
                             }
@@ -219,29 +237,22 @@ Item {
             Row {
                 id: bottomRow
                 width: parent.width
-                spacing: 10
+                spacing: 8
 
                 Column {
                     id: dailyColumn
-                    width: (parent.width - 10) / 2
-                    spacing: 8
+                    width: (parent.width - 8) / 2
+                    spacing: 6
 
                     Text {
-                        text: "3-DAY FORECAST"
+                        text: "3-DAY"
                         color: Qt.rgba(1, 1, 1, 0.38)
-                        font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.4 }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: Qt.rgba(1, 1, 1, 0.08)
+                        font { family: "Google Sans"; pixelSize: 9; weight: Font.Bold; letterSpacing: 1.2 }
                     }
 
                     Column {
-                        id: dailyList
                         width: parent.width
-                        spacing: 3
+                        spacing: 2
 
                         Repeater {
                             model: {
@@ -253,8 +264,8 @@ Item {
                                 required property var modelData
                                 required property int index
                                 width: dailyColumn.width
-                                height: 38
-                                radius: 10
+                                height: 32
+                                radius: 8
                                 color: index === 0 ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03)
 
                                 Text {
@@ -262,84 +273,34 @@ Item {
                                     anchors.leftMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.dayName || ""
-                                    color: index === 0 ? Qt.rgba(1, 1, 1, 0.95) : Qt.rgba(1, 1, 1, 0.72)
-                                    width: 36
-                                    font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                                    color: index === 0 ? Qt.rgba(1, 1, 1, 0.95) : Qt.rgba(1, 1, 1, 0.7)
+                                    width: 32
+                                    font { family: "Google Sans"; pixelSize: 11; weight: Font.Medium }
                                 }
 
                                 Text {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: 46
+                                    anchors.leftMargin: 40
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.emoji || ""
-                                    font.pixelSize: 15
-                                }
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: 66
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: rainPillText.width + 8
-                                    height: 14
-                                    radius: 7
-                                    color: Qt.rgba(0.48, 0.67, 0.97, 0.15)
-                                    visible: parseInt(modelData.chanceOfRain || "0") > 10
-
-                                    Text {
-                                        id: rainPillText
-                                        anchors.centerIn: parent
-                                        text: modelData.chanceOfRain + "%"
-                                        color: "#7cacf8"
-                                        font { family: "Google Sans"; pixelSize: 8; weight: Font.Medium }
-                                    }
+                                    font.pixelSize: 13
                                 }
 
                                 Row {
                                     anchors.right: parent.right
-                                    anchors.rightMargin: 4
+                                    anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 4
+                                    spacing: 6
 
                                     Text {
                                         text: modelData.minTemp + "°"
                                         color: Qt.rgba(1, 1, 1, 0.4)
                                         font { family: "Google Sans"; pixelSize: 10 }
-                                        anchors.verticalCenter: parent.verticalCenter
                                     }
-
-                                    Rectangle {
-                                        width: 44
-                                        height: 4
-                                        radius: 2
-                                        color: Qt.rgba(1, 1, 1, 0.06)
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Rectangle {
-                                            height: parent.height
-                                            radius: 2
-                                            x: {
-                                                var minAll = 0, maxAll = 40;
-                                                return Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll)) * parent.width;
-                                            }
-                                            width: {
-                                                var minAll = 0, maxAll = 40;
-                                                var start = Math.max(0, (parseInt(modelData.minTemp) - minAll) / (maxAll - minAll));
-                                                var end = Math.min(1, (parseInt(modelData.maxTemp) - minAll) / (maxAll - minAll));
-                                                return Math.max(3, (end - start) * parent.width);
-                                            }
-                                            gradient: Gradient {
-                                                orientation: Gradient.Horizontal
-                                                GradientStop { position: 0; color: "#5b8def" }
-                                                GradientStop { position: 1; color: "#f0a050" }
-                                            }
-                                        }
-                                    }
-
                                     Text {
                                         text: modelData.maxTemp + "°"
                                         color: Qt.rgba(1, 1, 1, 0.85)
                                         font { family: "Google Sans"; pixelSize: 10; weight: Font.Medium }
-                                        anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
                             }
@@ -348,39 +309,30 @@ Item {
                 }
 
                 Column {
-                    id: sunColumn
-                    width: (bottomRow.width - 10) / 2
-                    height: dailyColumn.height
-                    spacing: 8
+                    width: (bottomRow.width - 8) / 2
+                    spacing: 6
 
                     Text {
                         text: "SUN & MOON"
                         color: Qt.rgba(1, 1, 1, 0.38)
-                        font { family: "Google Sans"; pixelSize: 10; weight: Font.Bold; letterSpacing: 1.4 }
+                        font { family: "Google Sans"; pixelSize: 9; weight: Font.Bold; letterSpacing: 1.2 }
                     }
 
                     Rectangle {
                         width: parent.width
-                        height: 1
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: parent.height - 26
-                        radius: 14
+                        height: 110
+                        radius: 12
                         color: Qt.rgba(1, 1, 1, 0.04)
 
                         Column {
                             anchors.fill: parent
                             anchors.margins: 10
-                            spacing: 6
+                            spacing: 8
 
-                            // Pure QML sun arc (no Canvas)
                             Item {
                                 id: sunArc
                                 width: parent.width
-                                height: parent.height - 44
+                                height: 48
                                 clip: true
 
                                 property real progress: {
@@ -392,24 +344,21 @@ Item {
                                     return weather.isDaytime;
                                 }
 
-                                readonly property real arcBase: height - 4
-                                // Reserve enough headroom for the sun glow at peak height.
-                                readonly property real arcRadius: Math.min(width / 2 - 8, height - 18)
+                                readonly property real arcBase: height - 2
+                                readonly property real arcRadius: Math.min(width / 2 - 6, height - 10)
                                 readonly property real cx: width / 2
                                 readonly property real clamped: Math.max(0, Math.min(1, progress))
                                 readonly property real angle: Math.PI - clamped * Math.PI
                                 readonly property bool onArc: progress >= 0 && progress <= 1
 
-                                // Horizontal baseline
                                 Rectangle {
-                                    x: 8
+                                    x: 6
                                     y: sunArc.arcBase
-                                    width: sunArc.width - 16
+                                    width: sunArc.width - 12
                                     height: 1
                                     color: Qt.rgba(1, 1, 1, sunArc.daytime ? 0.14 : 0.08)
                                 }
 
-                                // Arc ring — clip a large circle to show only the upper half
                                 Item {
                                     x: sunArc.cx - sunArc.arcRadius
                                     y: sunArc.arcBase - sunArc.arcRadius
@@ -417,48 +366,26 @@ Item {
                                     height: sunArc.arcRadius
                                     clip: true
 
-                                    // Outer ring
                                     Rectangle {
                                         width: sunArc.arcRadius * 2
                                         height: sunArc.arcRadius * 2
                                         radius: sunArc.arcRadius
                                         color: "transparent"
-                                        border.width: 2.5
+                                        border.width: 2
                                         border.color: sunArc.daytime
-                                            ? Qt.rgba(1, 0.75, 0.3, 0.7)
-                                            : Qt.rgba(0.6, 0.65, 0.85, 0.42)
-                                    }
-
-                                    // Subtle fill glow inside the arc
-                                    Rectangle {
-                                        width: sunArc.arcRadius * 2
-                                        height: sunArc.arcRadius * 2
-                                        radius: sunArc.arcRadius
-                                        color: sunArc.daytime
-                                            ? Qt.rgba(1, 0.7, 0.2, 0.08)
-                                            : Qt.rgba(0.5, 0.6, 0.9, 0.05)
+                                            ? Qt.rgba(1, 0.75, 0.3, 0.65)
+                                            : Qt.rgba(0.6, 0.65, 0.85, 0.4)
                                     }
                                 }
 
-                                // Sun/Moon dot on the arc
                                 Rectangle {
-                                    id: sunDot
                                     visible: sunArc.daytime && sunArc.onArc
-                                    width: 11
-                                    height: 11
-                                    radius: 5.5
+                                    width: 9
+                                    height: 9
+                                    radius: 4.5
                                     color: Qt.rgba(1, 0.92, 0.45, 0.95)
-                                    x: sunArc.cx + sunArc.arcRadius * Math.cos(sunArc.angle) - 5.5
-                                    y: sunArc.arcBase - sunArc.arcRadius * Math.sin(sunArc.angle) - 5.5
-
-                                    // Glow effect
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: 28
-                                        height: 28
-                                        radius: 14
-                                        color: Qt.rgba(1, 0.9, 0.4, 0.25)
-                                    }
+                                    x: sunArc.cx + sunArc.arcRadius * Math.cos(sunArc.angle) - 4.5
+                                    y: sunArc.arcBase - sunArc.arcRadius * Math.sin(sunArc.angle) - 4.5
                                 }
                             }
 
@@ -469,14 +396,11 @@ Item {
                                 Row {
                                     anchors.left: parent.left
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 5
-
+                                    spacing: 4
                                     Text {
                                         text: "☀️"
                                         font.pixelSize: root.celestialSize
-                                        anchors.verticalCenter: parent.verticalCenter
                                     }
-
                                     Text {
                                         text: weather.info.sunrise || "—"
                                         color: Qt.rgba(1, 1, 1, 0.7)
@@ -488,30 +412,18 @@ Item {
                                 Row {
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 5
-
+                                    spacing: 4
                                     Text {
                                         text: weather.info.sunset || "—"
                                         color: Qt.rgba(1, 1, 1, 0.7)
                                         font { family: "Google Sans"; pixelSize: 10; weight: Font.Medium }
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
-
-                                    // Moon icon (pure QML, no Canvas)
                                     Text {
-                                        id: moonViz
                                         text: "🌙"
                                         font.pixelSize: root.celestialSize
-                                        anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
-                            }
-
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: weather.info.moonIllumination ? ("Moon " + weather.info.moonIllumination) : ""
-                                color: Qt.rgba(1, 1, 1, 0.45)
-                                font { family: "Google Sans"; pixelSize: 9 }
                             }
                         }
                     }

@@ -22,7 +22,9 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
         radius: 20
-        color: Theme.surface_container_high
+        color: Theme.glass_panel
+        border.width: 1
+        border.color: Theme.glass_border
         clip: true
 
         Column {
@@ -40,11 +42,17 @@ Item {
                     radius: 18
                     anchors.verticalCenter: parent.verticalCenter
                     color: ScreenRecord.recording
-                        ? Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.22)
-                        : Theme.surface_variant
+                        ? Theme.bubble_critical_soft
+                        : Theme.bubble
+                    border.width: 1
+                    border.color: ScreenRecord.recording ? Qt.alpha(Theme.critical, 0.45) : Theme.bubble_border_soft
+                    clip: true
+
+                    BubbleSheen {}
 
                     MaterialIcon {
                         anchors.centerIn: parent
+                        z: 1
                         icon: ScreenRecord.recording ? "videocam" : "videocam_off"
                         font.pixelSize: 16
                         color: ScreenRecord.recording ? Theme.critical : Theme.on_surface_variant
@@ -77,19 +85,23 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: audioRow.implicitWidth + 20
                     height: 32
-                    radius: 16
+                    radius: height / 2
                     color: ScreenRecord.recordAudio
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.22)
-                        : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06)
-                    border.color: ScreenRecord.recordAudio ? Theme.primary : "transparent"
-                    border.width: ScreenRecord.recordAudio ? 1 : 0
+                        ? Theme.bubble_accent_soft
+                        : Theme.bubble
+                    border.color: ScreenRecord.recordAudio ? Qt.alpha(Theme.primary, 0.5) : Theme.bubble_border_soft
+                    border.width: 1
+                    clip: true
 
                     Behavior on color { ColorAnimation { duration: 140 } }
+
+                    BubbleSheen {}
 
                     Row {
                         id: audioRow
                         anchors.centerIn: parent
                         spacing: 6
+                        z: 1
 
                         MaterialIcon {
                             anchors.verticalCenter: parent.verticalCenter
@@ -130,23 +142,36 @@ Item {
                             ? parent.width
                             : (parent.width - 8) / 2
                         height: 56
-                        radius: 14
+                        radius: 18
                         color: {
                             if (modelData.id === "stop")
-                                return stopMouse.containsMouse ? Theme.critical
-                                    : Qt.rgba(Theme.critical.r, Theme.critical.g, Theme.critical.b, 0.18);
+                                return stopMouse.containsMouse ? Theme.bubble_critical
+                                    : Theme.bubble_critical_soft;
                             return btnMouse.containsMouse
-                                ? Theme.primary_container
-                                : Qt.rgba(Theme.on_surface.r, Theme.on_surface.g, Theme.on_surface.b, 0.06);
+                                ? Theme.bubble_accent
+                                : Theme.bubble;
                         }
+                        border.width: 1
+                        border.color: {
+                            if (modelData.id === "stop")
+                                return Qt.alpha(Theme.critical, 0.45);
+                            return btnMouse.containsMouse
+                                ? Theme.bubble_border
+                                : Theme.bubble_border_soft;
+                        }
+                        clip: true
 
                         Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
                         scale: (modelData.id === "stop" ? stopMouse.pressed : btnMouse.pressed) ? 0.96 : 1
                         Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+
+                        BubbleSheen {}
 
                         Row {
                             anchors.centerIn: parent
                             spacing: 10
+                            z: 1
 
                             MaterialIcon {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -154,8 +179,8 @@ Item {
                                 font.pixelSize: 18
                                 color: {
                                     if (modelData.id === "stop")
-                                        return stopMouse.containsMouse ? Theme.on_critical : Theme.critical;
-                                    return btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface;
+                                        return Theme.critical;
+                                    return btnMouse.containsMouse ? Theme.primary : Theme.on_surface;
                                 }
                             }
                             Text {
@@ -164,8 +189,8 @@ Item {
                                 font { family: "Google Sans"; pixelSize: 13; weight: Font.DemiBold }
                                 color: {
                                     if (modelData.id === "stop")
-                                        return stopMouse.containsMouse ? Theme.on_critical : Theme.critical;
-                                    return btnMouse.containsMouse ? Theme.on_primary_container : Theme.on_surface;
+                                        return Theme.critical;
+                                    return btnMouse.containsMouse ? Theme.primary : Theme.on_surface;
                                 }
                             }
                         }

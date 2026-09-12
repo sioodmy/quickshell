@@ -1,3 +1,6 @@
+use ignore::WalkBuilder;
+use notify::{EventKind, RecursiveMode, Watcher};
+use nucleo_matcher::Utf32String;
 use serde::Serialize;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, VecDeque};
@@ -6,9 +9,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::UNIX_EPOCH;
-use ignore::WalkBuilder;
-use notify::{Watcher, RecursiveMode, EventKind};
-use nucleo_matcher::Utf32String;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Color, FontStyle, Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -59,7 +59,10 @@ fn preview_cache_get(path: &str, modified: u64, size: u64) -> Option<PreviewResu
     let pos = cache.iter().position(|e| e.key == key)?;
     let entry = cache.remove(pos)?;
     let result = entry.result.clone();
-    cache.push_front(PreviewCacheEntry { key, result: result.clone() });
+    cache.push_front(PreviewCacheEntry {
+        key,
+        result: result.clone(),
+    });
     Some(result)
 }
 
@@ -131,51 +134,83 @@ pub fn new_index() -> FileIndex {
 }
 
 fn make_entry(path: &Path, home_path: &Path) -> Option<FileEntry> {
-    if !path.is_file() { return None; }
-    
+    if !path.is_file() {
+        return None;
+    }
+
     let name = path.file_name()?.to_str()?.to_string();
-    if name.starts_with('.') { return None; }
-    
+    if name.starts_with('.') {
+        return None;
+    }
+
     let path_str = path.to_str()?.to_string();
-    let dir = path.parent()
+    let dir = path
+        .parent()
         .and_then(|p| p.strip_prefix(home_path).ok())
         .map(|p| {
             let s = p.to_string_lossy();
-            if s.is_empty() { "~".into() } else { format!("~/{s}") }
+            if s.is_empty() {
+                "~".into()
+            } else {
+                format!("~/{s}")
+            }
         })
         .unwrap_or_else(|| "~".into());
 
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     let meta = path.metadata().ok()?;
     let size = meta.len();
-    let modified = meta.modified().ok()
+    let modified = meta
+        .modified()
+        .ok()
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
     let mime_cat = categorize_ext(&ext);
-    if mime_cat == "audio" { return None; }
+    if mime_cat == "audio" {
+        return None;
+    }
     let name_utf32 = Utf32String::from(name.as_str());
 
     Some(FileEntry {
-        name, name_utf32, path: path_str, dir, size, modified, mime_cat, ext
+        name,
+        name_utf32,
+        path: path_str,
+        dir,
+        size,
+        modified,
+        mime_cat,
+        ext,
     })
 }
 
 pub async fn build_index(index: FileIndex) {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home".into());
     let home_path = PathBuf::from(&home);
-    
+
     let docs = home_path.join("Documents");
     let notes = home_path.join("Notes");
     let dls = home_path.join("Downloads");
     let vids = home_path.join("Videos");
-    
+
     let mut dirs_to_watch = vec![];
-    if docs.exists() { dirs_to_watch.push(docs.clone()); }
-    if notes.exists() { dirs_to_watch.push(notes.clone()); }
-    if dls.exists() { dirs_to_watch.push(dls.clone()); }
-    if vids.exists() { dirs_to_watch.push(vids.clone()); }
+    if docs.exists() {
+        dirs_to_watch.push(docs.clone());
+    }
+    if notes.exists() {
+        dirs_to_watch.push(notes.clone());
+    }
+    if dls.exists() {
+        dirs_to_watch.push(dls.clone());
+    }
+    if vids.exists() {
+        dirs_to_watch.push(vids.clone());
+    }
 
     let index_clone = index.clone();
     let hp_clone = home_path.clone();
@@ -184,16 +219,22 @@ pub async fn build_index(index: FileIndex) {
     tokio::task::spawn_blocking(move || {
         let mut local_map = HashMap::with_capacity(50_000);
         let mut local_list = Vec::with_capacity(50_000);
-        
+
         if let Some(first) = d_watch.first() {
             let mut builder = WalkBuilder::new(first);
             for d in d_watch.iter().skip(1) {
                 builder.add(d);
             }
-            builder.hidden(true).ignore(true).git_ignore(true).max_depth(Some(MAX_DEPTH));
-            
+            builder
+                .hidden(true)
+                .ignore(true)
+                .git_ignore(true)
+                .max_depth(Some(MAX_DEPTH));
+
             for result in builder.build() {
-                if local_map.len() >= MAX_INDEX_ENTRIES { break; }
+                if local_map.len() >= MAX_INDEX_ENTRIES {
+                    break;
+                }
                 if let Ok(entry) = result {
                     if let Some(f) = make_entry(entry.path(), &hp_clone) {
                         if !local_map.contains_key(&f.path) {
@@ -204,13 +245,15 @@ pub async fn build_index(index: FileIndex) {
                 }
             }
         }
-        
+
         crate::debug_log!("File index built: {} entries", local_map.len());
-        
+
         let mut idx = index_clone.write().unwrap();
         idx.map = local_map;
         idx.list = local_list;
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     start_watcher(index, dirs_to_watch, home_path);
 }
@@ -222,11 +265,11 @@ fn start_watcher(index: FileIndex, dirs: Vec<PathBuf>, home_path: PathBuf) {
             Ok(w) => w,
             Err(_) => return,
         };
-        
+
         for dir in dirs {
             let _ = watcher.watch(&dir, RecursiveMode::Recursive);
         }
-        
+
         for res in rx {
             if let Ok(event) = res {
                 let paths = event.paths;
@@ -238,7 +281,9 @@ fn start_watcher(index: FileIndex, dirs: Vec<PathBuf>, home_path: PathBuf) {
                                 if !idx.map.contains_key(&f.path) {
                                     idx.list.push(f.clone());
                                 } else {
-                                    if let Some(pos) = idx.list.iter().position(|x| x.path == f.path) {
+                                    if let Some(pos) =
+                                        idx.list.iter().position(|x| x.path == f.path)
+                                    {
                                         idx.list[pos] = f.clone();
                                     }
                                 }
@@ -298,8 +343,7 @@ pub async fn search(
         let pattern = Pattern::parse(&q_trimmed, CaseMatching::Ignore, Normalization::Smart);
 
         // Min-heap of the top-K scores: peek is the smallest score currently kept.
-        let mut heap: BinaryHeap<Reverse<(u32, usize)>> =
-            BinaryHeap::with_capacity(MAX_RESULTS);
+        let mut heap: BinaryHeap<Reverse<(u32, usize)>> = BinaryHeap::with_capacity(MAX_RESULTS);
 
         for (i, entry) in data.list.iter().enumerate() {
             if i % CANCEL_CHECK_INTERVAL == 0
@@ -357,12 +401,12 @@ pub async fn search(
     .flatten()
 }
 
-
 pub fn load_preview(path: &str) -> PreviewResult {
     let p = std::path::Path::new(path);
     let meta = std::fs::metadata(p).ok();
     let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-    let modified = meta.as_ref()
+    let modified = meta
+        .as_ref()
         .and_then(|m| m.modified().ok())
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs())
@@ -381,30 +425,52 @@ pub fn load_preview(path: &str) -> PreviewResult {
 }
 
 fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> PreviewResult {
-    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     let cat = categorize_ext(&ext);
 
     // Images are previewed directly by QML; we just confirm the type
     if cat == "image" {
         return PreviewResult {
-            path: path.into(), preview_type: "image".into(),
-            preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+            path: path.into(),
+            preview_type: "image".into(),
+            preview_path: None,
+            content: None,
+            line_count: 0,
+            size,
+            modified,
+            mime_cat: cat.into(),
         };
     }
 
     if cat == "pdf" {
         let preview_path = crate::pdfpreview::thumbnail_path(path, modified, size);
         return PreviewResult {
-            path: path.into(), preview_type: "pdf".into(),
-            preview_path, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+            path: path.into(),
+            preview_type: "pdf".into(),
+            preview_path,
+            content: None,
+            line_count: 0,
+            size,
+            modified,
+            mime_cat: cat.into(),
         };
     }
 
     if cat == "video" {
         let preview_path = crate::videopreview::thumbnail_path(path, modified, size);
         return PreviewResult {
-            path: path.into(), preview_type: "video".into(),
-            preview_path, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+            path: path.into(),
+            preview_type: "video".into(),
+            preview_path,
+            content: None,
+            line_count: 0,
+            size,
+            modified,
+            mime_cat: cat.into(),
         };
     }
 
@@ -440,8 +506,14 @@ fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> Prev
     if cat == "text" {
         if size > 5_000_000 {
             return PreviewResult {
-                path: path.into(), preview_type: "text_too_large".into(),
-                preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+                path: path.into(),
+                preview_type: "text_too_large".into(),
+                preview_path: None,
+                content: None,
+                line_count: 0,
+                size,
+                modified,
+                mime_cat: cat.into(),
             };
         }
         if let Ok(bytes) = std::fs::read(p) {
@@ -450,13 +522,20 @@ fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> Prev
 
             // Quick binary check: if >10% non-text bytes in first 512, treat as binary
             let check_len = slice.len().min(512);
-            let non_text = slice[..check_len].iter()
+            let non_text = slice[..check_len]
+                .iter()
                 .filter(|&&b| b < 0x09 || (b > 0x0d && b < 0x20 && b != 0x1b))
                 .count();
             if non_text > check_len / 10 {
                 return PreviewResult {
-                    path: path.into(), preview_type: "binary".into(),
-                    preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+                    path: path.into(),
+                    preview_type: "binary".into(),
+                    preview_path: None,
+                    content: None,
+                    line_count: 0,
+                    size,
+                    modified,
+                    mime_cat: cat.into(),
                 };
             }
 
@@ -474,15 +553,27 @@ fn load_preview_uncached(path: &str, p: &Path, size: u64, modified: u64) -> Prev
             let preview_type = "text".to_string();
 
             return PreviewResult {
-                path: path.into(), preview_type,
-                preview_path: None, content, line_count, size, modified, mime_cat: cat.into(),
+                path: path.into(),
+                preview_type,
+                preview_path: None,
+                content,
+                line_count,
+                size,
+                modified,
+                mime_cat: cat.into(),
             };
         }
     }
 
     PreviewResult {
-        path: path.into(), preview_type: "none".into(),
-        preview_path: None, content: None, line_count: 0, size, modified, mime_cat: cat.into(),
+        path: path.into(),
+        preview_type: "none".into(),
+        preview_path: None,
+        content: None,
+        line_count: 0,
+        size,
+        modified,
+        mime_cat: cat.into(),
     }
 }
 
@@ -598,45 +689,36 @@ fn append_html_escaped(out: &mut String, text: &str) {
     }
 }
 
-
 // ── Extension → category mapping ──
 
 fn categorize_ext(ext: &str) -> &'static str {
     match ext {
-        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "ico"
-        | "tiff" | "tif" | "avif" | "heic" | "heif" => "image",
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "ico" | "tiff" | "tif"
+        | "avif" | "heic" | "heif" => "image",
 
-        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "flv" | "webm"
-        | "m4v" | "ogv" => "video",
+        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "ogv" => "video",
 
-        "mp3" | "flac" | "wav" | "ogg" | "m4a" | "aac" | "opus"
-        | "wma" | "ape" | "alac" => "audio",
+        "mp3" | "flac" | "wav" | "ogg" | "m4a" | "aac" | "opus" | "wma" | "ape" | "alac" => "audio",
 
         "pdf" => "pdf",
 
-        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" | "zst"
-        | "lz4" | "lzma" | "tgz" | "tbz" | "tbz2" | "txz" | "tzst"
-        | "jar" | "apk" | "whl" | "aar" | "epub"
-        | "deb" | "rpm" => "archive",
+        "zip" | "tar" | "gz" | "bz2" | "xz" | "7z" | "rar" | "zst" | "lz4" | "lzma" | "tgz"
+        | "tbz" | "tbz2" | "txz" | "tzst" | "jar" | "apk" | "whl" | "aar" | "epub" | "deb"
+        | "rpm" => "archive",
 
-        "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx"
-        | "odt" | "ods" | "odp" | "rtf" => "document",
+        "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods" | "odp" | "rtf" => {
+            "document"
+        }
 
-        "txt" | "md" | "rst" | "org" | "log" | "csv" | "tsv"
-        | "json" | "yaml" | "yml" | "toml" | "xml" | "html" | "htm"
-        | "css" | "scss" | "less" | "js" | "ts" | "jsx" | "tsx" | "mjs"
-        | "py" | "rs" | "go" | "java" | "c" | "cpp" | "h" | "hpp"
-        | "cs" | "rb" | "php" | "sh" | "bash" | "zsh" | "fish"
-        | "lua" | "vim" | "el" | "clj" | "hs" | "ml" | "ex" | "exs"
-        | "erl" | "scala" | "kt" | "swift" | "r" | "sql" | "graphql"
-        | "nix" | "conf" | "ini" | "cfg" | "env" | "qml" | "qss"
-        | "diff" | "patch" | "lock" | "cmake" | "make" | "makefile"
-        | "dockerfile" | "gitignore" | "editorconfig" | "tf" | "hcl"
-        | "svelte" | "vue" | "astro" | "mdx" | "tex" | "bib"
-        | "service" | "desktop" | "rules" => "text",
+        "txt" | "md" | "rst" | "org" | "log" | "csv" | "tsv" | "json" | "yaml" | "yml" | "toml"
+        | "xml" | "html" | "htm" | "css" | "scss" | "less" | "js" | "ts" | "jsx" | "tsx"
+        | "mjs" | "py" | "rs" | "go" | "java" | "c" | "cpp" | "h" | "hpp" | "cs" | "rb" | "php"
+        | "sh" | "bash" | "zsh" | "fish" | "lua" | "vim" | "el" | "clj" | "hs" | "ml" | "ex"
+        | "exs" | "erl" | "scala" | "kt" | "swift" | "r" | "sql" | "graphql" | "nix" | "conf"
+        | "ini" | "cfg" | "env" | "qml" | "qss" | "diff" | "patch" | "lock" | "cmake" | "make"
+        | "makefile" | "dockerfile" | "gitignore" | "editorconfig" | "tf" | "hcl" | "svelte"
+        | "vue" | "astro" | "mdx" | "tex" | "bib" | "service" | "desktop" | "rules" => "text",
 
         _ => "other",
     }
 }
-
-
