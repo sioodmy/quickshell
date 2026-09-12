@@ -29,7 +29,7 @@ Singleton {
     property var screen: null
 
     // Toolbox island footprint — morph target for the top glass shell.
-    readonly property real editorTargetWidth: 880
+    readonly property real editorTargetWidth: 940
     readonly property real editorTargetHeight: 80
     readonly property real editorTargetRadius: 20
 

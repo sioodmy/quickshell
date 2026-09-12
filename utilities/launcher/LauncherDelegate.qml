@@ -680,7 +680,7 @@ Item {
                         }
                     }
 
-                    property real targetScale: 0.35
+                    property real targetScale: 0.7
                     property real constrainedScale: {
                         if (mathImg.implicitWidth === 0 || mathImg.implicitHeight === 0) return targetScale;
                         var maxW = width;

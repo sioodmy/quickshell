@@ -80,7 +80,7 @@ PanelWindow {
 
     Timer {
         id: revealFallback
-        interval: 32
+        interval: 16
         onTriggered: {
             editorWindow._framePresented = true;
             editorWindow._beginReveal();
@@ -91,7 +91,6 @@ PanelWindow {
         if (!menuOpen || openAnim.running || openProgress > 0)
             return;
         revealFallback.stop();
-        panelExpanded = true;
         openAnim.start();
     }
 
@@ -100,7 +99,7 @@ PanelWindow {
         target: editorWindow
         property: "openProgress"
         from: 0; to: 1
-        duration: 280
+        duration: 140
         easing.type: Easing.OutCubic
         onFinished: Screenshot.openProgress = 1.0
     }
@@ -110,7 +109,7 @@ PanelWindow {
         target: editorWindow
         property: "openProgress"
         to: 0
-        duration: 200
+        duration: 120
         easing.type: Easing.InCubic
         onFinished: {
             editorWindow.menuOpen = false;
@@ -154,9 +153,12 @@ PanelWindow {
 
         closeAnim.stop();
         openProgress = 0;
-        panelExpanded = false;
         _framePresented = false;
         menuOpen = true;
+        // Kick the size spring immediately — waiting for map made Draw→toolbox
+        // feel a beat late. Opacity still waits one frame so content doesn't
+        // ghost in before the surface is up.
+        panelExpanded = true;
         resetEditor();
         syncBlurRegion();
         _armRevealProbe();
@@ -222,10 +224,10 @@ PanelWindow {
             : Math.max(1, LauncherState.dockHeight)
 
         Behavior on width {
-            SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+            SpringAnimation { spring: 12; damping: 0.6; epsilon: 0.5 }
         }
         Behavior on height {
-            SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 }
+            SpringAnimation { spring: 12; damping: 0.6; epsilon: 0.5 }
         }
 
         onWidthChanged: editorWindow.syncBlurRegion()
@@ -395,6 +397,7 @@ PanelWindow {
 
                     ToolBtn { icon: "edit"; toolName: "pencil" }
                     ToolBtn { icon: "draw"; toolName: "highlight" }
+                    ToolBtn { icon: "blur_on"; toolName: "censor" }
                     ToolBtn { icon: "circle"; toolName: "dot" }
                     ToolBtn { icon: "title"; toolName: "text" }
                 }
@@ -533,9 +536,133 @@ PanelWindow {
                 anchors.fill: parent
                 property var strokes: []
                 property var currentStroke: []
+                // Live area-select for censor: { x1, y1, x2, y2 } or null.
+                property var currentCensor: null
                 property string drawColor: Theme.critical
                 property string activeTool: "pencil"
                 property int dotCounter: 1
+                // Whole selection collapses to this many blocks per side — coarse
+                // enough that text/faces cannot be recovered from the mosaic.
+                readonly property int censorGrid: 3
+
+                function sourceUrl() {
+                    return targetImg.source ? targetImg.source.toString() : "";
+                }
+
+                function ensureSourceLoaded() {
+                    var url = sourceUrl();
+                    if (url !== "" && !isImageLoaded(url))
+                        loadImage(url);
+                }
+
+                Component.onCompleted: ensureSourceLoaded()
+
+                Connections {
+                    target: targetImg
+                    function onStatusChanged() {
+                        if (targetImg.status === Image.Ready)
+                            drawCanvas.ensureSourceLoaded();
+                    }
+                    function onSourceChanged() {
+                        drawCanvas.ensureSourceLoaded();
+                    }
+                }
+
+                onImageLoaded: requestPaint()
+
+                function normalizeRect(x1, y1, x2, y2) {
+                    var left = Math.min(x1, x2);
+                    var top = Math.min(y1, y2);
+                    var right = Math.max(x1, x2);
+                    var bottom = Math.max(y1, y2);
+                    left = Math.max(0, Math.min(left, width));
+                    top = Math.max(0, Math.min(top, height));
+                    right = Math.max(0, Math.min(right, width));
+                    bottom = Math.max(0, Math.min(bottom, height));
+                    return {
+                        x: Math.round(left),
+                        y: Math.round(top),
+                        w: Math.round(right - left),
+                        h: Math.round(bottom - top)
+                    };
+                }
+
+                // Extreme mosaic: the region is redrawn as a tiny grid of opaque
+                // blocks sampled from the shot (no smoothing), so fine detail is gone.
+                function paintCensorRect(ctx, rect, showMarching) {
+                    if (!rect || rect.w < 2 || rect.h < 2)
+                        return;
+
+                    var url = sourceUrl();
+                    var hasSrc = url !== "" && isImageLoaded(url)
+                        && targetImg.implicitWidth > 1 && targetImg.implicitHeight > 1
+                        && width > 1 && height > 1;
+
+                    var grid = censorGrid;
+                    var cellW = rect.w / grid;
+                    var cellH = rect.h / grid;
+                    var sxScale = hasSrc ? targetImg.implicitWidth / width : 1;
+                    var syScale = hasSrc ? targetImg.implicitHeight / height : 1;
+
+                    ctx.save();
+                    ctx.imageSmoothingEnabled = false;
+                    ctx.globalAlpha = 1.0;
+
+                    for (var gy = 0; gy < grid; gy++) {
+                        for (var gx = 0; gx < grid; gx++) {
+                            var dx = rect.x + gx * cellW;
+                            var dy = rect.y + gy * cellH;
+                            var dw = (gx === grid - 1) ? (rect.x + rect.w - dx) : cellW;
+                            var dh = (gy === grid - 1) ? (rect.y + rect.h - dy) : cellH;
+                            if (dw < 1 || dh < 1)
+                                continue;
+
+                            if (hasSrc) {
+                                // Sample a single source pixel at the cell center —
+                                // stretching it fills the block with one flat color.
+                                var cx = (dx + dw * 0.5) * sxScale;
+                                var cy = (dy + dh * 0.5) * syScale;
+                                cx = Math.max(0, Math.min(targetImg.implicitWidth - 1, cx));
+                                cy = Math.max(0, Math.min(targetImg.implicitHeight - 1, cy));
+                                ctx.drawImage(url, cx, cy, 1, 1, dx, dy, dw, dh);
+                            } else {
+                                ctx.fillStyle = "#2a2a2a";
+                                ctx.fillRect(dx, dy, dw, dh);
+                            }
+                        }
+                    }
+
+                    if (showMarching) {
+                        ctx.strokeStyle = "rgba(255,255,255,0.9)";
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([6, 4]);
+                        ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+                        ctx.setLineDash([]);
+                    }
+                    ctx.restore();
+                }
+
+                function paintDotLabel(ctx, number, x, y, fillColor) {
+                    // Integer anchors avoid the subpixel glyph smearing Canvas
+                    // shows with fractional centers / baseline fudge.
+                    var tx = Math.round(x);
+                    var ty = Math.round(y);
+                    var r = 24;
+
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillStyle = fillColor;
+                    ctx.beginPath();
+                    ctx.arc(tx, ty, r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    var light = (fillColor === "#FFFFFF" || fillColor === "#FFD700"
+                        || fillColor === "#00FF00");
+                    ctx.fillStyle = light ? "#111111" : "#FFFFFF";
+                    ctx.font = "600 20px \"Google Sans\"";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText("" + number, tx, ty);
+                }
 
                 onPaint: {
                     var ctx = getContext("2d");
@@ -558,28 +685,27 @@ PanelWindow {
                                 ctx.lineTo(stroke.points[j].x, stroke.points[j].y);
                             }
                             ctx.stroke();
+                        } else if (stroke.type === "censor") {
+                            paintCensorRect(ctx, stroke, false);
                         } else if (stroke.type === "dot") {
                             if (stroke.points.length < 1) continue;
-                            ctx.globalAlpha = 0.85;
-                            ctx.beginPath();
-                            ctx.arc(stroke.points[0].x, stroke.points[0].y, 24, 0, 2 * Math.PI);
-                            ctx.fill();
-
-                            ctx.globalAlpha = 1.0;
-                            ctx.fillStyle = (stroke.color === "#FFFFFF" || stroke.color === "#FFD700" || stroke.color === "#00FF00") ? "#000000" : "#FFFFFF";
-                            ctx.font = "bold 22px sans-serif";
-                            ctx.textAlign = "center";
-                            ctx.textBaseline = "middle";
-                            ctx.fillText(stroke.number.toString(), stroke.points[0].x, stroke.points[0].y + 2);
+                            paintDotLabel(ctx, stroke.number, stroke.points[0].x, stroke.points[0].y, stroke.color);
                         } else if (stroke.type === "text") {
                             if (stroke.points.length < 1) continue;
                             ctx.globalAlpha = 1.0;
                             ctx.fillStyle = stroke.color;
-                            ctx.font = "bold 24px 'Google Sans Medium'";
+                            ctx.font = "600 24px \"Google Sans\"";
                             ctx.textAlign = "left";
                             ctx.textBaseline = "top";
-                            ctx.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y);
+                            ctx.fillText(stroke.text, Math.round(stroke.points[0].x), Math.round(stroke.points[0].y));
                         }
+                    }
+
+                    if (currentCensor) {
+                        paintCensorRect(ctx, normalizeRect(
+                            currentCensor.x1, currentCensor.y1,
+                            currentCensor.x2, currentCensor.y2
+                        ), true);
                     }
 
                     if (currentStroke.length > 0) {
@@ -597,18 +723,6 @@ PanelWindow {
                                 }
                                 ctx.stroke();
                             }
-                        } else if (activeTool === "dot") {
-                            ctx.globalAlpha = 0.85;
-                            ctx.beginPath();
-                            ctx.arc(currentStroke[0].x, currentStroke[0].y, 24, 0, 2 * Math.PI);
-                            ctx.fill();
-
-                            ctx.globalAlpha = 1.0;
-                            ctx.fillStyle = (drawColor === "#FFFFFF" || drawColor === "#FFD700" || drawColor === "#00FF00") ? "#000000" : "#FFFFFF";
-                            ctx.font = "bold 22px sans-serif";
-                            ctx.textAlign = "center";
-                            ctx.textBaseline = "middle";
-                            ctx.fillText(dotCounter.toString(), currentStroke[0].x, currentStroke[0].y + 2);
                         }
                     }
                 }
@@ -616,6 +730,7 @@ PanelWindow {
                 function clearCanvas() {
                     strokes = [];
                     currentStroke = [];
+                    currentCensor = null;
                     dotCounter = 1;
                     requestPaint();
                 }
@@ -650,6 +765,8 @@ PanelWindow {
                 anchors.fill: parent
                 cursorShape: Qt.CrossCursor
                 property bool isDrawing: false
+                property bool isSelectingCensor: false
+
                 onPressed: e => {
                     if (drawCanvas.activeTool === "text") {
                         if (floatingTextInput.visible) {
@@ -668,6 +785,11 @@ PanelWindow {
                         drawCanvas.strokes = s;
                         drawCanvas.dotCounter++;
                         drawCanvas.requestPaint();
+                    } else if (drawCanvas.activeTool === "censor") {
+                        isSelectingCensor = true;
+                        drawCanvas.ensureSourceLoaded();
+                        drawCanvas.currentCensor = { x1: e.x, y1: e.y, x2: e.x, y2: e.y };
+                        drawCanvas.requestPaint();
                     } else {
                         isDrawing = true;
                         drawCanvas.currentStroke = [{x: e.x, y: e.y}];
@@ -675,7 +797,15 @@ PanelWindow {
                     }
                 }
                 onPositionChanged: e => {
-                    if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
+                    if (isSelectingCensor && drawCanvas.currentCensor) {
+                        drawCanvas.currentCensor = {
+                            x1: drawCanvas.currentCensor.x1,
+                            y1: drawCanvas.currentCensor.y1,
+                            x2: e.x,
+                            y2: e.y
+                        };
+                        drawCanvas.requestPaint();
+                    } else if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
                         let arr = drawCanvas.currentStroke;
                         arr.push({x: e.x, y: e.y});
                         drawCanvas.currentStroke = arr;
@@ -683,7 +813,20 @@ PanelWindow {
                     }
                 }
                 onReleased: e => {
-                    if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
+                    if (isSelectingCensor) {
+                        isSelectingCensor = false;
+                        let sel = drawCanvas.currentCensor;
+                        drawCanvas.currentCensor = null;
+                        if (sel) {
+                            let rect = drawCanvas.normalizeRect(sel.x1, sel.y1, e.x, e.y);
+                            if (rect.w >= 4 && rect.h >= 4) {
+                                let s = drawCanvas.strokes;
+                                s.push({ type: "censor", x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+                                drawCanvas.strokes = s;
+                            }
+                        }
+                        drawCanvas.requestPaint();
+                    } else if (isDrawing && drawCanvas.activeTool !== "dot" && drawCanvas.activeTool !== "text") {
                         isDrawing = false;
                         let s = drawCanvas.strokes;
                         s.push({ type: drawCanvas.activeTool, color: drawCanvas.drawColor, points: drawCanvas.currentStroke });
@@ -703,6 +846,9 @@ PanelWindow {
             if (floatingTextInput.visible) {
                 floatingTextInput.visible = false;
                 floatingTextInput.text = "";
+            } else if (drawCanvas.currentCensor) {
+                drawCanvas.currentCensor = null;
+                drawCanvas.requestPaint();
             } else {
                 editorWindow.closeMenu();
             }
