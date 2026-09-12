@@ -34,16 +34,16 @@ pub async fn start_logind_listener() {
         let mut sleep_inhibitor = acquire_sleep_inhibitor(&conn).await;
 
         if let Ok(dbus_proxy) = zbus::fdo::DBusProxy::new(&conn).await {
-            if let Ok(rule) = zbus::MatchRule::builder()
+            let rule: zbus::MatchRule = zbus::MatchRule::builder()
                 .msg_type(zbus::message::Type::Signal)
                 .interface("org.freedesktop.login1.Session")
                 .unwrap()
                 .build()
                 .try_into()
-            {
-                let _ = dbus_proxy.add_match_rule(rule).await;
-            }
-            if let Ok(rule) = zbus::MatchRule::builder()
+                .expect("valid MatchRule");
+            let _ = dbus_proxy.add_match_rule(rule).await;
+
+            let rule: zbus::MatchRule = zbus::MatchRule::builder()
                 .msg_type(zbus::message::Type::Signal)
                 .interface("org.freedesktop.login1.Manager")
                 .unwrap()
@@ -51,9 +51,8 @@ pub async fn start_logind_listener() {
                 .unwrap()
                 .build()
                 .try_into()
-            {
-                let _ = dbus_proxy.add_match_rule(rule).await;
-            }
+                .expect("valid MatchRule");
+            let _ = dbus_proxy.add_match_rule(rule).await;
         }
         let mut stream = zbus::MessageStream::from(conn.clone());
         crate::debug_log!("Listening for logind Lock and PrepareForSleep signals...");

@@ -20,7 +20,10 @@ Item {
 
     Timer {
         id: lockAfterClose
-        interval: 420
+        // Wait for the launcher PanelWindow (and any residual layered
+        // effects) to fully unmap before creating a WlSessionLockSurface.
+        // Mapping both at once crashes updatePixelRatioHelper on Asahi.
+        interval: 700
         onTriggered: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] })
     }
 
@@ -728,8 +731,8 @@ Item {
         } else if (actionId === "sleep") {
             Quickshell.execDetached({ command: ["systemctl", "suspend"] });
         } else if (actionId === "lock") {
-            // Wait for the launcher close animation. Mapping WlSessionLock
-            // while this MultiEffect-heavy surface is still up crashes
+            // Wait for the launcher PanelWindow to fully unmap before creating
+            // a WlSessionLockSurface. Concurrent map of both surfaces crashes
             // updatePixelRatioHelper on Asahi.
             lockAfterClose.restart();
         } else if (actionId === "audio_out_hdmi") {

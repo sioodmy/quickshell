@@ -37,10 +37,8 @@ ShellRoot {
 
 
 
-    Loader {
-        active: Screenshot.editorActive
-        asynchronous: true
-        sourceComponent: ScreenshotEditor { id: screenshotEditor }
+    ScreenshotEditor {
+        id: screenshotEditor
     }
 
     // Live synced lyrics on desktop (wallpaper)

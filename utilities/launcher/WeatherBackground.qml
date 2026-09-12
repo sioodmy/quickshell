@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 
 // Animated weather background with particles and effects
 // modeled after Breezy Weather / Modern Google M3

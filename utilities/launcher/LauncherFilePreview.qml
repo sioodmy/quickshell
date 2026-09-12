@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components
@@ -96,14 +95,6 @@ Item {
                                 height: shareView.qrSize + 20
                                 radius: 18
                                 color: "#ffffff"
-
-                                layer.enabled: launcherWindow ? launcherWindow.shareViewBlend > 0.02 : false
-                                layer.effect: MultiEffect {
-                                    shadowEnabled: true
-                                    shadowBlur: 0.6
-                                    shadowColor: "#20000000"
-                                    shadowVerticalOffset: 4
-                                }
 
                                 Image {
                                     id: qrImage

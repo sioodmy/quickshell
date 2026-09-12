@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components
@@ -36,26 +35,11 @@ Item {
 
         Behavior on border.color { ColorAnimation { duration: 150 } }
 
-        Rectangle {
-            id: tripMask
-            anchors.fill: parent
-            radius: 20
-            visible: false
-            layer.enabled: caffeineEnabled
-        }
-
         // The "trip" gradient background that animates when active
         Item {
             anchors.fill: parent
             opacity: caffeineEnabled ? 0.3 : 0
-
-            layer.enabled: caffeineEnabled
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: tripMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
-            }
+            clip: true
 
             Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InOutQuad } }
 

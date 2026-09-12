@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell.Widgets
 import "../../theme"
 import qs.services
@@ -241,6 +240,7 @@ Item {
                     radius: 8
                     visible: itemType === "music_album" || itemType === "music_track"
                     color: Theme.glass_raised
+                    clip: true
                     
                     Image {
                         id: launcherAlbumCover
@@ -251,20 +251,6 @@ Item {
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         visible: (itemType === "music_album" || itemType === "music_track") && status === Image.Ready
-                        
-                        layer.enabled: visible
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskSource: albumCoverMask
-                        }
-                    }
-
-                    Rectangle {
-                        id: albumCoverMask
-                        anchors.fill: parent
-                        radius: 8
-                        visible: false
-                        layer.enabled: launcherAlbumCover.layer.enabled
                     }
                     
                     MaterialIcon {

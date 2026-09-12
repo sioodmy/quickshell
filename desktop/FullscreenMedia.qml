@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import qs.theme
@@ -146,20 +145,6 @@ Variants {
                                         asynchronous: true
                                         sourceSize: Qt.size(480, 480)
                                         visible: Playerctl.artUrl !== ""
-
-                                        layer.enabled: (Lyrics.showFullscreen || opacityAnim.running) && Playerctl.artUrl !== ""
-                                        layer.effect: MultiEffect {
-                                            maskEnabled: true
-                                            maskSource: artMask
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: artMask
-                                        anchors.fill: parent
-                                        radius: 22
-                                        visible: false
-                                        layer.enabled: mainArt.layer.enabled
                                     }
 
                                     MaterialIcon {

@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../theme"
 import qs.components
 
@@ -28,14 +27,6 @@ Rectangle {
     height: contextMenuCol.implicitHeight + 16
     radius: 16
     color: Theme.surface_container
-
-    layer.enabled: isOpen
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowBlur: 1.0
-        shadowColor: "#30000000"
-        shadowVerticalOffset: 4
-    }
 
     Timer {
         interval: 3000

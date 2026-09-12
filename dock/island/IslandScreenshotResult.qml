@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Widgets
 import qs.theme
 import qs.services
 import qs.components
@@ -9,15 +10,15 @@ Row {
 
     signal dismissed()
 
-    Rectangle {
+    // ClippingRectangle so the crop honors radius (Rectangle.clip does not).
+    ClippingRectangle {
         id: previewContainer
         width: 142
         height: 80
-        radius: 16
+        radius: 18
         color: Theme.bubble
         border.width: 1
         border.color: Theme.bubble_border_soft
-        clip: true
 
         MouseArea {
             anchors.fill: parent
@@ -35,16 +36,15 @@ Row {
             source: Screenshot.imagePath ? ("file://" + Screenshot.imagePath) : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            cache: false
+            cache: true
             sourceSize.width: 400
             visible: status === Image.Ready
         }
 
-        // Placeholder while grim is still writing / image is loading.
         Text {
             anchors.centerIn: parent
             visible: previewImg.status !== Image.Ready
-            text: Screenshot.awaitingCapture ? "…" : "No preview"
+            text: "No preview"
             color: Theme.on_surface_variant
             font.family: "Google Sans"
             font.pixelSize: 12
@@ -127,7 +127,12 @@ Row {
         ActionPill {
             icon: "edit"
             label: "Draw"
-            onTriggered: { Screenshot.editorActive = true; root.dismissed(); }
+            onTriggered: {
+                // Claim the notch before dismissing so the editor morphs from
+                // the result island instead of a collapsed dock bar.
+                Screenshot.openEditor();
+                root.dismissed();
+            }
         }
         ActionPill {
             icon: "text_fields"

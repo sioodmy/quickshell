@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
 import qs.theme
@@ -125,12 +124,22 @@ Item {
         }
     }
 
+    Connections {
+        target: Screenshot
+        function onOpenChanged() {
+            if (Screenshot.open)
+                root.osdVisible = false;
+        }
+    }
+
     function osdAllowed() {
         if (root.activeMode !== "dock")
             return false;
         if (LauncherState.open)
             return false;
         if (KeepassState.open)
+            return false;
+        if (Screenshot.open)
             return false;
         return true;
     }
@@ -205,9 +214,9 @@ Item {
             if (Screenshot.overlayActive) {
                 root.activeMode = "screenshot";
             } else if (root.activeMode === "screenshot") {
-                // Capture is in flight (or already ready) — morph straight into
-                // the result island instead of flashing dock chrome.
-                if (Screenshot.awaitingCapture || Screenshot.active)
+                // Collapse while grim/decode runs; result island opens only once
+                // Screenshot.active flips (preview paint-ready).
+                if (Screenshot.active)
                     root.activeMode = "screenshot_result";
                 else
                     root.activeMode = "dock";

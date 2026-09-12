@@ -92,6 +92,18 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Daemon => {
+            // Parent (quickshell) death closes our stdout. Ignoring SIGPIPE
+            // keeps incidental writes from aborting the whole daemon.
+            #[cfg(unix)]
+            unsafe {
+                extern "C" {
+                    fn signal(sig: i32, handler: usize) -> usize;
+                }
+                const SIGPIPE: i32 = 13;
+                const SIG_IGN: usize = 1;
+                let _ = signal(SIGPIPE, SIG_IGN);
+            }
+
             idle_manager::spawn_idle_manager();
 
             tokio::spawn(async move {

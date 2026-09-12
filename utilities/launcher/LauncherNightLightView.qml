@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components

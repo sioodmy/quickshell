@@ -1,161 +1,185 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.UPower
-import "../theme"
+
+import qs.theme
 import qs.components
 
-Rectangle {
+/**
+ * Persistent utility row inside the morphing lock shell.
+ * It remains readable at dock size, then settles at the bottom of the
+ * expanded authentication panel.
+ */
+Item {
     id: root
 
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: 28
-    width: bottomChrome.implicitWidth + 28
-    height: 52
-    radius: height / 2
-    color: Qt.rgba(1, 1, 1, 0.26)
-    border.width: 1
-    border.color: Qt.rgba(1, 1, 1, 0.4)
+    property real presentationProgress: 1
 
-    BubbleSheen {}
+    implicitHeight: 44
+    implicitWidth: utilityRow.implicitWidth
 
     Row {
-        id: bottomChrome
+        id: utilityRow
         anchors.centerIn: parent
-        spacing: 10
-        z: 1
+        spacing: 9
 
         Rectangle {
-            id: battPill
-            height: 36
-            width: battRow.implicitWidth + 20
-            radius: height / 2
-            color: Qt.rgba(1, 1, 1, 0.32)
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.4)
+            id: batteryPill
+
+            readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
+            readonly property bool charging: !UPower.onBattery
+
             visible: UPower.displayDevice?.isPresent ?? false
-            anchors.verticalCenter: parent.verticalCenter
+            width: visible ? 72 : 0
+            height: 34
+            radius: height / 2
+            color: Theme.bubble
+            border.width: 1
+            border.color: Theme.bubble_border_soft
             clip: true
+
+            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
             BubbleSheen {}
 
             Row {
-                id: battRow
                 anchors.centerIn: parent
-                spacing: 8
+                spacing: 7
                 z: 1
 
-                readonly property real capacity: (UPower.displayDevice?.percentage ?? 0) * 100
-                readonly property bool charging: !UPower.onBattery
-
                 Item {
-                    width: 26
-                    height: 13
+                    width: 23
+                    height: 12
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
-                        id: battBody
+                        id: batteryBody
                         anchors {
-                            left: parent.left; top: parent.top; bottom: parent.bottom
-                            right: parent.right; rightMargin: 3
+                            left: parent.left
+                            top: parent.top
+                            bottom: parent.bottom
+                            right: parent.right
+                            rightMargin: 3
                         }
                         radius: 3
                         color: "transparent"
-                        border.width: 1.5
+                        border.width: 1.3
                         border.color: {
-                            if (battRow.capacity <= 20 && !battRow.charging)
+                            if (batteryPill.capacity <= 20 && !batteryPill.charging)
                                 return Theme.critical;
-                            if (battRow.charging)
-                                return "#7ee787";
-                            return Qt.rgba(1, 1, 1, 0.75);
+                            if (batteryPill.charging)
+                                return "#88efad";
+                            return Qt.rgba(1, 1, 1, 0.82);
                         }
                     }
+
                     Rectangle {
-                        width: 2.5; height: 5
-                        anchors { left: battBody.right; verticalCenter: parent.verticalCenter }
+                        width: 2
+                        height: 5
                         radius: 1
-                        color: battBody.border.color
+                        anchors.left: batteryBody.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: batteryBody.border.color
                     }
+
                     Rectangle {
                         anchors {
-                            left: battBody.left; top: battBody.top; bottom: battBody.bottom
+                            left: batteryBody.left
+                            top: batteryBody.top
+                            bottom: batteryBody.bottom
                             margins: 2.5
                         }
+                        width: Math.max(0, (batteryBody.width - 5) * batteryPill.capacity / 100)
                         radius: 1
-                        width: Math.max(0, (battBody.width - 5) * (battRow.capacity / 100))
-                        color: battBody.border.color
-                        opacity: 0.85
-                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                        color: batteryBody.border.color
+
+                        Behavior on width {
+                            NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+                        }
                     }
                 }
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Math.round(battRow.capacity) + "%"
-                    color: Qt.rgba(1, 1, 1, 0.92)
-                    font { family: "Google Sans"; pixelSize: 12; weight: Font.Medium }
+                    text: Math.round(batteryPill.capacity) + "%"
+                    color: Qt.rgba(1, 1, 1, 0.9)
+                    font {
+                        family: "Google Sans"
+                        pixelSize: 11
+                        weight: Font.Medium
+                    }
                 }
             }
         }
 
         Row {
-            spacing: 6
+            spacing: 7
             anchors.verticalCenter: parent.verticalCenter
 
-            component SessionBtn: Rectangle {
-                property string icon
-                property color accent: Qt.rgba(1, 1, 1, 0.88)
+            component SessionButton: Rectangle {
+                id: button
+
+                required property string icon
+                property string variant: "neutral"
                 signal triggered
 
-                width: 36
-                height: 36
+                width: 34
+                height: 34
                 radius: width / 2
-                scale: btnArea.pressed ? 0.92 : (btnArea.containsMouse ? 1.06 : 1.0)
                 color: {
-                    if (btnArea.pressed)
-                        return Qt.rgba(1, 1, 1, 0.48);
-                    if (btnArea.containsMouse)
-                        return Qt.rgba(1, 1, 1, 0.38);
-                    return Qt.rgba(1, 1, 1, 0.28);
+                    if (variant === "critical")
+                        return mouse.containsMouse ? Theme.bubble_critical : Theme.bubble_critical_soft;
+                    return mouse.containsMouse ? Theme.bubble_hover : Theme.bubble;
                 }
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.4)
+                border.color: variant === "critical"
+                    ? Qt.alpha(Theme.critical, 0.45)
+                    : Theme.bubble_border
+                scale: mouse.pressed ? 0.9 : (mouse.containsMouse ? 1.05 : 1)
                 clip: true
 
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack } }
                 Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on scale {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutBack }
+                }
 
                 BubbleSheen {}
 
                 MaterialIcon {
                     anchors.centerIn: parent
                     z: 1
-                    icon: parent.icon
+                    icon: button.icon
+                    fill: 0
+                    grade: -25
+                    weight: 300
                     font.pixelSize: 15
-                    color: parent.accent
-                    opacity: btnArea.containsMouse ? 1 : 0.92
+                    color: button.variant === "critical"
+                        ? Theme.critical
+                        : Qt.rgba(1, 1, 1, 0.9)
                 }
 
                 MouseArea {
-                    id: btnArea
+                    id: mouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: parent.triggered()
+                    onClicked: button.triggered()
                 }
             }
 
-            SessionBtn {
+            SessionButton {
                 icon: "bedtime"
                 onTriggered: Quickshell.execDetached(["systemctl", "suspend"])
             }
-            SessionBtn {
+
+            SessionButton {
                 icon: "restart_alt"
                 onTriggered: Quickshell.execDetached(["systemctl", "reboot"])
             }
-            SessionBtn {
+
+            SessionButton {
                 icon: "power_settings_new"
-                accent: Theme.critical
+                variant: "critical"
                 onTriggered: Quickshell.execDetached(["systemctl", "poweroff"])
             }
         }

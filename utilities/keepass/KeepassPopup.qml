@@ -71,39 +71,15 @@ PanelWindow {
     // Set once this surface has presented a frame since being mapped.
     property bool _framePresented: false
 
-    // The reveal has to start on the frame this surface first reaches the
-    // screen. Starting it from openMenu() lets these wall-clock animations run
-    // down while the surface is still being mapped, so under load the first
-    // visible frame lands mid-animation and the panel pops into view.
-    // grabToImage's callback runs after this window has rendered, which is the
-    // only signal available for that: PanelWindow does not expose the backing
-    // QQuickWindow, and backingWindowVisible flips synchronously on map,
-    // several frames too early to be useful.
-
-    // Draws nothing. It exists only to give grabToImage something to grab.
-    Item {
-        id: frameProbe
-        width: 1
-        height: 1
-    }
-
+    // Avoid grabToImage here: on Asahi it crashes updatePixelRatioHelper when
+    // the PanelWindow is still mapping. A short timer approximates first paint.
     function _armRevealProbe() {
-        var started = frameProbe.grabToImage(function () {
-            keepassWindow._onFramePresented();
-        }, Qt.size(1, 1));
-        if (!started) {
-            // No frame signal to wait for; reveal as the old code did.
-            _framePresented = true;
-            _beginReveal();
-            return;
-        }
         revealFallback.restart();
     }
 
-    // Insurance: never leave the overlay stuck invisible if no frame arrives.
     Timer {
         id: revealFallback
-        interval: 400
+        interval: 32
         onTriggered: {
             keepassWindow._framePresented = true;
             keepassWindow._beginReveal();
@@ -164,6 +140,8 @@ PanelWindow {
         // One expanded notch at a time.
         if (LauncherState.open || LauncherState.openProgress > 0.001)
             LauncherState.requestClose();
+        if (Screenshot.open || Screenshot.openProgress > 0.001)
+            Screenshot.requestClose();
 
         closeAnim.stop();
         openProgress = 0;

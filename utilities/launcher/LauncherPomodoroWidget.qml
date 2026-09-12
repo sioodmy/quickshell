@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import "../../theme"
 import qs.services
 import qs.components
@@ -94,32 +93,10 @@ Item {
         anchors.leftMargin: 32
         anchors.rightMargin: 32
 
-        // Rounded mask — Rectangle.clip does not honor radius
-        Item {
-            id: cardMask
-            anchors.fill: parent
-            visible: false
-            layer.enabled: active
-
-            Rectangle {
-                anchors.fill: parent
-                radius: 20
-                color: "black"
-            }
-        }
-
         Item {
             id: card
             anchors.fill: parent
-
-            layer.enabled: active
-            layer.smooth: true
-            layer.effect: MultiEffect {
-                maskEnabled: true
-                maskSource: cardMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
-            }
+            clip: true
 
             Rectangle {
                 anchors.fill: parent

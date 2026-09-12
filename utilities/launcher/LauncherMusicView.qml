@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.theme
 import qs.services
 import qs.components
@@ -237,19 +236,6 @@ Item {
                         asynchronous: true
                         sourceSize: Qt.size(104, 104)
                         visible: !!source && status === Image.Ready
-                        layer.enabled: visible
-                        layer.effect: MultiEffect {
-                            maskEnabled: true
-                            maskSource: coverImgMask
-                        }
-                    }
-
-                    Rectangle {
-                        id: coverImgMask
-                        anchors.fill: parent
-                        radius: 10
-                        visible: false
-                        layer.enabled: coverImg.layer.enabled
                     }
 
                     MaterialIcon {
@@ -414,19 +400,6 @@ Item {
                                 asynchronous: true
                                 sourceSize: Qt.size(160, 160)
                                 visible: !!source && status === Image.Ready
-                                layer.enabled: visible
-                                layer.effect: MultiEffect {
-                                    maskEnabled: true
-                                    maskSource: headerCoverMask
-                                }
-                            }
-
-                            Rectangle {
-                                id: headerCoverMask
-                                anchors.fill: parent
-                                radius: 12
-                                visible: false
-                                layer.enabled: headerCoverImg.layer.enabled
                             }
                         }
 

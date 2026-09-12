@@ -262,34 +262,16 @@ PanelWindow {
     // near-full size. Measured at ~47ms on an idle machine, i.e. three frames
     // of the reveal already gone before anything is on screen.
 
-    // Draws nothing. It exists only to give grabToImage something to grab.
-    Item {
-        id: frameProbe
-        width: 1
-        height: 1
-    }
-
-    // grabToImage's callback runs after this window has rendered, which is the
-    // only "we are on screen" signal available: PanelWindow does not expose the
-    // backing QQuickWindow, and backingWindowVisible flips synchronously on
-    // map, well before the first frame.
+    // grabToImage / ShaderEffectSource paths crash updatePixelRatioHelper on
+    // Asahi when PanelWindows map under load. A short timer is close enough to
+    // "first frame" without touching the GPU readback path.
     function _armRevealProbe() {
-        var started = frameProbe.grabToImage(function () {
-            launcherWindow._onFramePresented();
-        }, Qt.size(1, 1));
-        if (!started) {
-            // No frame signal to wait for; reveal as the old code did.
-            _framePresented = true;
-            _maybeBeginReveal();
-            return;
-        }
         revealFallback.restart();
     }
 
-    // Insurance: never leave the launcher stuck invisible if no frame arrives.
     Timer {
         id: revealFallback
-        interval: 400
+        interval: 32
         onTriggered: {
             launcherWindow._framePresented = true;
             launcherWindow._maybeBeginReveal();
@@ -1288,6 +1270,8 @@ PanelWindow {
         }
         if (KeepassState.open || KeepassState.openProgress > 0.001)
             KeepassState.requestClose();
+        if (Screenshot.open || Screenshot.openProgress > 0.001)
+            Screenshot.requestClose();
         pinSelectionToBest = true;
         closeAnim.stop();
         panelExpanded = false;

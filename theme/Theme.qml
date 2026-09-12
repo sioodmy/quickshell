@@ -45,6 +45,7 @@ FileView {
 
     property alias critical: colors.critical
     property alias on_critical: colors.on_critical
+    property alias wallpaper_path: colors.wallpaper_path
 
     // --- LIQUID GLASS SURFACES ---
     // Translucent fills for UI drawn over a compositor-blurred backdrop.

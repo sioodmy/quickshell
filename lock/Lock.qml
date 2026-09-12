@@ -63,7 +63,9 @@ Scope {
     // Wayland session lock is released.
     Timer {
         id: unlockAnimTimer
-        interval: 520
+        // Keep the Wayland session lock owned until the reverse dock morph and
+        // background exit have completed on every output.
+        interval: 720
         onTriggered: root.finishUnlock()
     }
 

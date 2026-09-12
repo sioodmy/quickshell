@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import qs.theme
 import qs.components
 
@@ -22,14 +21,6 @@ Item {
     property real slideOffset: isOpen ? 0 : 40
     Behavior on slideOffset { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
     
-    Rectangle {
-        id: maskShape
-        anchors.fill: parent
-        radius: 20
-        visible: false
-        layer.enabled: isOpen
-    }
-    
     // Block clicks and wheel events from bleeding through
     MouseArea {
         anchors.fill: parent
@@ -43,12 +34,6 @@ Item {
         color: Qt.rgba(1, 1, 1, 0.05)
         radius: 20
         clip: true
-        
-        layer.enabled: isOpen
-        layer.effect: MultiEffect {
-            maskEnabled: true
-            maskSource: maskShape
-        }
         
         // ── Animated Background Blobs ──
         Rectangle {

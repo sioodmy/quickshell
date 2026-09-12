@@ -23,6 +23,28 @@ Singleton {
     // Keeps the island from flashing back to dock chrome mid-capture.
     property bool awaitingCapture: false
 
+    // Dock morph handoff for the screenshot editor (same pattern as launcher / KeePass).
+    property bool open: false
+    property real openProgress: 0.0
+    property var screen: null
+
+    // Toolbox island footprint — morph target for the top glass shell.
+    readonly property real editorTargetWidth: 880
+    readonly property real editorTargetHeight: 80
+    readonly property real editorTargetRadius: 20
+
+    signal closeRequested()
+
+    function requestClose() {
+        closeRequested();
+    }
+
+    // Open the draw editor. Prefer this over setting editorActive so the notch
+    // can be claimed in the same call stack before an island dismisses.
+    function openEditor() {
+        editorActive = true;
+    }
+
     IpcHandler {
         target: "screenshot"
         function done(): void {
@@ -44,6 +66,33 @@ Singleton {
         }
     }
 
+    // Decode the shot before flipping `active` so the island only opens once
+    // the preview is actually paint-ready (no empty "…" flash).
+    Image {
+        id: previewLoader
+        width: 0
+        height: 0
+        visible: false
+        asynchronous: true
+        cache: true
+        sourceSize.width: 400
+        source: root.imagePath ? ("file://" + root.imagePath) : ""
+
+        onStatusChanged: {
+            if (!root.imagePath)
+                return;
+            if (status === Image.Ready || status === Image.Error)
+                root._revealResult();
+        }
+    }
+
+    function _revealResult() {
+        if (root.active)
+            return;
+        root.awaitingCapture = false;
+        root.active = true;
+    }
+
     // Read the result file to get the screenshot path
     Process {
         id: readResult
@@ -52,9 +101,8 @@ Singleton {
             onRead: data => {
                 let path = data.trim();
                 if (path.length > 0 && path.startsWith("/")) {
+                    // previewLoader.onStatusChanged flips active once decoded.
                     root.imagePath = path;
-                    root.awaitingCapture = false;
-                    root.active = true;
                 }
             }
         }

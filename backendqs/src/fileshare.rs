@@ -97,7 +97,7 @@ impl FileShareHandle {
             .to_string();
 
         {
-            let shares = self.shares.write().await;
+            let mut shares = self.shares.write().await;
             if shares.len() >= MAX_SHARES {
                 // Single-file mode: replace whatever is already being shared.
                 for (_, entry) in shares.iter_mut() {

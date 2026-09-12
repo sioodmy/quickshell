@@ -1,7 +1,6 @@
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
-import QtQuick.Effects
 import "../theme"
 import qs.services
 import qs.components
@@ -372,29 +371,30 @@ Variants {
                 }
             }
 
-            function _overlayOnThisScreen(launcherActive, keepassActive) {
-                if (!launcherActive && !keepassActive)
+            function _overlayScreenMatch(active, screen) {
+                if (!active)
                     return false;
-                var activeScreen = launcherActive ? LauncherState.screen : KeepassState.screen;
-                if (!activeScreen)
+                if (!screen)
                     return true;
-                return dockWindow.modelData && dockWindow.modelData.name === activeScreen.name;
+                return dockWindow.modelData && dockWindow.modelData.name === screen.name;
             }
 
             // An overlay has asked for the notch but may not be on screen yet.
             // Only used to freeze the published dock footprint, so the overlay
             // morphs from a stable origin even if the dock reflows meanwhile.
-            readonly property bool overlayClaiming: _overlayOnThisScreen(
-                LauncherState.open || LauncherState.openProgress > 0.001,
-                KeepassState.open || KeepassState.openProgress > 0.001)
+            readonly property bool overlayClaiming:
+                _overlayScreenMatch(LauncherState.open || LauncherState.openProgress > 0.001, LauncherState.screen)
+                || _overlayScreenMatch(KeepassState.open || KeepassState.openProgress > 0.001, KeepassState.screen)
+                || _overlayScreenMatch(Screenshot.open || Screenshot.openProgress > 0.001, Screenshot.screen)
 
             // The overlay is actually painting. Dock chrome yields only at this
             // point: mapping that surface takes several frames under load, and
             // fading any earlier leaves a gap where neither the dock nor the
             // overlay is on screen — the artifact this whole split exists for.
-            readonly property bool overlayCovering: _overlayOnThisScreen(
-                LauncherState.openProgress > 0.001,
-                KeepassState.openProgress > 0.001)
+            readonly property bool overlayCovering:
+                _overlayScreenMatch(LauncherState.openProgress > 0.001, LauncherState.screen)
+                || _overlayScreenMatch(KeepassState.openProgress > 0.001, KeepassState.screen)
+                || _overlayScreenMatch(Screenshot.openProgress > 0.001, Screenshot.screen)
 
             property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + (dockShareIcon && dockShareIcon.isVisible ? 6 : 0) + 16
             property real dockTargetHeight: 28 + 14
@@ -408,22 +408,50 @@ Variants {
             property real islandTargetHeight: dynamicIsland ? ((islandMode === "charging") ? dockTargetHeight : dynamicIsland.implicitHeight + 16 + 14) : 0
             property real islandTargetRadius: dynamicIsland ? ((islandMode === "charging") ? dockTargetRadius : 20) : 20
 
-            property real animWidth: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetWidth : dockTargetWidth
-            property real animHeight: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetHeight : dockTargetHeight
-            property real animRadius: dynamicIsland && dynamicIsland.isDockHidden && !overlayCovering ? islandTargetRadius : dockTargetRadius
+            // Visible notch size — island when expanded, else the dock bar.
+            // Overlays morph from this so Draw→editor continues from the result
+            // island instead of collapsing to the bar first.
+            readonly property real footprintWidth: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetWidth : dockTargetWidth
+            readonly property real footprintHeight: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetHeight : dockTargetHeight
+            readonly property real footprintRadius: dynamicIsland && dynamicIsland.isDockHidden ? islandTargetRadius : dockTargetRadius
+
+            // While an overlay has claimed but not yet painted, hold the frozen
+            // footprint so dismissing an island doesn't spring the notch down
+            // underneath the mapping surface (that read as a laggy two-step).
+            property real animWidth: {
+                if (overlayClaiming && !overlayCovering)
+                    return LauncherState.dockWidth;
+                if (dynamicIsland && dynamicIsland.isDockHidden)
+                    return islandTargetWidth;
+                return dockTargetWidth;
+            }
+            property real animHeight: {
+                if (overlayClaiming && !overlayCovering)
+                    return LauncherState.dockHeight;
+                if (dynamicIsland && dynamicIsland.isDockHidden)
+                    return islandTargetHeight;
+                return dockTargetHeight;
+            }
+            property real animRadius: {
+                if (overlayClaiming && !overlayCovering)
+                    return LauncherState.dockRadius;
+                if (dynamicIsland && dynamicIsland.isDockHidden)
+                    return islandTargetRadius;
+                return dockTargetRadius;
+            }
 
             Behavior on animWidth { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
             Behavior on animHeight { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
             Behavior on animRadius { SpringAnimation { spring: 6; damping: 0.45; epsilon: 0.25 } }
 
-            // Publish live dock footprint so overlays can morph from it.
-            onDockTargetWidthChanged: if (!overlayClaiming) LauncherState.dockWidth = dockTargetWidth
-            onDockTargetHeightChanged: if (!overlayClaiming) LauncherState.dockHeight = dockTargetHeight
-            onDockTargetRadiusChanged: if (!overlayClaiming) LauncherState.dockRadius = dockTargetRadius
+            // Publish the *visible* notch so overlays morph from what is on screen.
+            onFootprintWidthChanged: if (!overlayClaiming) LauncherState.dockWidth = footprintWidth
+            onFootprintHeightChanged: if (!overlayClaiming) LauncherState.dockHeight = footprintHeight
+            onFootprintRadiusChanged: if (!overlayClaiming) LauncherState.dockRadius = footprintRadius
             Component.onCompleted: {
-                LauncherState.dockWidth = dockTargetWidth;
-                LauncherState.dockHeight = dockTargetHeight;
-                LauncherState.dockRadius = dockTargetRadius;
+                LauncherState.dockWidth = footprintWidth;
+                LauncherState.dockHeight = footprintHeight;
+                LauncherState.dockRadius = footprintRadius;
             }
 
         }

@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import qs.theme
 import qs.services
 import qs.components
@@ -311,12 +310,15 @@ Item {
                 delegate: Item {
                     id: chipRoot
 
-                    required property int index
-                    required property string path
-                    required property string url
-                    required property string name
-                    required property string glyph
-                    required property bool isImage
+                    // Avoid `required property` on ListModel roles — Qt 6.11 can
+                    // SIGSEGV in RequiredPropertiesInitializer when rows are
+                    // inserted while a Repeater/ListView is incubating.
+                    property int index: model.index
+                    property string path: model.path
+                    property string url: model.url
+                    property string name: model.name
+                    property string glyph: model.glyph
+                    property bool isImage: model.isImage
                     property string category: model.category || FileStash.typeCategory(name)
                     property string accentColor: model.accentColor || FileStash.accentColor(name)
                     property string tag: model.tag || FileStash.categoryTag(name)
@@ -400,6 +402,7 @@ Item {
                                         color: Theme.glass_card
                                         border.color: Theme.glass_border
                                         border.width: 1
+                                        clip: true
 
                                         Image {
                                             id: thumb
@@ -410,20 +413,6 @@ Item {
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
                                             sourceSize: Qt.size(200, 200)
-                                            layer.enabled: chipRoot.isImage && thumb.status === Image.Ready
-                                            layer.effect: MultiEffect {
-                                                maskEnabled: true
-                                                maskSource: thumbMask
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            id: thumbMask
-                                            anchors.fill: parent
-                                            anchors.margins: 1
-                                            radius: 9
-                                            visible: false
-                                            layer.enabled: thumb.layer.enabled
                                         }
 
                                         MaterialIcon {
