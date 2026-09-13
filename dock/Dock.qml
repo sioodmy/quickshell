@@ -250,6 +250,11 @@ Variants {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
+                DockMediaIndicator {
+                    id: mediaIndicator
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
                 // 3. Sys Stats
                 DockSystemStats {
                     id: statsModule
@@ -386,6 +391,8 @@ Variants {
                 _overlayScreenMatch(LauncherState.open || LauncherState.openProgress > 0.001, LauncherState.screen)
                 || _overlayScreenMatch(KeepassState.open || KeepassState.openProgress > 0.001, KeepassState.screen)
                 || _overlayScreenMatch(Screenshot.open || Screenshot.openProgress > 0.001, Screenshot.screen)
+                || Lyrics.showFullscreen
+                || Lyrics.fullscreenTransitioning
 
             // The overlay is actually painting. Dock chrome yields only at this
             // point: mapping that surface takes several frames under load, and
@@ -395,8 +402,9 @@ Variants {
                 _overlayScreenMatch(LauncherState.openProgress > 0.001, LauncherState.screen)
                 || _overlayScreenMatch(KeepassState.openProgress > 0.001, KeepassState.screen)
                 || _overlayScreenMatch(Screenshot.openProgress > 0.001, Screenshot.screen)
+                || Lyrics.fullscreenProgress > 0.001
 
-            property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + (dockShareIcon && dockShareIcon.isVisible ? 6 : 0) + 16
+            property real dockTargetWidth: (clockModule ? clockModule.implicitWidth : 0) + (statsModule ? statsModule.implicitWidth : 0) + (dockShareIcon ? dockShareIcon.implicitWidth : 0) + (pomodoroWidget ? pomodoroWidget.implicitWidth : 0) + (mediaIndicator ? mediaIndicator.implicitWidth : 0) + (workspaceBar ? workspaceBar.implicitWidth : 0) + (pomodoroWidget && pomodoroWidget.isVisible ? 24 : 18) + (dockShareIcon && dockShareIcon.isVisible ? 6 : 0) + (mediaIndicator && mediaIndicator.isVisible ? 6 : 0) + 16
             property real dockTargetHeight: 28 + 14
             property real dockTargetRadius: 14
 

@@ -10,6 +10,22 @@ Singleton {
     property var parsedLyrics: []
     property int currentIndex: -1
     property bool showFullscreen: false
+    // Keeps the fullscreen surface mounted while its dock morph reverses.
+    property bool fullscreenTransitioning: false
+    property real fullscreenProgress: 0.0
+
+    onShowFullscreenChanged: {
+        fullscreenTransitioning = true;
+        if (showFullscreen) {
+            // Refresh the active line before the overlay mounts so the
+            // lyrics pane never opens on index 0 then catches up.
+            updateLine(Playerctl.position);
+            if (LauncherState.open || LauncherState.openProgress > 0.001)
+                LauncherState.requestClose();
+            if (KeepassState.open || KeepassState.openProgress > 0.001)
+                KeepassState.requestClose();
+        }
+    }
     
     property string currentTrack: Playerctl.artist + " - " + Playerctl.title
     

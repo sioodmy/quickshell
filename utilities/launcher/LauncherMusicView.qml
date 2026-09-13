@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Widgets
 import qs.theme
 import qs.services
 import qs.components
@@ -200,17 +201,6 @@ Item {
             border.color: Theme.glass_border
             Behavior on color { ColorAnimation { duration: 120 } }
 
-            Rectangle {
-                width: 3
-                height: isSelected ? 32 : 0
-                anchors.left: parent.left
-                anchors.leftMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                radius: 1.5
-                color: Theme.primary
-                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            }
-
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 12
@@ -219,13 +209,13 @@ Item {
                 anchors.bottomMargin: 8
                 spacing: 14
 
-                Rectangle {
+                ClippingRectangle {
                     id: albumCover
                     width: 52
                     height: 52
-                    radius: 10
+                    radius: 12
                     color: Theme.glass_raised
-                    clip: true
+                    contentUnderBorder: true
                     anchors.verticalCenter: parent.verticalCenter
 
                     Image {
@@ -234,6 +224,8 @@ Item {
                         source: modelData.cover_path ? "file://" + modelData.cover_path : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
+                        smooth: true
+                        mipmap: true
                         sourceSize: Qt.size(104, 104)
                         visible: !!source && status === Image.Ready
                     }
@@ -385,12 +377,12 @@ Item {
                             }
                         }
 
-                        Rectangle {
+                        ClippingRectangle {
                             width: 56; height: 56
                             radius: 12
                             color: Theme.glass_raised
                             anchors.verticalCenter: parent.verticalCenter
-                            clip: true
+                            contentUnderBorder: true
 
                             Image {
                                 id: headerCoverImg
@@ -398,6 +390,8 @@ Item {
                                 source: root.selectedAlbum && root.selectedAlbum.cover_path ? "file://" + root.selectedAlbum.cover_path : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                smooth: true
+                                mipmap: true
                                 sourceSize: Qt.size(160, 160)
                                 visible: !!source && status === Image.Ready
                             }
@@ -485,16 +479,7 @@ Item {
                 border.color: Theme.glass_border
                 Behavior on color { ColorAnimation { duration: 100 } }
 
-                Rectangle {
-                    width: 3
-                    height: isSelected ? 24 : 0
-                    anchors.left: parent.left
-                    anchors.leftMargin: 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 1.5
-                    color: Theme.primary
-                    Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                }
+
 
                 Row {
                     anchors.fill: parent

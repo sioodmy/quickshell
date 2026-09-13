@@ -518,11 +518,17 @@ PanelWindow {
 
         MouseArea { anchors.fill: parent }
 
-        Item {
+        // Screenshot + drawings, clipped to a radius concentric with the bubble:
+        // R_inner = R_outer − pad (floored at 0).
+        ClippingRectangle {
             id: imageContainer
             anchors.centerIn: parent
             width: canvasBubble.imageReady ? Math.round(canvasBubble.imgW * canvasBubble.fitScale) : 0
             height: canvasBubble.imageReady ? Math.round(canvasBubble.imgH * canvasBubble.fitScale) : 0
+            readonly property real contentRadius: Math.max(0,
+                editorWindow.canvasRadius - editorWindow.canvasPad)
+            radius: contentRadius
+            color: "transparent"
 
             Image {
                 anchors.fill: parent

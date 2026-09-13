@@ -245,13 +245,31 @@ fn search_group(
         let title = entry.get_title().unwrap_or("");
         let lower = title.to_lowercase();
         
+        let url = entry.get_url().unwrap_or("").to_lowercase();
+        let domain = url
+            .strip_prefix("http://").unwrap_or(&url)
+            .strip_prefix("https://").unwrap_or(&url)
+            .trim_start_matches("www.")
+            .split('/').next().unwrap_or("");
+            
+        let naked_domain = domain.split('.')
+            .max_by_key(|p| p.len())
+            .unwrap_or(domain);
+        
         let mut is_smart = false;
         let mut score = 0.0;
         
         if let Some(ct) = client_title {
-            if !lower.is_empty() && ct.to_lowercase().contains(&lower) {
+            let ct_lower = ct.to_lowercase();
+            if !lower.is_empty() && ct_lower.contains(&lower) {
                 is_smart = true;
                 score += 100.0 + lower.len() as f64;
+            } else if !domain.is_empty() && ct_lower.contains(domain) {
+                is_smart = true;
+                score += 90.0 + domain.len() as f64;
+            } else if !naked_domain.is_empty() && naked_domain.len() >= 3 && ct_lower.contains(naked_domain) {
+                is_smart = true;
+                score += 80.0 + naked_domain.len() as f64;
             }
         }
 

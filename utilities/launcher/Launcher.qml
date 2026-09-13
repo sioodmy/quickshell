@@ -102,11 +102,7 @@ PanelWindow {
         musicSplitBlend = (musicModeActive && BackendDaemon.musicState.hasPlayer) ? 1 : 0
     }
 
-    // File preview split is instant for snappiness (no animation)
-
-    Behavior on musicSplitBlend {
-        NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-    }
+    // File preview and music controls splits are instant for snappiness (no animation)
 
     Connections {
         target: BackendDaemon
@@ -122,6 +118,12 @@ PanelWindow {
         function onCloseRequested() {
             if (launcherWindow.menuOpen || launcherWindow.openProgress > 0)
                 launcherWindow.closeMenu();
+        }
+        function onOpenRequested() {
+            if (launcherWindow.menuOpen)
+                launcherWindow.applyPendingQuery();
+            else
+                launcherWindow.openMenu();
         }
     }
 
@@ -1288,20 +1290,22 @@ PanelWindow {
         // the TextField keeps its own text, and a close interrupted mid-animation
         // never reaches closeAnim.onFinished.
         ctrl.clearStates();
-        // The result list is kept warm while closed, so there is normally
-        // nothing to rebuild. If one was still queued, flush it now: doing the
-        // work before the surface is even mapped hides it entirely, whereas
-        // letting the debounce fire would land it inside the reveal.
-        if (filterDebounce.running) {
-            filterDebounce.stop();
-            _debouncedResults = buildFilteredList();
-        }
         // Focus now, not at reveal time: the compositor hands this surface the
         // keyboard as soon as it maps, so anything typed in between would
         // otherwise miss the search field.
         if (contentLoader.item) {
             contentLoader.item.clearSearch();
+            applyPendingQuery();
             contentLoader.item.focusSearch();
+        }
+        // The result list is kept warm while closed, so there is normally
+        // nothing to rebuild. If one was still queued (or a pending query just
+        // landed), flush it now: doing the work before the surface is even
+        // mapped hides it entirely, whereas letting the debounce fire would
+        // land it inside the reveal.
+        if (filterDebounce.running) {
+            filterDebounce.stop();
+            _debouncedResults = buildFilteredList();
         }
 
         // Arm the reveal. It fires from _onFramePresented once the surface is
@@ -1309,6 +1313,15 @@ PanelWindow {
         // too (see contentLoader.onItemChanged).
         _pendingOpen = !contentLoader.item;
         _armRevealProbe();
+    }
+
+    function applyPendingQuery() {
+        var q = LauncherState.pendingQuery;
+        if (q === "")
+            return;
+        LauncherState.pendingQuery = "";
+        if (contentLoader.item)
+            contentLoader.item.setSearch(q);
     }
 
     function closeMenu() {
@@ -1348,6 +1361,9 @@ PanelWindow {
                 // the list now, while still off screen, rather than letting the
                 // debounce drop it into the reveal.
                 item.clearSearch();
+                launcherWindow.applyPendingQuery();
+                if (filterDebounce.running)
+                    filterDebounce.stop();
                 launcherWindow._debouncedResults = launcherWindow.buildFilteredList();
                 item.focusSearch();
                 // The surface may already have presented while this tree was
@@ -1398,6 +1414,11 @@ PanelWindow {
 
                 function clearSearch() {
                     searchField.clear();
+                }
+
+                function setSearch(text) {
+                    searchField.text = text || "";
+                    searchField.cursorPosition = searchField.text.length;
                 }
 
                 function focusSearch() {
@@ -2157,9 +2178,6 @@ PanelWindow {
                             opacity: (launcherWindow.musicModeActive && musicLoader.status === Loader.Ready) ? 1 : 0
                             visible: opacity > 0.02
 
-                            Behavior on width {
-                                NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-                            }
                             Behavior on opacity {
                                 NumberAnimation { duration: 280; easing.type: Easing.OutCubic }
                             }
@@ -2343,14 +2361,6 @@ PanelWindow {
                         anchors.bottomMargin: 0
                         width: 1
                         opacity: launcherWindow.activeSplitBlend
-                        Behavior on opacity {
-                            enabled: launcherWindow.musicModeActive
-                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-                        }
-                        Behavior on x {
-                            enabled: launcherWindow.musicModeActive
-                            NumberAnimation { duration: 340; easing.type: Easing.OutCubic }
-                        }
 
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: "transparent" }
@@ -2371,7 +2381,6 @@ PanelWindow {
                         asynchronous: true
                         visible: status === Loader.Ready && launcherWindow.musicSplitBlend > 0.02
                         opacity: launcherWindow.musicSplitBlend
-                        Behavior on opacity { NumberAnimation { duration: 340; easing.type: Easing.OutCubic } }
 
                         anchors.right: parent.right
                         anchors.rightMargin: 8

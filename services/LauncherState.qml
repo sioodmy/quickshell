@@ -22,9 +22,18 @@ Singleton {
     // Screen the launcher is showing on — other docks stay collapsed.
     property var screen: null
 
+    // Applied once on the next open (or immediately if already open).
+    property string pendingQuery: ""
+
     signal closeRequested()
+    signal openRequested()
 
     function requestClose() {
         closeRequested();
+    }
+
+    function openWithQuery(query) {
+        pendingQuery = query || "";
+        openRequested();
     }
 }

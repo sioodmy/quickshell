@@ -297,6 +297,14 @@ PanelWindow {
                     } else if (event.key === Qt.Key_Up) {
                         selectedIndex = Math.max(selectedIndex - 1, 0);
                         event.accepted = true;
+                    } else if (event.key === Qt.Key_Tab) {
+                        if (searchResults.length > 0)
+                            selectedIndex = (selectedIndex >= searchResults.length - 1) ? 0 : selectedIndex + 1;
+                        event.accepted = true;
+                    } else if (event.key === Qt.Key_Backtab) {
+                        if (searchResults.length > 0)
+                            selectedIndex = (selectedIndex <= 0) ? searchResults.length - 1 : selectedIndex - 1;
+                        event.accepted = true;
                     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                         if (searchResults.length > 0 && selectedIndex >= 0 && selectedIndex < searchResults.length) {
                             keepassWindow.closeMenu();
@@ -305,6 +313,20 @@ PanelWindow {
                         event.accepted = true;
                     }
                 }
+            }
+
+            Keys.onTabPressed: event => {
+                if (isUnlocked && searchResults.length > 0) {
+                    selectedIndex = (selectedIndex >= searchResults.length - 1) ? 0 : selectedIndex + 1;
+                }
+                event.accepted = true;
+            }
+
+            Keys.onBacktabPressed: event => {
+                if (isUnlocked && searchResults.length > 0) {
+                    selectedIndex = (selectedIndex <= 0) ? searchResults.length - 1 : selectedIndex - 1;
+                }
+                event.accepted = true;
             }
 
             // ─── Locked state ─────────────────────────────────────────
@@ -541,6 +563,20 @@ PanelWindow {
                         }
 
                         Keys.onEscapePressed: keepassWindow.closeMenu()
+                        Keys.onTabPressed: event => {
+                            if (keepassWindow.searchResults.length > 0) {
+                                keepassWindow.selectedIndex = (keepassWindow.selectedIndex >= keepassWindow.searchResults.length - 1)
+                                    ? 0 : keepassWindow.selectedIndex + 1;
+                            }
+                            event.accepted = true;
+                        }
+                        Keys.onBacktabPressed: event => {
+                            if (keepassWindow.searchResults.length > 0) {
+                                keepassWindow.selectedIndex = (keepassWindow.selectedIndex <= 0)
+                                    ? keepassWindow.searchResults.length - 1 : keepassWindow.selectedIndex - 1;
+                            }
+                            event.accepted = true;
+                        }
 
                         onTextChanged: {
                             keepassWindow.searchText = text;

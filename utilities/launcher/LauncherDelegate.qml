@@ -171,28 +171,7 @@ Item {
             onClicked: mouse => delegateRoot.activate(mouse.modifiers & Qt.ShiftModifier)
         }
 
-        Rectangle {
-            id: activeIndicator
-            width: 4
-            height: delegateRoot.isSelected ? parent.height * 0.5 : 0
-            opacity: delegateRoot.isSelected ? 1.0 : 0.0
-            anchors.left: parent.left
-            anchors.leftMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            radius: 2
-            color: itemType === "emoji" ? Theme.tertiary : (itemType === "action" || itemType === "system_command" ? Theme.secondary : (itemType === "focus" ? Theme.tertiary : (itemType === "file" ? Theme.secondary : Theme.primary)))
-            Behavior on height {
-                NumberAnimation {
-                    duration: 150
-                    easing.type: Easing.OutQuart
-                }
-            }
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 150
-                }
-            }
-        }
+
 
         Item {
             id: topRow
@@ -235,12 +214,12 @@ Item {
                 }
                 
                 // Music Cover art
-                Rectangle {
+                ClippingRectangle {
                     anchors.fill: parent
-                    radius: 8
+                    radius: 10
                     visible: itemType === "music_album" || itemType === "music_track"
                     color: Theme.glass_raised
-                    clip: true
+                    contentUnderBorder: true
                     
                     Image {
                         id: launcherAlbumCover
@@ -250,6 +229,9 @@ Item {
                                 : ""
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
+                        smooth: true
+                        mipmap: true
+                        sourceSize: Qt.size(96, 96)
                         visible: (itemType === "music_album" || itemType === "music_track") && status === Image.Ready
                     }
                     
@@ -258,7 +240,7 @@ Item {
                         icon: "music_note"
                         font.pixelSize: 18
                         color: Theme.on_surface_variant
-                        visible: !parent.children[0].status || parent.children[0].status === Image.Error
+                        visible: launcherAlbumCover.status !== Image.Ready
                     }
                 }
 

@@ -321,16 +321,7 @@ Item {
                 }
             }
 
-            Rectangle {
-                width: 3
-                height: netDelegate.isSelected ? 28 : 0
-                anchors.left: parent.left
-                anchors.leftMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                radius: 1.5
-                color: Theme.primary
-                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            }
+
 
             Connections {
                 target: netDelegate.modelData

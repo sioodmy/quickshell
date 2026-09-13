@@ -464,18 +464,6 @@ Item {
                 anchors.fill: parent
                 visible: !clipDelegate.isImage
 
-                // Selection accent bar
-                Rectangle {
-                    width: 3
-                    height: clipDelegate.isSelected ? 30 : 0
-                    anchors.left: parent.left
-                    anchors.leftMargin: 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 1.5
-                    color: Theme.primary
-                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                }
-
                 Rectangle {
                     id: textLeading
                     width: 40

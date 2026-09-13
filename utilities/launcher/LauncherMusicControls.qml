@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Widgets
 import qs.theme
 import qs.services
 import qs.components
@@ -94,12 +95,12 @@ Item {
             spacing: 10
             height: root.artSize
 
-            Rectangle {
+            ClippingRectangle {
                 width: root.artSize
                 height: root.artSize
-                radius: 10
+                radius: 12
                 color: Theme.glass_raised
-                clip: true
+                contentUnderBorder: true
                 anchors.verticalCenter: parent.verticalCenter
 
                 Image {
@@ -111,6 +112,8 @@ Item {
                     }
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
+                    smooth: true
+                    mipmap: true
                     sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
                     visible: status === Image.Ready
                 }

@@ -50,7 +50,9 @@ ShellRoot {
 
     // Fullscreen media overlay
     Loader {
-        active: Lyrics.showFullscreen
+        // Do not unload at the start of close: the card must finish morphing
+        // back into the dock before its layer-shell surface disappears.
+        active: Lyrics.showFullscreen || Lyrics.fullscreenTransitioning
         asynchronous: true
         sourceComponent: FullscreenMedia { id: fullscreenMedia }
     }

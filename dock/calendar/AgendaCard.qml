@@ -56,33 +56,11 @@ Rectangle {
         onClicked: root.clicked(root.entryData)
     }
 
-    Rectangle {
-        id: stateStripe
-        z: 1
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-        width: 3
-        height: parent.height - 12
-        radius: 2
-        color: {
-            if (root.isOverdue) return Theme.critical;
-            if (root._state === "DONE" || root._state === "CANCELLED")
-                return Theme.outline;
-            if (root._state === "TODO" || root._state === "NEXT")
-                return Theme.primary;
-            if (root._state === "WAITING")
-                return Theme.tertiary;
-            return Theme.outline_variant;
-        }
-
-        Behavior on color { ColorAnimation { duration: 200 } }
-    }
-
     Column {
         id: cardContent
         z: 1
-        anchors.left: stateStripe.right
-        anchors.leftMargin: 8
+        anchors.left: parent.left
+        anchors.leftMargin: 11
         anchors.right: parent.right
         anchors.rightMargin: 10
         anchors.verticalCenter: parent.verticalCenter
