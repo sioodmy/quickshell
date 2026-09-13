@@ -23,6 +23,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev = "c5f1e94290922fe4ee9
 zbus = { version = "5", features = ["tokio"] }
 ignore = "0.4.28"
 nucleo-matcher = "0.3.1"
+strsim = "0.11.1"
 rayon = "1.12.0"
 syntect = "5.2.0"
 

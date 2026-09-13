@@ -270,6 +270,14 @@ fn search_group(
             } else if !naked_domain.is_empty() && naked_domain.len() >= 3 && ct_lower.contains(naked_domain) {
                 is_smart = true;
                 score += 80.0 + naked_domain.len() as f64;
+            } else if !lower.is_empty() {
+                for word in ct_lower.split(|c: char| !c.is_alphanumeric()) {
+                    if word.len() >= 3 && strsim::jaro_winkler(&lower, word) > 0.85 {
+                        is_smart = true;
+                        score += 70.0 + lower.len() as f64;
+                        break;
+                    }
+                }
             }
         }
 
@@ -279,8 +287,17 @@ fn search_group(
             score += 10.0 + query.len() as f64 / lower.len() as f64;
         } else if !lower.is_empty() && query.contains(&lower) {
             score += 5.0;
-        } else if !is_smart {
-            continue;
+        } else {
+            let fuzzy_lower = strsim::jaro_winkler(&lower, query);
+            let fuzzy_domain = strsim::jaro_winkler(domain, query);
+            let fuzzy_naked = strsim::jaro_winkler(naked_domain, query);
+            
+            let max_fuzzy = fuzzy_lower.max(fuzzy_domain).max(fuzzy_naked);
+            if max_fuzzy > 0.85 {
+                score += max_fuzzy * 10.0;
+            } else if !is_smart {
+                continue;
+            }
         }
         
         out.push((
