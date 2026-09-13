@@ -1,0 +1,815 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import "../../theme"
+import "../../services"
+import "../emoji/EmojiLogic.js" as EmojiLogic
+import "LauncherColorLogic.js" as ColorLogic
+Item {
+    id: backend
+
+    // UI Orchestration Signals
+    signal openMenuRequested
+    signal closeMenuRequested
+
+    Timer {
+        id: delayedCloseTimer
+        interval: 1500
+        onTriggered: backend.closeMenuRequested()
+    }
+
+    Timer {
+        id: lockAfterClose
+        // Wait for the launcher PanelWindow (and any residual layered
+        // effects) to fully unmap before creating a WlSessionLockSurface.
+        // Mapping both at once crashes updatePixelRatioHelper on Asahi.
+        interval: 700
+        onTriggered: Quickshell.execDetached({ command: ["quickshell", "ipc", "call", "lock", "lock"] })
+    }
+
+    property string searchText: ""
+    property string calcExpression: backend.searchText.trim()
+
+    // Aliased to BackendDaemon
+    property string dictWord: BackendDaemon.dictWord
+    property string dictPhonetic: BackendDaemon.dictPhonetic
+    property string dictDefinition: BackendDaemon.dictDefinition
+    property string dictStatus: BackendDaemon.dictStatus
+
+    property bool cocaineEnabled: false
+
+    property string calcResult: (backend.searchText.trim() !== "" && BackendDaemon.calcResultQuery === backend.searchText.trim()) ? BackendDaemon.calcResult : ""
+    property string backendqsSvg: BackendDaemon.backendqsSvg
+    property string backendqsError: BackendDaemon.backendqsError
+    property string backendqsStatus: BackendDaemon.backendqsStatus
+
+    // Emoji data
+    property string emojiListPath: "~/.cache/quickshell/emojis.json"
+    property string recentsCachePath: "~/.local/state/quickshell/recent_emojis.json"
+    property string oldFrequenciesCachePath: "~/.cache/quickshell/app_frequencies.json"
+    property var allEmojis: []
+    property var filteredEmojis: []
+    property var recentEmojis: []
+    property var pendingRecents: []
+    property var emojiDisplayByChar: ({})
+    
+    // Frecency is now fully managed by the Rust backend.
+    property var frecencyScores: BackendDaemon.frecencyScores
+    property var appFrequencies: frecencyScores.apps || ({})
+    property var appSearchResults: BackendDaemon.appSearchResults
+    property string appSearchQuery: BackendDaemon.appSearchQuery
+    property string selectionBuffer: ""
+
+    // File search (delegated to Rust backend)
+    property var fileSearchResults: BackendDaemon.fileSearchResults
+    property string fileSearchQuery: BackendDaemon.fileSearchQuery
+    property var bookmarkSearchResults: BackendDaemon.bookmarkSearchResults
+    property string bookmarkSearchQuery: BackendDaemon.bookmarkSearchQuery
+    property var filePreview: BackendDaemon.filePreview
+    property string selectedFilePath: ""
+
+    // Terminal emulator to launch apps in
+    property string myTerminal: "foot"
+
+    function clearStates() {
+        searchText = "";
+        selectionBuffer = "";
+        BackendDaemon.calcResult = "";
+        BackendDaemon.calcStatus = "";
+        BackendDaemon.dictWord = "";
+        BackendDaemon.dictPhonetic = "";
+        BackendDaemon.dictDefinition = "";
+        BackendDaemon.dictStatus = "";
+        BackendDaemon.backendqsSvg = "";
+        BackendDaemon.backendqsError = "";
+        BackendDaemon.backendqsStatus = "";
+        BackendDaemon.fileSearchResults = [];
+        BackendDaemon.fileSearchQuery = "";
+        BackendDaemon.bookmarkSearchResults = [];
+        BackendDaemon.bookmarkSearchQuery = "";
+        BackendDaemon.filePreview = null;
+        backend.selectedFilePath = "";
+        BackendDaemon.filePreviewPath = "";
+    }
+
+    function launchApp(desktopEntry) {
+        if (desktopEntry.id) {
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": desktopEntry.id,
+                "query": query
+            });
+        }
+
+        var finalCommand = [];
+
+        // Wrap the launch in UWSM so systemd tracks the app properly
+        finalCommand.push("run-as-service");
+
+        var cmdToRun = [];
+        if (desktopEntry.runInTerminal) {
+            cmdToRun.push(myTerminal);
+            cmdToRun.push("--");
+        }
+        cmdToRun = cmdToRun.concat(desktopEntry.command);
+        
+        var escapedCmd = cmdToRun.map(function(arg) {
+            return "'" + String(arg).replace(/'/g, "'\\''") + "'";
+        }).join(" ");
+        
+        finalCommand.push(escapedCmd);
+
+        Quickshell.execDetached({
+            command: finalCommand,
+            workingDirectory: desktopEntry.workingDirectory
+        });
+
+        backend.closeMenuRequested();
+    }
+
+    function launchAppAction(desktopEntry, actionObj) {
+        if (desktopEntry.id) {
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": desktopEntry.id,
+                "query": query
+            });
+        }
+
+        var finalCommand = [];
+        finalCommand.push("run-as-service");
+        
+        var cmdToRun = [];
+        if (actionObj.command) {
+            cmdToRun = cmdToRun.concat(actionObj.command);
+        } else if (actionObj.exec) {
+            cmdToRun = cmdToRun.concat(actionObj.exec);
+        } else if (actionObj.execString) {
+            // Fallback if Quickshell only provides execString
+            cmdToRun = ["bash", "-c", actionObj.execString];
+        }
+        
+        var escapedCmd = cmdToRun.map(function(arg) {
+            return "'" + String(arg).replace(/'/g, "'\\''") + "'";
+        }).join(" ");
+        
+        finalCommand.push(escapedCmd);
+
+        Quickshell.execDetached({
+            command: finalCommand,
+            workingDirectory: desktopEntry.workingDirectory || ""
+        });
+
+        backend.closeMenuRequested();
+    }
+
+    // Get quickkey matches for a query string
+    function getQuickkeyMatches(query) {
+        var q = (query || "").trim().toLowerCase();
+        if (q.length < 2) return [];
+        return backend.frecencyScores.quickkeys[q] || [];
+    }
+
+    // Get frecency score for a specific app
+    function getAppFrecency(appId) {
+        return backend.frecencyScores.apps[appId] || 0;
+    }
+
+    // Get the display name for an emoji
+    function getEmojiDisplay(emojiChar) {
+        return backend.emojiDisplayByChar[emojiChar] || "Emoji";
+    }
+
+    // --- URL encoding helper ---
+    function urlEncode(str) {
+        // Encode special characters for URL query parameters
+        var encoded = "";
+        for (var i = 0; i < str.length; i++) {
+            var c = str.charAt(i);
+            if (/[A-Za-z0-9\-_.~]/.test(c)) {
+                encoded += c;
+            } else if (c === " ") {
+                encoded += "+";
+            } else {
+                var code = str.charCodeAt(i);
+                encoded += "%" + code.toString(16).toUpperCase().padStart(2, "0");
+            }
+        }
+        return encoded;
+    }
+
+    // --- Fallback actions ---
+    function openWolframAlpha() {
+        var query = backend.searchText.trim();
+        if (query === "") return;
+        var url = "https://www.wolframalpha.com/input?i=" + urlEncode(query);
+        xdgOpenProcess.targetUrl = url;
+        xdgOpenProcess.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function openWebSearch() {
+        var query = backend.searchText.trim();
+        if (query === "") return;
+        var url = "https://duckduckgo.com/?q=" + urlEncode(query);
+        xdgOpenProcess.targetUrl = url;
+        xdgOpenProcess.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function looksLikeMath(query) {
+        if (ColorLogic.isColorQuery(query))
+            return false;
+        return /[0-9]/.test(query) || /^[\(\-\+]/.test(query) || query.indexOf("int") !== -1 || query.indexOf("sum") !== -1 || query.indexOf("det") !== -1 || query.indexOf("sqrt") !== -1;
+    }
+
+    function isColorPickerQuery(query) {
+        return ColorLogic.isColorQuery(query);
+    }
+
+    function copyColorText(text) {
+        copyCalcResult.resultText = text;
+        copyCalcResult.running = true;
+    }
+
+    // --- Focus window via niri ---
+    function focusWindow(windowId) {
+        NiriService.focusWindow(windowId);
+        backend.closeMenuRequested();
+    }
+
+    property int currentWorkspaceId: -1
+    Instantiator {
+        model: NiriService.workspaces
+        delegate: QtObject {
+            property int wsId: model.id !== undefined ? model.id : -1
+            property bool isFocused: model.isFocused !== undefined ? model.isFocused : false
+            
+            onIsFocusedChanged: {
+                if (isFocused && wsId !== -1) {
+                    backend.currentWorkspaceId = wsId;
+                }
+            }
+            Component.onCompleted: {
+                if (isFocused && wsId !== -1) {
+                    backend.currentWorkspaceId = wsId;
+                }
+            }
+        }
+    }
+
+    function getCurrentWorkspaceId() {
+        return backend.currentWorkspaceId;
+    }
+
+    function getBringWindows(query) {
+        var results = [];
+        var term = query.toLowerCase();
+        var wins = backend.getRunningWindows();
+        var currentWsId = backend.getCurrentWorkspaceId();
+        
+        for (var i = 0; i < wins.length; i++) {
+            var w = wins[i];
+            
+            if (Number(w.workspaceId) === Number(currentWsId)) {
+                continue;
+            }
+            
+            if (term !== "") {
+                var title = (w.title || "").toLowerCase();
+                var appId = (w.appId || "").toLowerCase();
+                if (title.indexOf(term) === -1 && appId.indexOf(term) === -1) {
+                    continue;
+                }
+            }
+            results.push(w);
+        }
+        return results;
+    }
+
+    property var _appMap: ({})
+
+    function _rebuildAppMap() {
+        var map = {};
+        var allApps = DesktopEntries.applications.values;
+        for (var i = 0; i < allApps.length; i++) {
+            var entry = allApps[i];
+            if (entry.id) {
+                map[entry.id] = entry;
+                map[entry.id.toLowerCase()] = entry;
+                if (entry.id.endsWith(".desktop")) {
+                    var stem = entry.id.substring(0, entry.id.length - 8);
+                    map[stem] = entry;
+                    map[stem.toLowerCase()] = entry;
+                }
+            }
+        }
+        backend._appMap = map;
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() { backend._rebuildAppMap(); }
+    }
+    Component.onCompleted: backend._rebuildAppMap()
+
+    function findDesktopEntry(appId) {
+        if (!appId) return null;
+        if (backend._appMap[appId]) return backend._appMap[appId];
+        var lower = appId.toLowerCase();
+        if (backend._appMap[lower]) return backend._appMap[lower];
+        return null;
+    }
+
+    function bringWindow(windowId) {
+        var targetWsId = backend.getCurrentWorkspaceId();
+        if (targetWsId === -1) return;
+        NiriService.sendRawAction({
+            "MoveWindowToWorkspace": {
+                "window_id": Number(windowId),
+                "reference": { "Id": Number(targetWsId) },
+                "focus": true
+            }
+        });
+        NiriService.focusWindow(windowId);
+        backend.closeMenuRequested();
+    }
+
+    property var _runningWindowsMap: ({})
+    Instantiator {
+        model: NiriService.windows
+        delegate: QtObject {
+            property string winId: model.id || ""
+            property string winTitle: model.title || ""
+            property string winAppId: model.appId || ""
+            property int winWorkspaceId: model.workspaceId !== undefined ? model.workspaceId : -1
+            
+            Component.onCompleted: {
+                var map = Object.assign({}, backend._runningWindowsMap);
+                map[winId] = {
+                    id: winId,
+                    title: winTitle,
+                    appId: winAppId,
+                    workspaceId: winWorkspaceId
+                };
+                backend._runningWindowsMap = map;
+            }
+            onWinTitleChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].title = winTitle;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            onWinAppIdChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].appId = winAppId;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            onWinWorkspaceIdChanged: {
+                if (backend._runningWindowsMap[winId]) {
+                    var map = Object.assign({}, backend._runningWindowsMap);
+                    map[winId].workspaceId = winWorkspaceId;
+                    backend._runningWindowsMap = map;
+                }
+            }
+            Component.onDestruction: {
+                var map = Object.assign({}, backend._runningWindowsMap);
+                delete map[winId];
+                backend._runningWindowsMap = map;
+            }
+        }
+    }
+
+    function getRunningWindows() {
+        return Object.values(backend._runningWindowsMap);
+    }
+
+    // --- Emoji functions ---
+    function filterEmojis(query) {
+        if (query === "" || backend.allEmojis.length === 0)
+            return [];
+        return EmojiLogic.filterEmojis(backend.allEmojis, query);
+    }
+
+    function copyEmoji(emojiChar, isShift) {
+        if (backend.pendingRecents.length > 100) {
+            backend.pendingRecents.shift();
+        }
+        backend.pendingRecents.push(emojiChar);
+
+        if (isShift) {
+            backend.selectionBuffer += emojiChar;
+        } else {
+            var query = backend.searchText.trim();
+            BackendDaemon.send({
+                "action": "frecency_record",
+                "id": "emoji:" + emojiChar,
+                "query": query
+            });
+
+            var finalEmoji = backend.selectionBuffer + emojiChar;
+            copyEmojiProcess.selectedEmoji = finalEmoji;
+            copyEmojiProcess.running = true;
+            backend.selectionBuffer = "";
+            backend.closeMenuRequested();
+        }
+    }
+
+    function commitRecents() {
+        if (backend.pendingRecents.length === 0)
+            return;
+
+        var updatedList = backend.recentEmojis;
+        for (var i = 0; i < backend.pendingRecents.length; i++) {
+            updatedList = EmojiLogic.updateRecents(backend.pendingRecents[i], backend.allEmojis, updatedList);
+        }
+
+        backend.recentEmojis = updatedList;
+        saveRecentEmojis();
+        backend.pendingRecents = [];
+    }
+
+    function saveRecentEmojis() {
+        var rawChars = backend.recentEmojis.map(function(item) { return item.emoji; });
+        BackendDaemon.send({
+            "action": "save_json",
+            "path": backend.recentsCachePath,
+            "data": rawChars
+        });
+    }
+
+    onSearchTextChanged: {
+        calcDebounce.restart();
+        dictDebounce.restart();
+        fileSearchDebounce.restart();
+        bookmarkSearchDebounce.restart();
+        appSearchDebounce.restart();
+    }
+
+    Timer {
+        id: dictDebounce
+        interval: 300
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query === "" || query.indexOf(" ") !== -1) {
+                BackendDaemon.dictWord = "";
+                BackendDaemon.dictPhonetic = "";
+                BackendDaemon.dictDefinition = "";
+                BackendDaemon.dictStatus = "";
+                return;
+            }
+            BackendDaemon.send({"action": "dictionary", "query": query});
+        }
+    }
+
+    function copyDictResult() {
+        if (backend.dictStatus === "ok") {
+            copyCalcResult.resultText = backend.dictWord + " - " + backend.dictDefinition;
+            copyCalcResult.running = true;
+            backend.closeMenuRequested();
+        }
+    }
+
+    Timer {
+        id: calcDebounce
+        interval: 200
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query === "") {
+                BackendDaemon.calcResult = "";
+                BackendDaemon.calcStatus = "";
+                return;
+            }
+            if (backend.looksLikeMath(query)) {
+                BackendDaemon.send({"action": "calc", "query": query});
+                var colStr = String(Theme.on_surface);
+                if (colStr.length === 9 && colStr.startsWith("#ff")) {
+                    colStr = "#" + colStr.substring(3);
+                }
+                BackendDaemon.send({"action": "math", "query": query, "out": "/tmp/quickshell_math.svg", "color": colStr});
+            } else {
+                BackendDaemon.calcResult = "";
+                BackendDaemon.calcStatus = "";
+            }
+        }
+    }
+
+    Process {
+        id: copyCalcResult
+        property string resultText: ""
+        command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", resultText]
+    }
+
+    // Lightweight clipboard helper for arbitrary text (does not auto-close launcher).
+    Process {
+        id: copyTextProcess
+        property string text: ""
+        command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", text]
+    }
+
+    function copyText(text) {
+        copyTextProcess.text = text;
+        copyTextProcess.running = true;
+    }
+
+    function copyResult() {
+        if (backend.calcResult !== "") {
+            var clean = backend.calcResult;
+            var parenIdx = clean.indexOf(" (");
+            if (parenIdx !== -1)
+                clean = clean.substring(0, parenIdx).trim();
+            copyCalcResult.resultText = clean;
+            copyCalcResult.running = true;
+        }
+    }
+
+    Process {
+        id: xdgOpenProcess
+        property string targetUrl: ""
+        command: ["xdg-open", targetUrl]
+    }
+
+    Process {
+        id: updateEmojisProcess
+        command: ["bash", Quickshell.shellPath("scripts/download_emojis.sh")]
+        Component.onCompleted: running = true
+        onRunningChanged: if (!running)
+            fetchEmojis.running = true
+    }
+
+    Process {
+        id: fetchEmojis
+        command: ["bash", "-c", "cat " + backend.emojiListPath + " 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var textBody = this.text.trim();
+                    if (!textBody) return;
+                    backend.allEmojis = EmojiLogic.parseEmojiJson(textBody);
+                    var displayMap = {};
+                    for (var i = 0; i < backend.allEmojis.length; i++) {
+                        displayMap[backend.allEmojis[i].emoji] = backend.allEmojis[i].display;
+                    }
+                    backend.emojiDisplayByChar = displayMap;
+                    loadRecentsProcess.running = true;
+                } catch (e) {
+                    console.error("Failed to parse emoji list:", e);
+                }
+            }
+        }
+    }
+
+    Process {
+        id: loadRecentsProcess
+        command: ["bash", "-c", 'cat ' + backend.recentsCachePath + ' 2>/dev/null || echo "[]"']
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var savedChars = JSON.parse(this.text.trim() || "[]");
+                    if (Array.isArray(savedChars)) {
+                        backend.recentEmojis = savedChars.map(function(char) {
+                            return backend.allEmojis.find(function(item) { return item.emoji === char; });
+                        }).filter(Boolean);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse recents:", e);
+                }
+            }
+        }
+    }
+
+    Process {
+        id: copyEmojiProcess
+        property string selectedEmoji: ""
+        command: ["bash", "-c", 'printf "%s" "$1" | wl-copy', "_", selectedEmoji]
+        onRunningChanged: {
+            if (!running && selectedEmoji !== "") {
+                selectedEmoji = "";
+            }
+        }
+    }
+
+    // --- File search and Sysctl ---
+    Timer {
+        id: fileSearchDebounce
+        interval: 150
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length >= 3) {
+                BackendDaemon.send({"action": "file_search", "query": query});
+            } else {
+                BackendDaemon.fileSearchResults = [];
+            }
+        }
+    }
+
+    Timer {
+        id: bookmarkSearchDebounce
+        interval: 150
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length >= 2) {
+                BackendDaemon.send({"action": "bookmark_search", "query": query});
+            } else {
+                BackendDaemon.bookmarkSearchResults = [];
+            }
+        }
+    }
+
+    Timer {
+        id: appSearchDebounce
+        interval: 40
+        onTriggered: {
+            var query = backend.searchText.trim();
+            if (query.length > 0) {
+                BackendDaemon.appSearchQuery = query;
+                BackendDaemon.send({"action": "app_search", "query": query});
+            } else {
+                BackendDaemon.appSearchResults = [];
+            }
+        }
+    }
+
+    function openFile(path) {
+        BackendDaemon.send({"action": "file_open", "path": path});
+        BackendDaemon.send({
+            "action": "frecency_record",
+            "id": path,
+            "query": backend.searchText.trim()
+        });
+        backend.closeMenuRequested();
+    }
+
+    function openUrl(url) {
+        xdgOpenProcess.targetUrl = url;
+        xdgOpenProcess.running = true;
+        BackendDaemon.send({
+            "action": "frecency_record",
+            "id": url,
+            "query": backend.searchText.trim()
+        });
+        backend.closeMenuRequested();
+    }
+
+    function requestFilePreview(path) {
+        if (!path) return;
+        backend.selectedFilePath = path;
+        BackendDaemon.filePreviewPath = path;
+        BackendDaemon.filePreview = null;
+        BackendDaemon.send({"action": "file_preview", "path": path});
+    }
+
+    Process {
+        id: copyFileProcess
+        property string filePath: ""
+        command: ["bash", "-c", 'wl-copy < "$1"', "_", filePath]
+    }
+
+    function copyFile(path) {
+        copyFileProcess.filePath = path;
+        copyFileProcess.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function copyFilePath(path) {
+        copyCalcResult.resultText = path;
+        copyCalcResult.running = true;
+        backend.closeMenuRequested();
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        var kb = bytes / 1024;
+        if (kb < 1024) return kb.toFixed(1) + " KB";
+        var mb = kb / 1024;
+        if (mb < 1024) return mb.toFixed(1) + " MB";
+        var gb = mb / 1024;
+        return gb.toFixed(2) + " GB";
+    }
+
+    function mimeIcon(cat) {
+        if (cat === "image") return "image";
+        if (cat === "video") return "videocam";
+        if (cat === "audio") return "music_note";
+        if (cat === "pdf") return "picture_as_pdf";
+        if (cat === "archive") return "folder_zip";
+        if (cat === "document") return "description";
+        if (cat === "text") return "article";
+        return "draft";
+    }
+
+    IpcHandler {
+        target: "appLauncher"
+        function toggle() {
+            backend.openMenuRequested();
+        }
+    }
+
+    IpcHandler {
+        target: "emojiMenu"
+        function toggle() {
+            backend.openMenuRequested();
+        }
+    }
+
+    function executeSystemCommand(actionId, value) {
+        if (actionId === "vol_mute") {
+            Quickshell.execDetached({ command: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] });
+        } else if (actionId === "vol_set") {
+            Quickshell.execDetached({ command: ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", (value / 100).toFixed(2)] });
+        } else if (actionId === "bl_set") {
+            Brightness.setPercent(value);
+        } else if (actionId === "shutdown") {
+            Quickshell.execDetached({ command: ["systemctl", "poweroff"] });
+        } else if (actionId === "reboot") {
+            Quickshell.execDetached({ command: ["systemctl", "reboot"] });
+        } else if (actionId === "sleep") {
+            Quickshell.execDetached({ command: ["systemctl", "suspend"] });
+        } else if (actionId === "lock") {
+            // Wait for the launcher PanelWindow to fully unmap before creating
+            // a WlSessionLockSurface. Concurrent map of both surfaces crashes
+            // updatePixelRatioHelper on Asahi.
+            lockAfterClose.restart();
+        } else if (actionId === "audio_out_hdmi") {
+            Quickshell.execDetached({ command: ["bash", "-c", "wpctl status | awk '/Sinks:/,/Sources:/ {print}' | grep -i hdmi | grep -Eo '[0-9]+' | head -n 1 | xargs -r wpctl set-default"] });
+        } else if (actionId === "bt_connect") {
+            Quickshell.execDetached({ command: ["bluetoothctl", "connect", value] });
+        } else if (actionId === "wifi_connect") {
+            Quickshell.execDetached({ command: ["nmcli", "device", "wifi", "connect", value] });
+        } else if (actionId === "night_on") {
+            NightLight.enable();
+        } else if (actionId === "night_off") {
+            NightLight.disable();
+        } else if (actionId === "night_toggle") {
+            NightLight.toggle();
+        } else if (actionId === "night_set") {
+            NightLight.setIntensity(value);
+            if (!NightLight.enabled) NightLight.enable();
+        } else if (actionId === "ss_fullscreen") {
+            Screenshot.finishFullscreen();
+        } else if (actionId === "ss_area") {
+            Screenshot.finishArea();
+        } else if (actionId === "ss_window") {
+            Screenshot.finishWindow();
+        } else if (actionId === "ss_menu") {
+            Screenshot.take_menu();
+        } else if (actionId === "rec_fullscreen") {
+            ScreenRecord.startFullscreen();
+        } else if (actionId === "rec_area") {
+            ScreenRecord.startArea();
+        } else if (actionId === "rec_stop") {
+            ScreenRecord.stop();
+        } else if (actionId === "rec_audio_toggle") {
+            ScreenRecord.toggleAudio();
+            return;
+        } else if (actionId === "dnd_on") {
+            DoNotDisturb.enable();
+        } else if (actionId === "dnd_off") {
+            DoNotDisturb.disable();
+        } else if (actionId === "dnd_toggle") {
+            DoNotDisturb.toggle();
+        } else if (actionId === "coc_on") {
+            backend.cocaineEnabled = true;
+            BackendDaemon.send({ action: "cocaine_enable" });
+            delayedCloseTimer.restart();
+            return;
+        } else if (actionId === "coc_off") {
+            backend.cocaineEnabled = false;
+            BackendDaemon.send({ action: "cocaine_disable" });
+            delayedCloseTimer.restart();
+            return;
+        } else if (actionId === "coc_toggle") {
+            backend.cocaineEnabled = !backend.cocaineEnabled;
+            BackendDaemon.send({ action: backend.cocaineEnabled ? "cocaine_enable" : "cocaine_disable" });
+            delayedCloseTimer.restart();
+            return;
+        } else if (actionId === "pom_start") {
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+        } else if (actionId === "pom_stop") {
+            Pomodoro.isRunning = false;
+        } else if (actionId === "pom_toggle") {
+            Pomodoro.toggle();
+        } else if (actionId === "pom_reset") {
+            Pomodoro.reset();
+        } else if (actionId === "pom_work") {
+            Pomodoro.setMode(0);
+        } else if (actionId === "pom_break") {
+            Pomodoro.setMode(1);
+        } else if (actionId === "pom_long") {
+            Pomodoro.setMode(2);
+        } else if (actionId === "pom_set") {
+            Pomodoro.setDuration(value);
+            if (!Pomodoro.isRunning)
+                Pomodoro.isRunning = true;
+        } else if (actionId === "pom_adjust") {
+            Pomodoro.adjustTime(value);
+        }
+        backend.closeMenuRequested();
+    }
+}

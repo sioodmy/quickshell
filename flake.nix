@@ -4,11 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-
-
+    quickshell.url = "github:quickshell-mirror/quickshell";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, quickshell }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -33,11 +32,41 @@
           '';
         };
 
+        qs = quickshell.packages.${system}.default;
+        configPath = "${self}/ui";
+
+        leninshell = pkgs.symlinkJoin {
+          name = "leninshell";
+          paths = [ qs ];
+          buildInputs = [ pkgs.makeWrapper ];
+          postBuild = ''
+            rm $out/bin/quickshell
+            makeWrapper ${qs}/bin/quickshell $out/bin/leninshell \
+              --add-flags "--path ${configPath}" \
+              --prefix PATH : "${backendqs}/bin"
+
+            makeWrapper $out/bin/leninshell $out/bin/lenin-launcher \
+              --add-flags "ipc call appLauncher toggle"
+
+            makeWrapper $out/bin/leninshell $out/bin/lenin-lock \
+              --add-flags "ipc call lock lock"
+
+            makeWrapper $out/bin/leninshell $out/bin/lenin-keepass \
+              --add-flags "ipc call keepass toggle"
+
+            makeWrapper $out/bin/leninshell $out/bin/lenin-screenshot \
+              --add-flags "ipc call screenshot take"
+
+            makeWrapper $out/bin/leninshell $out/bin/lenin-rsvp \
+              --add-flags "ipc call rsvp toggle"
+          '';
+        };
+
       in
       {
         packages = {
-          backendqs = backendqs;
-          default = backendqs;
+          inherit backendqs leninshell;
+          default = leninshell;
         };
 
         devShells.default = pkgs.mkShell {
