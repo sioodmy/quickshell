@@ -5,9 +5,14 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     quickshell.url = "github:quickshell-mirror/quickshell";
+    qml-niri = {
+      url = "github:imiric/qml-niri/93e603901bed2c4465d5675ae43fd52b7f7c4adf";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.quickshell.follows = "quickshell";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, quickshell }:
+  outputs = { self, nixpkgs, flake-utils, quickshell, qml-niri }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -32,7 +37,7 @@
           '';
         };
 
-        qs = quickshell.packages.${system}.default;
+        qs = qml-niri.packages.${system}.quickshell;
         configPath = "${self}/ui";
 
         leninshell = pkgs.symlinkJoin {
