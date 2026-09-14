@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use axum::{
+    Router,
     body::Body,
     extract::{Path, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
     routing::get,
-    Router,
 };
 use futures::StreamExt;
 use qrcode::QrCode;
@@ -13,8 +13,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::{Path as FsPath, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tokio_util::io::ReaderStream;

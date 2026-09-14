@@ -140,11 +140,7 @@ fn luma(r: f32, g: f32, b: f32) -> f32 {
 fn sat(r: f32, g: f32, b: f32) -> f32 {
     let max = r.max(g).max(b);
     let min = r.min(g).min(b);
-    if max < 1e-4 {
-        0.0
-    } else {
-        (max - min) / max
-    }
+    if max < 1e-4 { 0.0 } else { (max - min) / max }
 }
 
 fn hue(r: f32, g: f32, b: f32) -> f32 {
@@ -162,11 +158,7 @@ fn hue(r: f32, g: f32, b: f32) -> f32 {
         (r - g) / d + 4.0
     };
     let deg = h * 60.0;
-    if deg < 0.0 {
-        deg + 360.0
-    } else {
-        deg
-    }
+    if deg < 0.0 { deg + 360.0 } else { deg }
 }
 
 fn hue_dist(a: f32, b: f32) -> f32 {

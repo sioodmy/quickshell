@@ -1,8 +1,8 @@
 mod agenda;
 mod api;
 mod appsearch;
-mod artpalette;
 mod archivepreview;
+mod artpalette;
 mod bookmarks;
 mod cliphist;
 mod context;
@@ -42,8 +42,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 
 use notify::{Event, RecursiveMode, Watcher};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc as tmpsc;
 
 #[derive(Parser)]

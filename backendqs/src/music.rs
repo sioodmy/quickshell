@@ -256,109 +256,110 @@ impl Player {
                 }
 
                 match rx.try_recv() {
-                    Ok(cmd) => {
-                        match cmd {
-                            PlayerCmd::PlayAlbum { paths, start_index } => {
-                                {
-                                    let mut s = state_clone.lock().unwrap();
-                                    s.playlist = paths;
-                                    s.playlist_index = start_index;
+                    Ok(cmd) => match cmd {
+                        PlayerCmd::PlayAlbum { paths, start_index } => {
+                            {
+                                let mut s = state_clone.lock().unwrap();
+                                s.playlist = paths;
+                                s.playlist_index = start_index;
+                            }
+                            play_index(&player, &state_clone, start_index);
+                        }
+                        PlayerCmd::Pause => {
+                            player.pause();
+                            let mut s = state_clone.lock().unwrap();
+                            s.position_snapshot_us = s.live_position_us();
+                            s.playing = false;
+                        }
+                        PlayerCmd::Resume => {
+                            player.play();
+                            let mut s = state_clone.lock().unwrap();
+                            s.position_at = Instant::now();
+                            s.playing = true;
+                        }
+                        PlayerCmd::Stop => {
+                            player.stop();
+                            let mut s = state_clone.lock().unwrap();
+                            *s = PlaybackState::default();
+                        }
+                        PlayerCmd::Next => {
+                            let idx = {
+                                let s = state_clone.lock().unwrap();
+                                if s.playlist_index + 1 < s.playlist.len() {
+                                    Some(s.playlist_index + 1)
+                                } else if s.loop_album && !s.playlist.is_empty() {
+                                    Some(0)
+                                } else {
+                                    None
                                 }
-                                play_index(&player, &state_clone, start_index);
-                            }
-                            PlayerCmd::Pause => {
-                                player.pause();
-                                let mut s = state_clone.lock().unwrap();
-                                s.position_snapshot_us = s.live_position_us();
-                                s.playing = false;
-                            }
-                            PlayerCmd::Resume => {
-                                player.play();
-                                let mut s = state_clone.lock().unwrap();
-                                s.position_at = Instant::now();
-                                s.playing = true;
-                            }
-                            PlayerCmd::Stop => {
-                                player.stop();
-                                let mut s = state_clone.lock().unwrap();
-                                *s = PlaybackState::default();
-                            }
-                            PlayerCmd::Next => {
-                                let idx = {
-                                    let s = state_clone.lock().unwrap();
-                                    if s.playlist_index + 1 < s.playlist.len() {
-                                        Some(s.playlist_index + 1)
-                                    } else if s.loop_album && !s.playlist.is_empty() {
-                                        Some(0)
-                                    } else {
-                                        None
-                                    }
-                                };
-                                if let Some(i) = idx {
-                                    play_index(&player, &state_clone, i);
-                                }
-                            }
-                            PlayerCmd::Previous => {
-                                let idx = {
-                                    let s = state_clone.lock().unwrap();
-                                    if s.playlist_index > 0 {
-                                        Some(s.playlist_index - 1)
-                                    } else {
-                                        Some(0)
-                                    }
-                                };
-                                if let Some(i) = idx {
-                                    play_index(&player, &state_clone, i);
-                                }
-                            }
-                            PlayerCmd::Seek { position_secs } => {
-                                let seek_pos = Duration::from_secs_f64(position_secs);
-                                let _ = player.try_seek(seek_pos);
-                                let mut s = state_clone.lock().unwrap();
-                                s.position_snapshot_us = (position_secs * 1_000_000.0) as i64;
-                                s.position_at = Instant::now();
-                            }
-                            PlayerCmd::SetVolume { volume } => {
-                                player.set_volume(volume);
-                                let mut s = state_clone.lock().unwrap();
-                                s.volume = volume;
-                            }
-                            PlayerCmd::ToggleLoop => {
-                                let mut s = state_clone.lock().unwrap();
-                                s.loop_album = !s.loop_album;
-                            }
-                            PlayerCmd::ReloadDevice => {
-                                crate::debug_log!("Reloading audio device...");
-                                device_handle = loop {
-                                    match rodio::DeviceSinkBuilder::open_default_sink() {
-                                        Ok(h) => break h,
-                                        Err(e) => {
-                                            crate::debug_log!("rodio: failed to open audio output: {}, retrying...", e);
-                                            thread::sleep(Duration::from_secs(2));
-                                        }
-                                    }
-                                };
-                                player = rodio::Player::connect_new(&device_handle.mixer());
-
-                                let (was_playing, playlist_index, pos_us, volume) = {
-                                    let mut s = state_clone.lock().unwrap();
-                                    let pos = s.live_position_us();
-                                    s.position_snapshot_us = pos;
-                                    s.position_at = Instant::now();
-                                    (s.playing, s.playlist_index, pos, s.volume)
-                                };
-                                player.set_volume(volume);
-
-                                if was_playing {
-                                    play_index(&player, &state_clone, playlist_index);
-                                    let _ = player.try_seek(Duration::from_micros(pos_us as u64));
-                                    let mut s = state_clone.lock().unwrap();
-                                    s.position_snapshot_us = pos_us;
-                                    s.position_at = Instant::now();
-                                }
+                            };
+                            if let Some(i) = idx {
+                                play_index(&player, &state_clone, i);
                             }
                         }
-                    }
+                        PlayerCmd::Previous => {
+                            let idx = {
+                                let s = state_clone.lock().unwrap();
+                                if s.playlist_index > 0 {
+                                    Some(s.playlist_index - 1)
+                                } else {
+                                    Some(0)
+                                }
+                            };
+                            if let Some(i) = idx {
+                                play_index(&player, &state_clone, i);
+                            }
+                        }
+                        PlayerCmd::Seek { position_secs } => {
+                            let seek_pos = Duration::from_secs_f64(position_secs);
+                            let _ = player.try_seek(seek_pos);
+                            let mut s = state_clone.lock().unwrap();
+                            s.position_snapshot_us = (position_secs * 1_000_000.0) as i64;
+                            s.position_at = Instant::now();
+                        }
+                        PlayerCmd::SetVolume { volume } => {
+                            player.set_volume(volume);
+                            let mut s = state_clone.lock().unwrap();
+                            s.volume = volume;
+                        }
+                        PlayerCmd::ToggleLoop => {
+                            let mut s = state_clone.lock().unwrap();
+                            s.loop_album = !s.loop_album;
+                        }
+                        PlayerCmd::ReloadDevice => {
+                            crate::debug_log!("Reloading audio device...");
+                            device_handle = loop {
+                                match rodio::DeviceSinkBuilder::open_default_sink() {
+                                    Ok(h) => break h,
+                                    Err(e) => {
+                                        crate::debug_log!(
+                                            "rodio: failed to open audio output: {}, retrying...",
+                                            e
+                                        );
+                                        thread::sleep(Duration::from_secs(2));
+                                    }
+                                }
+                            };
+                            player = rodio::Player::connect_new(&device_handle.mixer());
+
+                            let (was_playing, playlist_index, pos_us, volume) = {
+                                let mut s = state_clone.lock().unwrap();
+                                let pos = s.live_position_us();
+                                s.position_snapshot_us = pos;
+                                s.position_at = Instant::now();
+                                (s.playing, s.playlist_index, pos, s.volume)
+                            };
+                            player.set_volume(volume);
+
+                            if was_playing {
+                                play_index(&player, &state_clone, playlist_index);
+                                let _ = player.try_seek(Duration::from_micros(pos_us as u64));
+                                let mut s = state_clone.lock().unwrap();
+                                s.position_snapshot_us = pos_us;
+                                s.position_at = Instant::now();
+                            }
+                        }
+                    },
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
                         thread::sleep(Duration::from_millis(50));
                     }

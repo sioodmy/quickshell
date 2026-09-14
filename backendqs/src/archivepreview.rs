@@ -337,11 +337,7 @@ fn list_via_cli(argv: &[&str], path: &Path) -> Option<Vec<RawEntry>> {
         let is_dir = name.ends_with('/');
         push_raw(&mut out, name, 0, is_dir);
     }
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    if out.is_empty() { None } else { Some(out) }
 }
 
 fn list_single_compressed(path: &Path, ext: &str) -> Option<Vec<RawEntry>> {

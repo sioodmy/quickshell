@@ -1,13 +1,13 @@
 use crate::music;
 use axum::{
+    Router,
     extract::{ConnectInfo, Path, State},
     response::{Html, IntoResponse, Json},
     routing::{get, post},
-    Router,
 };
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 pub struct MusicRemoteState {

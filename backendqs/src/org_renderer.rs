@@ -1,6 +1,6 @@
+use orgize::Org;
 use orgize::elements::{Datetime, Element, Timestamp};
 use orgize::export::{DefaultHtmlHandler, HtmlHandler};
-use orgize::Org;
 use std::io::{Error as IOError, Result as IOResult, Write};
 use urlencoding::encode;
 

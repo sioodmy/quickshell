@@ -93,21 +93,6 @@ Singleton {
         root.active = true;
     }
 
-    // Read the result file to get the screenshot path
-    Process {
-        id: readResult
-        command: ["cat", "/tmp/quickshell-ss-result"]
-        stdout: SplitParser {
-            onRead: data => {
-                let path = data.trim();
-                if (path.length > 0 && path.startsWith("/")) {
-                    // previewLoader.onStatusChanged flips active once decoded.
-                    root.imagePath = path;
-                }
-            }
-        }
-    }
-
     function take_menu() {
         imagePath = "";
         active = false;
@@ -125,20 +110,56 @@ Singleton {
         take_menu();
     }
 
+    Process {
+        id: fullCaptureProc
+        command: ["bash", "-c", "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; grim \"$FILE\" && echo \"$FILE\""]
+        stdout: SplitParser {
+            onRead: data => {
+                let path = data.trim();
+                if (path.length > 0 && path.startsWith("/")) {
+                    root.imagePath = path;
+                }
+            }
+        }
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                root.awaitingCapture = false;
+                root.active = false;
+            }
+        }
+    }
+
+    Process {
+        id: areaCaptureProc
+        command: ["bash", "-c", "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\""]
+        stdout: SplitParser {
+            onRead: data => {
+                let path = data.trim();
+                if (path.length > 0 && path.startsWith("/")) {
+                    root.imagePath = path;
+                }
+            }
+        }
+        onExited: exitCode => {
+            if (exitCode !== 0) {
+                root.awaitingCapture = false;
+                root.active = false;
+            }
+        }
+    }
+
     function finishFullscreen() {
         awaitingCapture = true;
         overlayActive = false;
-        Quickshell.execDetached({ command: ["bash", "-c",
-            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; grim \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done"
-        ] });
+        fullCaptureProc.running = false;
+        fullCaptureProc.running = true;
     }
 
     function finishArea() {
         awaitingCapture = true;
         overlayActive = false;
-        Quickshell.execDetached({ command: ["bash", "-c",
-            "sleep 0.1; FILE=/tmp/quickshell-ss-$(date +%s%N).png; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && grim -g \"$GEOM\" \"$FILE\" && echo \"$FILE\" > /tmp/quickshell-ss-result && quickshell ipc call screenshot done || quickshell ipc call screenshot cancel"
-        ] });
+        areaCaptureProc.running = false;
+        areaCaptureProc.running = true;
     }
 
 

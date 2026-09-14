@@ -1,6 +1,6 @@
 use nucleo_matcher::{
-    pattern::{CaseMatching, Normalization, Pattern},
     Matcher, Utf32String,
+    pattern::{CaseMatching, Normalization, Pattern},
 };
 use serde::Serialize;
 use std::cmp::Reverse;

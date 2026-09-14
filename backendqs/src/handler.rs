@@ -1,8 +1,8 @@
 use crate::api::DaemonRequest;
 use crate::context::AppContext;
 use crate::*;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 pub async fn handle_request(req: DaemonRequest, ctx: AppContext, assigned_search_gen: Option<u64>) {
     match req {

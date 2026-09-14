@@ -336,8 +336,8 @@ pub async fn search(
         }
 
         use nucleo_matcher::{
-            pattern::{CaseMatching, Normalization, Pattern},
             Matcher,
+            pattern::{CaseMatching, Normalization, Pattern},
         };
         let mut matcher = Matcher::default();
         let pattern = Pattern::parse(&q_trimmed, CaseMatching::Ignore, Normalization::Smart);

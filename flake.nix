@@ -3,100 +3,51 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     quickshell.url = "github:quickshell-mirror/quickshell";
     qml-niri = {
       url = "github:imiric/qml-niri/93e603901bed2c4465d5675ae43fd52b7f7c4adf";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.quickshell.follows = "quickshell";
     };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, quickshell, qml-niri }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
+  outputs = { self, nixpkgs, quickshell, qml-niri, treefmt-nix }:
+    let
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
 
-        backendqs = pkgs.rustPlatform.buildRustPackage {
-          pname = "backendqs";
-          version = "0.1.0";
-          src = ./backendqs;
-
-          cargoLock = {
-            lockFile = ./backendqs/Cargo.lock;
-            allowBuiltinFetchGit = true;
+      treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} ./nix/treefmt.nix);
+    in
+    {
+      packages = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          backendqs = pkgs.callPackage ./nix/backendqs.nix { };
+          qs = qml-niri.packages.${system}.quickshell;
+          leninshell = pkgs.callPackage ./nix/leninshell.nix {
+            inherit qs backendqs;
+            configPath = "${self}/ui";
           };
-
-          nativeBuildInputs = [ pkgs.makeWrapper pkgs.pkg-config pkgs.cmake ];
-          buildInputs = [ pkgs.alsa-lib pkgs.libopus pkgs.dbus pkgs.xz pkgs.bzip2 pkgs.systemd ];
-
-          postInstall = ''
-            wrapProgram $out/bin/backendqs \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.pandoc pkgs.tectonic pkgs.poppler-utils pkgs.rink pkgs.cliphist pkgs.wl-clipboard pkgs.libarchive pkgs.coreutils (pkgs.tesseract.override { enableLanguages = [ "eng" ]; }) ]} \
-              --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [ pkgs.alsa-lib pkgs.libopus pkgs.dbus pkgs.systemd ]}
-          '';
-        };
-
-        qs = qml-niri.packages.${system}.quickshell;
-        configPath = "${self}/ui";
-
-        leninshell = pkgs.symlinkJoin {
-          name = "leninshell";
-          paths = [ qs ];
-          buildInputs = [ pkgs.makeWrapper ];
-          postBuild = ''
-            rm $out/bin/quickshell
-            makeWrapper ${qs}/bin/quickshell $out/bin/leninshell \
-              --add-flags "--path ${configPath}" \
-              --prefix PATH : "${backendqs}/bin"
-
-            makeWrapper $out/bin/leninshell $out/bin/lenin-launcher \
-              --add-flags "ipc call appLauncher toggle"
-
-            makeWrapper $out/bin/leninshell $out/bin/lenin-lock \
-              --add-flags "ipc call lock lock"
-
-            makeWrapper $out/bin/leninshell $out/bin/lenin-keepass \
-              --add-flags "ipc call keepass toggle"
-
-            makeWrapper $out/bin/leninshell $out/bin/lenin-screenshot \
-              --add-flags "ipc call screenshot take"
-
-            makeWrapper $out/bin/leninshell $out/bin/lenin-rsvp \
-              --add-flags "ipc call rsvp toggle"
-          '';
-        };
-
-      in
-      {
-        packages = {
+        in
+        {
           inherit backendqs leninshell;
           default = leninshell;
-        };
+        }
+      );
 
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            cargo
-            rustc
-            rustfmt
-            clippy
-            pandoc
-            tectonic
-            poppler-utils
-            pkg-config
-            cmake
-            alsa-lib
-            libopus
-            dbus
-            xz
-            bzip2
-            systemd
-            cliphist
-            wl-clipboard
-            libarchive
-            (tesseract.override { enableLanguages = [ "eng" ]; })
-          ];
-        };
-      }
-    );
+      devShells = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          default = pkgs.callPackage ./nix/shell.nix { };
+        }
+      );
+
+      formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);
+    };
 }

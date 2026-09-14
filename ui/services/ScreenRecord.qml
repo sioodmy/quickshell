@@ -177,15 +177,14 @@ Singleton {
         const script = [
             "set +e",
             "rm -f '" + root.errFile + "' '" + root.pidFile + "' '" + root.pathFile + "' '" + root.statusFile + "'",
-            "mkdir -p \"$HOME/Videos\" || { echo 'Could not create ~/Videos' > '" + root.errFile + "'; quickshell ipc call screenrecord fail; exit 1; }",
+            "mkdir -p \"$HOME/Videos\" || { echo 'Could not create ~/Videos' > '" + root.errFile + "'; echo FAIL; exit 1; }",
             "REC=" + binHint,
             "if [ -z \"$REC\" ] || [ ! -x \"$REC\" ]; then REC=$(command -v wf-recorder 2>/dev/null); fi",
             "if [ -z \"$REC\" ] || [ ! -x \"$REC\" ]; then REC=$(bash -lc 'command -v wf-recorder' 2>/dev/null); fi",
-            // NixOS: package may exist in the store before it lands on PATH.
             "if [ -z \"$REC\" ] || [ ! -x \"$REC\" ]; then REC=$(ls -1 /nix/store/*-wf-recorder-*/bin/wf-recorder 2>/dev/null | tail -n1); fi",
             "if [ -z \"$REC\" ] || [ ! -x \"$REC\" ]; then",
-            "  echo 'wf-recorder not found in PATH. Add it to your NixOS config and restart quickshell.' > '" + root.errFile + "'",
-            "  quickshell ipc call screenrecord fail",
+            "  echo 'wf-recorder not found in PATH.' > '" + root.errFile + "'",
+            "  echo FAIL",
             "  exit 1",
             "fi",
             "echo \"$REC\" > /tmp/quickshell-rec-bin",
@@ -198,22 +197,25 @@ Singleton {
             "  ERR=$(cat /tmp/quickshell-rec-err.log 2>/dev/null | tail -n 5)",
             "  [ -n \"$ERR\" ] || ERR='wf-recorder exited immediately'",
             "  echo \"$ERR\" > '" + root.errFile + "'",
-            "  quickshell ipc call screenrecord fail",
+            "  echo FAIL",
             "  exit 1",
             "fi",
             "echo started > '" + root.statusFile + "'",
-            "quickshell ipc call screenrecord started",
+            "echo STARTED",
             "wait \"$PID\"",
             "echo finished > '" + root.statusFile + "'",
-            "quickshell ipc call screenrecord finished"
+            "echo FINISHED"
         ].join("\n");
 
-        Quickshell.execDetached({ command: ["bash", "-c", script] });
+        recorderProc.command = ["bash", "-c", script];
+        recorderProc.running = false;
+        recorderProc.running = true;
     }
 
     function _onStarted() {
         root.recording = true;
         root.elapsedSec = 0;
+        readPid.running = false;
         readPid.running = true;
     }
 
@@ -257,6 +259,36 @@ Singleton {
         readError.running = true;
     }
 
+    Process {
+        id: slurpProc
+        command: ["bash", "-c", "sleep 0.25; slurp 2>/dev/null || true"]
+        stdout: SplitParser {
+            onRead: data => {
+                let geom = data.trim();
+                if (geom.length > 0) {
+                    root.geometry = geom;
+                    root._launchRecorder(geom);
+                }
+            }
+        }
+    }
+
+    Process {
+        id: recorderProc
+        stdout: SplitParser {
+            onRead: data => {
+                let msg = data.trim();
+                if (msg === "STARTED") {
+                    root._onStarted();
+                } else if (msg === "FINISHED") {
+                    root._onFinished();
+                } else if (msg === "FAIL") {
+                    root._onFail();
+                }
+            }
+        }
+    }
+
     function startFullscreen() {
         if (root.recording)
             return;
@@ -274,9 +306,8 @@ Singleton {
         if (root.recording)
             return;
         Screenshot.overlayActive = false;
-        Quickshell.execDetached({ command: ["bash", "-c",
-            "sleep 0.25; GEOM=$(slurp 2>/dev/null); [ -n \"$GEOM\" ] && quickshell ipc call screenrecord launch_area \"$GEOM\""
-        ] });
+        slurpProc.running = false;
+        slurpProc.running = true;
     }
 
     function stop() {

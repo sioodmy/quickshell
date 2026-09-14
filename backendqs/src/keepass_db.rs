@@ -1,6 +1,6 @@
 use keepass::{
-    db::{EntryRef, GroupRef},
     Database, DatabaseKey,
+    db::{EntryRef, GroupRef},
 };
 use secrecy::ExposeSecret;
 use std::{
@@ -8,7 +8,7 @@ use std::{
     fs::File,
     io::{Read, Write},
     process::{Child, Command, Stdio},
-    sync::{mpsc, LazyLock, Mutex, MutexGuard, Once},
+    sync::{LazyLock, Mutex, MutexGuard, Once, mpsc},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -134,9 +134,11 @@ pub fn init(tx: Sender<crate::api::DaemonEvent>) {
                 }
             }
         });
-        thread::spawn(|| loop {
-            thread::sleep(Duration::from_millis(100));
-            drop(state());
+        thread::spawn(|| {
+            loop {
+                thread::sleep(Duration::from_millis(100));
+                drop(state());
+            }
         });
     });
 }
@@ -189,7 +191,10 @@ pub fn generation() -> u64 {
 pub fn handle_request(request: crate::api::DaemonRequest, generation: u64) {
     use crate::api::{DaemonEvent, DaemonRequest};
     let event = match request {
-        DaemonRequest::KeepassSearch { query, client_title } => DaemonEvent::KeepassSearchResult {
+        DaemonRequest::KeepassSearch {
+            query,
+            client_title,
+        } => DaemonEvent::KeepassSearchResult {
             results: search(&query, client_title.as_deref(), generation),
         },
         DaemonRequest::KeepassCopy {
@@ -244,21 +249,23 @@ fn search_group(
     for entry in group.entries() {
         let title = entry.get_title().unwrap_or("");
         let lower = title.to_lowercase();
-        
+
         let url = entry.get_url().unwrap_or("").to_lowercase();
         let domain = url
-            .strip_prefix("http://").unwrap_or(&url)
-            .strip_prefix("https://").unwrap_or(&url)
+            .strip_prefix("http://")
+            .unwrap_or(&url)
+            .strip_prefix("https://")
+            .unwrap_or(&url)
             .trim_start_matches("www.")
-            .split('/').next().unwrap_or("");
-            
-        let naked_domain = domain.split('.')
-            .max_by_key(|p| p.len())
-            .unwrap_or(domain);
-        
+            .split('/')
+            .next()
+            .unwrap_or("");
+
+        let naked_domain = domain.split('.').max_by_key(|p| p.len()).unwrap_or(domain);
+
         let mut is_smart = false;
         let mut score = 0.0;
-        
+
         if let Some(ct) = client_title {
             let ct_lower = ct.to_lowercase();
             if !lower.is_empty() && ct_lower.contains(&lower) {
@@ -267,7 +274,10 @@ fn search_group(
             } else if !domain.is_empty() && ct_lower.contains(domain) {
                 is_smart = true;
                 score += 90.0 + domain.len() as f64;
-            } else if !naked_domain.is_empty() && naked_domain.len() >= 3 && ct_lower.contains(naked_domain) {
+            } else if !naked_domain.is_empty()
+                && naked_domain.len() >= 3
+                && ct_lower.contains(naked_domain)
+            {
                 is_smart = true;
                 score += 80.0 + naked_domain.len() as f64;
             } else if !lower.is_empty() {
@@ -291,7 +301,7 @@ fn search_group(
             let fuzzy_lower = strsim::jaro_winkler(&lower, query);
             let fuzzy_domain = strsim::jaro_winkler(domain, query);
             let fuzzy_naked = strsim::jaro_winkler(naked_domain, query);
-            
+
             let max_fuzzy = fuzzy_lower.max(fuzzy_domain).max(fuzzy_naked);
             if max_fuzzy > 0.85 {
                 score += max_fuzzy * 10.0;
@@ -299,7 +309,7 @@ fn search_group(
                 continue;
             }
         }
-        
+
         out.push((
             score,
             crate::api::KeepassEntryDto {
@@ -316,7 +326,11 @@ fn search_group(
     }
 }
 
-fn search(query: &str, client_title: Option<&str>, generation: u64) -> Vec<crate::api::KeepassEntryDto> {
+fn search(
+    query: &str,
+    client_title: Option<&str>,
+    generation: u64,
+) -> Vec<crate::api::KeepassEntryDto> {
     let mut state = state();
     if state.generation != generation {
         return Vec::new();
@@ -517,7 +531,7 @@ pub fn serve_clipboard() -> anyhow::Result<()> {
     thread::Builder::new()
         .name("clipboard-ready".into())
         .spawn(move || {
-            use wl_clipboard_rs::paste::{get_mime_types, ClipboardType, Seat};
+            use wl_clipboard_rs::paste::{ClipboardType, Seat, get_mime_types};
             loop {
                 if get_mime_types(ClipboardType::Regular, Seat::Unspecified)
                     .is_ok_and(|types| types.contains(&marker))
@@ -837,15 +851,19 @@ mod tests {
         };
         let first = state.begin_unlock();
         let second = state.begin_unlock();
-        assert!(state
-            .finish_unlock(first, Ok(Database::new()), Instant::now())
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(first, Ok(Database::new()), Instant::now())
+                .is_err()
+        );
         assert!(state.db.is_none());
         assert!(rx.try_recv().is_err());
         state.lock();
-        assert!(state
-            .finish_unlock(second, Ok(Database::new()), Instant::now())
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(second, Ok(Database::new()), Instant::now())
+                .is_err()
+        );
         assert!(state.db.is_none());
         assert!(matches!(
             rx.try_recv().unwrap(),
@@ -911,9 +929,11 @@ mod tests {
         state.expire(now + SESSION_LIFETIME);
         assert!(state.db.is_none());
         assert!(state.pending.is_none());
-        assert!(state
-            .finish_unlock(pending, Ok(Database::new()), now + SESSION_LIFETIME)
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(pending, Ok(Database::new()), now + SESSION_LIFETIME)
+                .is_err()
+        );
         assert!(matches!(
             rx.try_recv().unwrap(),
             crate::api::DaemonEvent::KeepassLocked
@@ -930,17 +950,21 @@ mod tests {
         };
         let now = Instant::now();
         let failed = state.begin_unlock();
-        assert!(state
-            .finish_unlock(failed, Err("Failed to unlock database".into()), now)
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(failed, Err("Failed to unlock database".into()), now)
+                .is_err()
+        );
         assert!(state.pending.is_none());
         assert!(matches!(
             rx.try_recv().unwrap(),
             crate::api::DaemonEvent::KeepassUnlockResult { success: false, .. }
         ));
-        assert!(state
-            .finish_unlock(failed, Ok(Database::new()), now)
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(failed, Ok(Database::new()), now)
+                .is_err()
+        );
         assert!(rx.try_recv().is_err());
 
         let generation = state.begin_unlock();
@@ -950,9 +974,11 @@ mod tests {
         let _ = rx.try_recv().unwrap();
         let pending = state.begin_unlock();
         // No expiry-thread tick: completion must enforce the deadline itself.
-        assert!(state
-            .finish_unlock(pending, Ok(Database::new()), now + SESSION_LIFETIME)
-            .is_err());
+        assert!(
+            state
+                .finish_unlock(pending, Ok(Database::new()), now + SESSION_LIFETIME)
+                .is_err()
+        );
         assert!(state.db.is_none());
         assert!(matches!(
             rx.try_recv().unwrap(),
@@ -977,8 +1003,10 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert!(!results[0].1.is_smart);
         assert!(results[0].1.has_otp);
-        assert!(copy_from_group(db.root(), &id, "PrivateField")
-            .unwrap()
-            .is_err());
+        assert!(
+            copy_from_group(db.root(), &id, "PrivateField")
+                .unwrap()
+                .is_err()
+        );
     }
 }

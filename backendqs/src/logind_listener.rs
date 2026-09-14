@@ -78,7 +78,9 @@ pub async fn start_logind_listener() {
                                 if let Ok(is_sleep) = msg.body().deserialize::<bool>() {
                                     if is_sleep {
                                         crate::keepass_db::lock();
-                                        crate::debug_log!("Received PrepareForSleep(true), locking quickshell before sleep!");
+                                        crate::debug_log!(
+                                            "Received PrepareForSleep(true), locking quickshell before sleep!"
+                                        );
                                         let _ =
                                             Command::new("playerctl").args(["-a", "pause"]).spawn();
                                         let _ = Command::new("wpctl")
@@ -95,7 +97,9 @@ pub async fn start_logind_listener() {
                                             sleep_inhibitor = None;
                                         }
                                     } else {
-                                        crate::debug_log!("Wake up from sleep, reloading audio device & re-acquiring inhibitor...");
+                                        crate::debug_log!(
+                                            "Wake up from sleep, reloading audio device & re-acquiring inhibitor..."
+                                        );
                                         sleep_inhibitor = acquire_sleep_inhibitor(&conn).await;
                                         if let Some(player) = crate::music::PLAYER.get() {
                                             player.reload_device();

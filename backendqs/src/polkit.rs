@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use zbus_polkit_agent::{
+    Identity, UnixUser,
     agent_session::{Message, PolkitAgentSession, Response},
     polkit_agent_instance,
     server::Error,
-    Identity, UnixUser,
 };
 
 lazy_static::lazy_static! {
